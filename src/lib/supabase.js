@@ -666,3 +666,191 @@ export async function incrementBannerClick(id) {
       .eq('id', id);
   }
 }
+// ─── PHARMACIE — Login PIN ───
+export async function pharmacyLogin(pharmacyId, pin) {
+  const { data, error } = await supabase
+    .from('pharmacies')
+    .select('*')
+    .eq('id', pharmacyId)
+    .single();
+  if (error || !data) return { success: false, error: 'Pharmacie introuvable' };
+  if (data.pin !== pin) return { success: false, error: 'PIN incorrect' };
+  return { success: true, pharmacy: data };
+}
+
+export async function setPharmacyPin(pharmacyId, pin) {
+  return supabase
+    .from('pharmacies')
+    .update({ pin, pin_set_at: new Date().toISOString() })
+    .eq('id', pharmacyId);
+}
+
+// ─── COMMANDES PHARMACIE ───
+export async function getPharmacyOrders(pharmacyId, status = null) {
+  // Récupère les commandes qui contiennent au moins un produit de cette pharmacie
+  let query = supabase
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false });
+  
+  if (status) {
+    if (Array.isArray(status)) {
+      query = query.in('status', status);
+    } else {
+      query = query.eq('status', status);
+    }
+  }
+  
+  const { data, error } = await query;
+  if (error) {
+    console.error('getPharmacyOrders error:', error);
+    return [];
+  }
+  
+  // Filtrer côté JS : items qui contiennent pharmacyId
+  return (data || []).filter(o => {
+    if (o.assigned_pharmacy_id === pharmacyId) return true;
+    if (Array.isArray(o.items)) {
+      return o.items.some(it => it.pharmacyId === pharmacyId);
+    }
+    return false;
+  });
+}
+
+export async function acceptOrder(orderId, pharmacyId) {
+  return supabase
+    .from('orders')
+    .update({
+      status: 'preparing',
+      assigned_pharmacy_id: pharmacyId,
+      accepted_at: new Date().toISOString(),
+    })
+    .eq('id', orderId);
+}
+
+export async function refuseOrder(orderId, reason) {
+  return supabase
+    .from('orders')
+    .update({
+      status: 'refused',
+      refused_at: new Date().toISOString(),
+      refusal_reason: reason,
+    })
+    .eq('id', orderId);
+}
+
+export async function markOrderReady(orderId) {
+  return supabase
+    .from('orders')
+    .update({
+      status: 'ready',
+      prepared_at: new Date().toISOString(),
+    })
+    .eq('id', orderId);
+}
+
+// ─── COMMISSIONS PHARMACIE ───
+export async function getPharmacyCommissions(pharmacyId) {
+  // Calcule les commissions basées sur les commandes livrées
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id, total, items, status, created_at, delivered_at')
+    .in('status', ['delivered'])
+    .order('created_at', { ascending: false });
+  
+  const pharmacyOrders = (orders || []).filter(o => 
+    Array.isArray(o.items) && o.items.some(it => it.pharmacyId === pharmacyId)
+  );
+  
+  // Calculer le revenu de cette pharmacie pour chaque commande
+  const enrichedOrders = pharmacyOrders.map(o => {
+    const items = o.items.filter(it => it.pharmacyId === pharmacyId);
+    const revenue = items.reduce((sum, it) => sum + (it.price || 0) * (it.qty || 1), 0);
+    const commission = Math.round(revenue * 0.175);
+    const net = revenue - commission;
+    return {
+      ...o,
+      pharmacy_revenue: revenue,
+      pharmacy_commission: commission,
+      pharmacy_net: net,
+    };
+  });
+  
+  // Statistiques globales
+  const totalRevenue = enrichedOrders.reduce((sum, o) => sum + o.pharmacy_revenue, 0);
+  const totalCommission = enrichedOrders.reduce((sum, o) => sum + o.pharmacy_commission, 0);
+  const totalNet = enrichedOrders.reduce((sum, o) => sum + o.pharmacy_net, 0);
+  
+  // Stats du mois en cours
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthOrders = enrichedOrders.filter(o => new Date(o.created_at) >= firstDay);
+  const monthRevenue = monthOrders.reduce((sum, o) => sum + o.pharmacy_revenue, 0);
+  const monthCommission = monthOrders.reduce((sum, o) => sum + o.pharmacy_commission, 0);
+  const monthNet = monthOrders.reduce((sum, o) => sum + o.pharmacy_net, 0);
+  
+  // Récupérer les paiements
+  const { data: payments } = await supabase
+    .from('commission_payments')
+    .select('*')
+    .eq('pharmacy_id', pharmacyId)
+    .order('period_end', { ascending: false });
+  
+  return {
+    orders: enrichedOrders,
+    totalRevenue,
+    totalCommission,
+    totalNet,
+    monthOrders,
+    monthRevenue,
+    monthCommission,
+    monthNet,
+    payments: payments || [],
+  };
+}
+
+// ─── STATS PHARMACIE ───
+export async function getPharmacyStats(pharmacyId) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayISO = today.toISOString();
+  
+  // Commandes du jour
+  const { data: todayOrders } = await supabase
+    .from('orders')
+    .select('id, total, items, status, created_at')
+    .gte('created_at', todayISO);
+  
+  const myTodayOrders = (todayOrders || []).filter(o =>
+    Array.isArray(o.items) && o.items.some(it => it.pharmacyId === pharmacyId)
+  );
+  
+  // En attente d'acceptation
+  const pendingCount = myTodayOrders.filter(o => o.status === 'paid').length;
+  // En préparation
+  const preparingCount = myTodayOrders.filter(o => o.status === 'preparing').length;
+  // Livrées aujourd'hui
+  const deliveredToday = myTodayOrders.filter(o => o.status === 'delivered');
+  
+  // Revenu du jour pour cette pharmacie
+  const todayRevenue = deliveredToday.reduce((sum, o) => {
+    const items = (o.items || []).filter(it => it.pharmacyId === pharmacyId);
+    return sum + items.reduce((s, it) => s + (it.price || 0) * (it.qty || 1), 0);
+  }, 0);
+  
+  // Nombre de produits actifs de cette pharmacie
+  const { data: products } = await supabase
+    .from('products')
+    .select('id')
+    .eq('submitted_by_pharmacy_id', pharmacyId)
+    .eq('status', 'approved');
+  
+  return {
+    todayOrdersCount: myTodayOrders.length,
+    pendingCount,
+    preparingCount,
+    deliveredTodayCount: deliveredToday.length,
+    todayRevenue,
+    activeProductsCount: products?.length || 0,
+  };
+}
