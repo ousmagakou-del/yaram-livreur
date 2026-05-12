@@ -13,38 +13,38 @@ export default function Scan() {
   const { navigate } = useNav();
   const { user } = useUser();
   
-  const [phase, setPhase] = useState('intro'); // intro, camera, scanning, analyzing, error
+  const [phase, setPhase] = useState('intro');
   const [stepIndex, setStepIndex] = useState(0);
   const [countdown, setCountdown] = useState(null);
   const [photos, setPhotos] = useState({ front: null, left: null, right: null });
   const [cameraError, setCameraError] = useState('');
   const [error, setError] = useState('');
+  const [videoReady, setVideoReady] = useState(false);
   
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const canvasRef = useRef(null);
+  const photosRef = useRef({ front: null, left: null, right: null }); // ⚡ ref pour éviter closure stale
+  const runningRef = useRef(false); // ⚡ évite double lancement
   
   // Démarrer la caméra
   const startCamera = async () => {
     try {
+      console.log('[Scan] Requesting camera...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
         },
         audio: false,
       });
+      console.log('[Scan] Camera granted');
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setPhase('camera');
-      // Attendre 2 secondes que l'utilisatrice se prépare
-      setTimeout(() => startScanning(), 2000);
+      // setPhase change DOM → on attend que video soit dans le DOM avant d'attacher le stream
     } catch (e) {
-      console.error('Camera error:', e);
+      console.error('[Scan] Camera error:', e);
       setCameraError(
         e.name === 'NotAllowedError'
           ? 'Autorise l\'accès à la caméra pour continuer'
@@ -54,10 +54,39 @@ export default function Scan() {
     }
   };
   
+  // Attacher le stream à <video> dès que dispo
+  useEffect(() => {
+    if (phase === 'camera' && videoRef.current && streamRef.current && !videoRef.current.srcObject) {
+      console.log('[Scan] Attaching stream to video');
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.onloadedmetadata = () => {
+        console.log('[Scan] Video loaded, playing...');
+        videoRef.current.play()
+          .then(() => {
+            console.log('[Scan] Video playing!');
+            setVideoReady(true);
+          })
+          .catch(e => console.error('[Scan] Play error:', e));
+      };
+    }
+  }, [phase]);
+  
+  // Auto-démarrer le scanning quand vidéo prête (2 sec après)
+  useEffect(() => {
+    if (videoReady && phase === 'camera' && !runningRef.current) {
+      console.log('[Scan] Video ready, starting scan in 2s...');
+      runningRef.current = true;
+      setTimeout(() => startScanning(), 2000);
+    }
+  }, [videoReady, phase]);
+  
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   };
   
@@ -65,40 +94,54 @@ export default function Scan() {
     return () => stopCamera();
   }, []);
   
-  // Capturer une frame depuis la vidéo
+  // Capturer une frame
   const captureFrame = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return null;
+    if (!video || !canvas) {
+      console.error('[Scan] No video or canvas');
+      return null;
+    }
+    if (video.videoWidth === 0) {
+      console.error('[Scan] Video not ready, videoWidth=0');
+      return null;
+    }
     
-    // Compression : max 800px, qualité 80%
-    const maxDim = 800;
-    let { videoWidth: w, videoHeight: h } = video;
+    // ⚡ Compression agressive : max 512px, qualité 75% → ~30 KB
+    const maxDim = 512;
+    let w = video.videoWidth;
+    let h = video.videoHeight;
     if (w > maxDim || h > maxDim) {
       if (w > h) {
-        h = (h * maxDim) / w;
+        h = Math.round((h * maxDim) / w);
         w = maxDim;
       } else {
-        w = (w * maxDim) / h;
+        w = Math.round((w * maxDim) / h);
         h = maxDim;
       }
     }
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
+    // Pas de flip — Gemini doit voir le visage normal
     ctx.drawImage(video, 0, 0, w, h);
-    return canvas.toDataURL('image/jpeg', 0.8);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+    console.log('[Scan] Captured frame, size:', Math.round(dataUrl.length / 1024), 'KB');
+    return dataUrl;
   };
   
-  // Lancer la séquence de scan
+  // Lancer la séquence
   const startScanning = () => {
+    console.log('[Scan] Start scanning');
     setPhase('scanning');
     setStepIndex(0);
     runStep(0);
   };
   
-  // Exécuter une étape : compte à rebours 3s puis capture
+  // Compte à rebours puis capture
   const runStep = (idx) => {
+    console.log('[Scan] runStep', idx, STEPS[idx].id);
+    setStepIndex(idx);
     let count = 3;
     setCountdown(count);
     
@@ -110,25 +153,28 @@ export default function Scan() {
         clearInterval(interval);
         setCountdown(null);
         
-        // Capturer la frame
+        // ⚡ Capture
         const dataUrl = captureFrame();
-        if (dataUrl) {
-          const stepId = STEPS[idx].id;
-          setPhotos(p => ({ ...p, [stepId]: dataUrl }));
-          
-          // Passer à l'étape suivante
-          if (idx < STEPS.length - 1) {
-            setTimeout(() => {
-              setStepIndex(idx + 1);
-              runStep(idx + 1);
-            }, 800);
-          } else {
-            // Toutes les photos prises → analyser
-            setTimeout(() => {
-              stopCamera();
-              analyzeAll();
-            }, 600);
-          }
+        if (!dataUrl) {
+          console.error('[Scan] Capture failed, retry in 1s');
+          setTimeout(() => runStep(idx), 1000);
+          return;
+        }
+        
+        const stepId = STEPS[idx].id;
+        // Stocker dans ref + state
+        photosRef.current = { ...photosRef.current, [stepId]: dataUrl };
+        setPhotos({ ...photosRef.current });
+        
+        // Suite
+        if (idx < STEPS.length - 1) {
+          setTimeout(() => runStep(idx + 1), 800);
+        } else {
+          console.log('[Scan] All photos captured', Object.keys(photosRef.current));
+          setTimeout(() => {
+            stopCamera();
+            analyzeAll();
+          }, 600);
         }
       }
     }, 1000);
@@ -136,28 +182,38 @@ export default function Scan() {
   
   // Analyse Gemini
   const analyzeAll = async () => {
+    console.log('[Scan] analyzeAll, photos:', {
+      front: !!photosRef.current.front,
+      left: !!photosRef.current.left,
+      right: !!photosRef.current.right,
+    });
     setPhase('analyzing');
     setError('');
     
     try {
       const result = await analyzeSkinPhotos({
-        frontBase64: photos.front,
-        leftBase64: photos.left,
-        rightBase64: photos.right,
+        frontBase64: photosRef.current.front,
+        leftBase64: photosRef.current.left,
+        rightBase64: photosRef.current.right,
       });
+      
+      console.log('[Scan] Gemini result:', result);
       
       if (!result.success) {
         setError(result.error || 'Erreur d\'analyse');
+        if (result.detail) {
+          console.error('[Scan] Gemini detail:', result.detail);
+        }
         setPhase('error');
         return;
       }
       
-      // Upload photos vers Storage
+      // Upload photos
       const tempScanId = 'scan_' + Date.now();
       const blobs = await Promise.all([
-        fetch(photos.front).then(r => r.blob()),
-        fetch(photos.left).then(r => r.blob()),
-        fetch(photos.right).then(r => r.blob()),
+        fetch(photosRef.current.front).then(r => r.blob()),
+        fetch(photosRef.current.left).then(r => r.blob()),
+        fetch(photosRef.current.right).then(r => r.blob()),
       ]);
       const [frontUrl, leftUrl, rightUrl] = await Promise.all([
         uploadScanPhoto(blobs[0], tempScanId, 'front'),
@@ -176,22 +232,24 @@ export default function Scan() {
       if (saved) {
         navigate({ name: 'scan_result', params: { scanId: saved.id } });
       } else {
-        setError('Impossible de sauvegarder');
+        setError('Impossible de sauvegarder le scan');
         setPhase('error');
       }
     } catch (e) {
-      console.error('Analysis error:', e);
+      console.error('[Scan] Analysis error:', e);
       setError('Erreur : ' + e.message);
       setPhase('error');
     }
   };
   
-  // Refaire le scan depuis le début
   const restart = () => {
+    photosRef.current = { front: null, left: null, right: null };
     setPhotos({ front: null, left: null, right: null });
     setStepIndex(0);
     setError('');
     setCameraError('');
+    setVideoReady(false);
+    runningRef.current = false;
     setPhase('intro');
   };
   
@@ -201,11 +259,10 @@ export default function Scan() {
     return (
       <div className="fs-screen fs-intro">
         <button className="fs-close" onClick={() => navigate('/')}>✕</button>
-        
         <div className="fs-intro-content">
           <div className="fs-intro-icon">🤖</div>
           <h1>Scan IA Diaara</h1>
-          <p className="fs-intro-subtitle">Diagnostic peau professionnel en 15 secondes</p>
+          <p className="fs-intro-subtitle">Diagnostic peau professionnel en 20 secondes</p>
           
           <div className="fs-intro-steps">
             <div className="fs-intro-step">
@@ -234,7 +291,6 @@ export default function Scan() {
           <button className="fs-btn-start" onClick={startCamera}>
             🎥 Démarrer le scan
           </button>
-          
           <p className="fs-privacy">🔒 Tes photos restent privées</p>
         </div>
       </div>
@@ -249,9 +305,7 @@ export default function Scan() {
           <div style={{ fontSize: 56 }}>⚠️</div>
           <h2>Oups !</h2>
           <p>{cameraError || error}</p>
-          <button className="fs-btn-start" onClick={restart}>
-            Réessayer
-          </button>
+          <button className="fs-btn-start" onClick={restart}>Réessayer</button>
         </div>
       </div>
     );
@@ -280,7 +334,7 @@ export default function Scan() {
   
   // phase === 'camera' || 'scanning'
   const currentStep = STEPS[stepIndex];
-  const progress = (stepIndex / STEPS.length) * 100;
+  const progress = phase === 'scanning' ? ((stepIndex) / STEPS.length) * 100 : 0;
   
   return (
     <div className="fs-screen fs-camera">
@@ -300,17 +354,15 @@ export default function Scan() {
       
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       
-      {/* Overlay sombre avec ovale transparent */}
       <div className="fs-overlay">
         <div className={`fs-oval ${phase === 'scanning' ? 'active' : ''}`} />
       </div>
       
-      {/* Instructions en bas */}
       <div className="fs-instructions">
         {phase === 'camera' ? (
           <>
             <h2>Préparation</h2>
-            <p>Place ton visage dans l'ovale</p>
+            <p>{videoReady ? 'Place ton visage dans l\'ovale...' : 'Démarrage caméra...'}</p>
           </>
         ) : (
           <>
@@ -332,7 +384,6 @@ export default function Scan() {
         )}
       </div>
       
-      {/* Thumbnails des photos prises */}
       {phase === 'scanning' && (
         <div className="fs-thumbnails">
           {STEPS.map(s => (
