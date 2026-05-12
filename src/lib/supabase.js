@@ -399,3 +399,131 @@ export const WhatsAppTemplates = {
   disputeToAdmin: (orderId, clientName, reason) =>
     `⚠️ LITIGE Diaara\n\nCommande : ${orderId}\nCliente : ${clientName}\nMotif : ${reason}\n\nVérifie les preuves dans l'admin et contacte la cliente.\n\nDiaara`,
 };
+// ═══════════════════════════════════════════════
+// AJOUTS À src/lib/supabase.js
+// ═══════════════════════════════════════════════
+// Ajoute ces fonctions à la fin de ton fichier supabase.js
+
+// ─── Analyse IA d'une photo de peau via Gemini ───
+export async function analyzeSkinPhotos({ frontBase64, leftBase64, rightBase64 }) {
+  try {
+    const { data, error } = await supabase.functions.invoke('analyze-skin', {
+      body: {
+        photos: {
+          front: frontBase64,
+          left: leftBase64,
+          right: rightBase64,
+        },
+      },
+    });
+    if (error) {
+      console.error('analyzeSkinPhotos error:', error);
+      return { success: false, error: error.message };
+    }
+    return data;
+  } catch (e) {
+    console.error('analyzeSkinPhotos exception:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Upload une photo de scan vers Storage ───
+export async function uploadScanPhoto(file, scanId, type) {
+  const fileName = `${scanId}/${type}_${Date.now()}.jpg`;
+  const { error } = await supabase.storage
+    .from('skin-scans')
+    .upload(fileName, file, { contentType: 'image/jpeg', upsert: true });
+  if (error) {
+    console.error('uploadScanPhoto error:', error);
+    return null;
+  }
+  const { data } = supabase.storage.from('skin-scans').getPublicUrl(fileName);
+  return data.publicUrl;
+}
+
+// ─── Sauvegarder un scan complet en base ───
+export async function saveSkinScan({
+  userId,
+  photoFrontUrl,
+  photoLeftUrl,
+  photoRightUrl,
+  analysis,
+}) {
+  const { data, error } = await supabase
+    .from('skin_scans')
+    .insert({
+      user_id: userId,
+      photo_front_url: photoFrontUrl,
+      photo_left_url: photoLeftUrl,
+      photo_right_url: photoRightUrl,
+      skin_type: analysis.skin_type,
+      skin_score: analysis.skin_score,
+      diagnosis: analysis,
+    })
+    .select()
+    .single();
+  if (error) {
+    console.error('saveSkinScan error:', error);
+    return null;
+  }
+  return data;
+}
+
+// ─── Récupérer tous les scans d'une cliente ───
+export async function getMySkinScans() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase
+    .from('skin_scans')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+// ─── Récupérer le dernier scan d'une cliente ───
+export async function getLatestSkinScan() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from('skin_scans')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
+// ─── Filtrer les produits selon le diagnostic IA ───
+// Retourne { compatibles: [...], avoid: [...] }
+export async function getProductsForSkinDiagnosis(diagnosis) {
+  const allProducts = await getAllProducts();
+  
+  const recommendedIngredients = (diagnosis.ingredients_recommandes || [])
+    .map(i => i.toLowerCase());
+  const avoidIngredients = (diagnosis.ingredients_a_eviter || [])
+    .map(i => i.toLowerCase());
+  
+  const compatibles = [];
+  const avoid = [];
+  
+  for (const product of allProducts) {
+    const productText = `${product.name || ''} ${product.description || ''} ${product.ingredients || ''}`.toLowerCase();
+    
+    // Vérifier si contient un ingrédient à éviter
+    const hasAvoidIngredient = avoidIngredients.some(ing => productText.includes(ing));
+    if (hasAvoidIngredient) {
+      avoid.push(product);
+      continue;
+    }
+    
+    // Vérifier si contient un ingrédient recommandé
+    const hasRecommendedIngredient = recommendedIngredients.some(ing => productText.includes(ing));
+    if (hasRecommendedIngredient) {
+      compatibles.push(product);
+    }
+  }
+  
+  return { compatibles, avoid };
+}

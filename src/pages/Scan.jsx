@@ -1,246 +1,270 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNav } from '../App';
-import { haptic } from '../lib/haptic';
-import { scoreClass } from '../lib/utils';
+import { useNav, useUser } from '../App';
+import { analyzeSkinPhotos, uploadScanPhoto, saveSkinScan } from '../lib/supabase';
 import './Scan.css';
 
-const SKIN_DIAGNOSTICS = [
-  { skinType: 'mixte', score: 78, concerns: ['Brillance zone T', 'Quelques imperfections'], recommendations: 'Sérum niacinamide + nettoyant doux' },
-  { skinType: 'sèche', score: 72, concerns: ['Déshydratation', 'Tiraillements'], recommendations: 'Acide hyaluronique + crème riche' },
-  { skinType: 'grasse', score: 75, concerns: ['Pores dilatés', 'Acné légère'], recommendations: 'BHA + niacinamide' },
-  { skinType: 'normale', score: 88, concerns: ['Bonne hydratation'], recommendations: 'Routine maintenance + SPF' },
+const STEPS = [
+  {
+    id: 'front',
+    title: '📸 Photo de face',
+    instruction: 'Regarde droit vers la caméra, lumière naturelle',
+    tips: ['Pas de maquillage', 'Cheveux dégagés', 'Lumière du jour idéale'],
+    icon: '🙎🏿‍♀️',
+  },
+  {
+    id: 'left',
+    title: '👈 Joue gauche',
+    instruction: 'Tourne ton visage de 90° vers la droite',
+    tips: ['Profil complet visible', 'Même lumière qu\'avant'],
+    icon: '👈🏿',
+  },
+  {
+    id: 'right',
+    title: '👉 Joue droite',
+    instruction: 'Tourne ton visage de 90° vers la gauche',
+    tips: ['Profil complet visible', 'Garde la pose stable'],
+    icon: '👉🏿',
+  },
 ];
 
 export default function Scan() {
   const { navigate } = useNav();
-  const [mode, setMode] = useState('choice'); // choice | face | barcode | result
-  const [stream, setStream] = useState(null);
+  const { user } = useUser();
+  const [step, setStep] = useState(0);
+  const [photos, setPhotos] = useState({ front: null, left: null, right: null });
   const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState(null);
-  const [barcodeResult, setBarcodeResult] = useState(null);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
+  const currentStep = STEPS[step];
+  const allTaken = photos.front && photos.left && photos.right;
+
+  const handlePhoto = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Compresse et convertit en base64
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1024;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = (height * maxDim) / width;
+            width = maxDim;
+          } else {
+            width = (width * maxDim) / height;
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        
+        setPhotos(p => ({ ...p, [currentStep.id]: dataUrl }));
+        
+        // Auto avance à l'étape suivante
+        if (step < STEPS.length - 1) {
+          setTimeout(() => setStep(s => s + 1), 600);
+        }
+      };
+      img.src = event.target.result;
     };
-  }, [stream]);
-
-  const startCamera = async (facingMode = 'user') => {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode },
-        audio: false,
-      });
-      setStream(s);
-      if (videoRef.current) {
-        videoRef.current.srcObject = s;
-        videoRef.current.play();
-      }
-    } catch (err) {
-      alert('Caméra non disponible : ' + err.message);
-    }
+    reader.readAsDataURL(file);
   };
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      setStream(null);
-    }
+  const retakePhoto = (stepId) => {
+    setPhotos(p => ({ ...p, [stepId]: null }));
+    const idx = STEPS.findIndex(s => s.id === stepId);
+    setStep(idx);
   };
 
-  const startFaceScan = async () => {
-    setMode('face');
-    await startCamera('user');
-  };
-
-  const captureAndAnalyze = async () => {
-    if (!videoRef.current) return;
-    haptic('medium');
-    setAnalyzing(true);
-
-    // Capture frame
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-
-    // Simulation IA (3 sec)
-    await new Promise(r => setTimeout(r, 2500));
-
-    const diag = SKIN_DIAGNOSTICS[Math.floor(Math.random() * SKIN_DIAGNOSTICS.length)];
-    setResult(diag);
-    stopCamera();
-    setAnalyzing(false);
-    setMode('result');
-    haptic('success');
-  };
-
-  const startBarcodeScan = async () => {
-    if (!('BarcodeDetector' in window)) {
-      alert('Scanner code-barres non supporté sur ce navigateur. Utilise Chrome ou un mobile récent.');
+  const startAnalysis = async () => {
+    if (!allTaken) {
+      alert('Prends les 3 photos avant de lancer l\'analyse');
       return;
     }
-    setMode('barcode');
-    await startCamera('environment');
-
-    const detector = new window.BarcodeDetector({
-      formats: ['ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e'],
-    });
-
-    const scan = async () => {
-      if (!videoRef.current || mode !== 'barcode') return;
-      try {
-        const codes = await detector.detect(videoRef.current);
-        if (codes.length > 0) {
-          haptic('success');
-          setBarcodeResult(codes[0].rawValue);
-          stopCamera();
-          return;
-        }
-      } catch (e) {}
-      requestAnimationFrame(scan);
-    };
-
-    setTimeout(scan, 500);
+    
+    setAnalyzing(true);
+    setError('');
+    
+    try {
+      // 1. Lancer l'analyse IA Gemini
+      const result = await analyzeSkinPhotos({
+        frontBase64: photos.front,
+        leftBase64: photos.left,
+        rightBase64: photos.right,
+      });
+      
+      if (!result.success) {
+        setError(result.error || 'Erreur d\'analyse');
+        setAnalyzing(false);
+        return;
+      }
+      
+      // 2. Convertir les data URLs en blobs pour l'upload
+      const tempScanId = 'scan_' + Date.now();
+      
+      const blobs = await Promise.all([
+        fetch(photos.front).then(r => r.blob()),
+        fetch(photos.left).then(r => r.blob()),
+        fetch(photos.right).then(r => r.blob()),
+      ]);
+      
+      const [frontUrl, leftUrl, rightUrl] = await Promise.all([
+        uploadScanPhoto(blobs[0], tempScanId, 'front'),
+        uploadScanPhoto(blobs[1], tempScanId, 'left'),
+        uploadScanPhoto(blobs[2], tempScanId, 'right'),
+      ]);
+      
+      // 3. Sauvegarder en base
+      const saved = await saveSkinScan({
+        userId: user.id,
+        photoFrontUrl: frontUrl,
+        photoLeftUrl: leftUrl,
+        photoRightUrl: rightUrl,
+        analysis: result.analysis,
+      });
+      
+      if (saved) {
+        navigate({ name: 'scan_result', params: { scanId: saved.id } });
+      } else {
+        setError('Impossible de sauvegarder le scan');
+      }
+    } catch (e) {
+      console.error('Analysis error:', e);
+      setError('Erreur technique : ' + e.message);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
-  const reset = () => {
-    stopCamera();
-    setMode('choice');
-    setResult(null);
-    setBarcodeResult(null);
-    setAnalyzing(false);
-  };
-
-  // ─────────────────────── RENDER
-
-  if (mode === 'choice') {
+  if (analyzing) {
     return (
-      <div className="scan-screen page-anim">
-        <div className="scan-header">
-          <button className="icon-back-btn" onClick={() => navigate('/')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-            </svg>
-          </button>
-          <h1>Scanner</h1>
-        </div>
-        <div className="scan-choice-content">
-          <button className="scan-choice-card" onClick={startFaceScan}>
-            <div className="scan-choice-icon">✨</div>
-            <h3>Analyse IA de ta peau</h3>
-            <p>Prends-toi en selfie, l'IA détecte ton type de peau et te recommande des produits</p>
-          </button>
-
-          <button className="scan-choice-card" onClick={startBarcodeScan}>
-            <div className="scan-choice-icon">📷</div>
-            <h3>Scanner un code-barres</h3>
-            <p>Pointe vers un produit pour voir son score et savoir s'il te convient</p>
-          </button>
+      <div className="scan-screen">
+        <div className="scan-loading">
+          <div className="scan-loading-icon">🤖</div>
+          <h2>L'IA analyse ta peau...</h2>
+          <p>Diagnostic professionnel personnalisé</p>
+          <div className="scan-loading-bar">
+            <div className="scan-loading-fill" />
+          </div>
+          <ul className="scan-loading-steps">
+            <li>✓ Photos uploadées</li>
+            <li>✓ Analyse zones du visage</li>
+            <li>⏳ Détection problèmes peau</li>
+            <li>⏳ Recommandations personnalisées</li>
+          </ul>
+          <p style={{ fontSize: 11, color: '#9B9B9B', marginTop: 20 }}>
+            Temps estimé : 5-10 secondes
+          </p>
         </div>
       </div>
     );
   }
 
-  if (mode === 'face') {
-    return (
-      <div className="scan-camera-screen">
-        <video ref={videoRef} className="scan-video" autoPlay playsInline muted />
-        <canvas ref={canvasRef} style={{display: 'none'}} />
+  return (
+    <div className="scan-screen page-anim">
+      <header className="scan-header">
+        <button className="icon-back-btn" onClick={() => navigate('/')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+          </svg>
+        </button>
+        <div>
+          <h1>🤖 Scan IA Diaara</h1>
+          <p>Diagnostic peau personnalisé</p>
+        </div>
+      </header>
 
-        {analyzing ? (
-          <div className="scan-analyzing">
-            <div className="scan-spinner" />
-            <h2>Analyse en cours...</h2>
-            <p>L'IA évalue ton type de peau, ton phototype et tes préoccupations</p>
-          </div>
+      <div className="scan-scroll">
+        {/* Progress dots */}
+        <div className="scan-progress">
+          {STEPS.map((s, i) => (
+            <div
+              key={s.id}
+              className={`scan-progress-dot ${photos[s.id] ? 'done' : ''} ${i === step ? 'active' : ''}`}
+            >
+              {photos[s.id] ? '✓' : i + 1}
+            </div>
+          ))}
+        </div>
+
+        {/* Photos déjà prises (thumbnails) */}
+        <div className="scan-thumbnails">
+          {STEPS.map(s => (
+            <div key={s.id} className={`scan-thumb ${photos[s.id] ? 'filled' : 'empty'}`}>
+              {photos[s.id] ? (
+                <>
+                  <img src={photos[s.id]} alt={s.id} />
+                  <button className="scan-retake" onClick={() => retakePhoto(s.id)}>↻</button>
+                </>
+              ) : (
+                <span>{s.icon}</span>
+              )}
+              <span className="scan-thumb-label">{s.title.split(' ').slice(1).join(' ')}</span>
+            </div>
+          ))}
+        </div>
+
+        {!allTaken ? (
+          <>
+            {/* Instructions étape courante */}
+            <div className="scan-instruction-card">
+              <div className="scan-instruction-icon">{currentStep.icon}</div>
+              <h2>{currentStep.title}</h2>
+              <p>{currentStep.instruction}</p>
+              <ul>
+                {currentStep.tips.map((tip, i) => (
+                  <li key={i}>✓ {tip}</li>
+                ))}
+              </ul>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              onChange={handlePhoto}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              className="scan-btn-primary"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              📷 Prendre la photo
+            </button>
+
+            <p className="scan-privacy">
+              🔒 Tes photos sont privées et utilisées uniquement pour ton diagnostic
+            </p>
+          </>
         ) : (
           <>
-            <div className="scan-overlay">
-              <div className="scan-circle" />
-              <p>Centre ton visage dans le cercle</p>
+            <div className="scan-ready-card">
+              <div className="scan-ready-icon">🎉</div>
+              <h2>Tout est prêt !</h2>
+              <p>3/3 photos prises. Lance ton diagnostic personnalisé.</p>
             </div>
-            <div className="scan-controls">
-              <button className="scan-cancel" onClick={reset}>Annuler</button>
-              <button className="scan-capture" onClick={captureAndAnalyze} />
-              <div style={{width: 70}} />
-            </div>
+
+            <button className="scan-btn-primary" onClick={startAnalysis}>
+              🤖 Lancer l'analyse IA
+            </button>
+
+            <p className="scan-privacy">
+              ⏱️ L'analyse prend 5-10 secondes
+            </p>
           </>
         )}
+
+        {error && <div className="scan-error">⚠️ {error}</div>}
       </div>
-    );
-  }
-
-  if (mode === 'barcode') {
-    return (
-      <div className="scan-camera-screen">
-        <video ref={videoRef} className="scan-video" autoPlay playsInline muted />
-        {barcodeResult ? (
-          <div className="scan-result-overlay">
-            <h2>📦 Code détecté</h2>
-            <p style={{fontFamily: 'monospace', fontSize: 18, margin: '12px 0'}}>{barcodeResult}</p>
-            <p style={{fontSize: 13, opacity: 0.8}}>Produit non trouvé dans notre base. Demande-le à une pharmacie partenaire !</p>
-            <button className="btn-primary" onClick={reset} style={{marginTop: 20, maxWidth: 260}}>Scanner un autre →</button>
-          </div>
-        ) : (
-          <>
-            <div className="scan-overlay">
-              <div className="scan-barcode-frame" />
-              <p>Pointe vers le code-barres</p>
-            </div>
-            <div className="scan-controls">
-              <button className="scan-cancel" onClick={reset}>Annuler</button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  if (mode === 'result' && result) {
-    const sc = scoreClass(result.score);
-    return (
-      <div className="scan-screen page-anim">
-        <div className="scan-header">
-          <button className="icon-back-btn" onClick={reset}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-            </svg>
-          </button>
-          <h1>Diagnostic peau</h1>
-        </div>
-
-        <div className="scan-result-content">
-          <div className={'scan-result-score ' + sc}>
-            <div className="scan-score-num">{result.score}</div>
-            <div className="scan-score-lbl">/100</div>
-          </div>
-
-          <h2>Peau {result.skinType}</h2>
-          <p className="scan-result-desc">Voici ce que notre IA a détecté :</p>
-
-          <div className="scan-result-section">
-            <h3>🔍 Préoccupations détectées</h3>
-            {result.concerns.map((c, i) => (
-              <div key={i} className="scan-concern">• {c}</div>
-            ))}
-          </div>
-
-          <div className="scan-result-section">
-            <h3>💡 Recommandations</h3>
-            <p>{result.recommendations}</p>
-          </div>
-
-          <button className="btn-primary" onClick={() => navigate('/')} style={{marginTop: 24}}>
-            Voir les produits adaptés →
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }

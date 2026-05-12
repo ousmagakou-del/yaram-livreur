@@ -13,6 +13,8 @@ import Orders from './pages/Orders';
 import Profile from './pages/Profile';
 import Pharmacies from './pages/Pharmacies';
 import Scan from './pages/Scan';
+import ScanResult from './pages/ScanResult';
+import ScanHistory from './pages/ScanHistory';
 import Addresses from './pages/Addresses';
 import Favorites from './pages/Favorites';
 import Payments from './pages/Payments';
@@ -104,7 +106,7 @@ function ClientApp() {
       if (path.startsWith('product/')) {
         setRoute({ name: 'product', params: { id: path.split('/')[1] } });
       } else {
-        const map = { '': 'home', search: 'search', cart: 'cart', profile: 'profile', orders: 'orders', pharmacies: 'pharmacies' };
+        const map = { '': 'home', search: 'search', cart: 'cart', profile: 'profile', orders: 'orders', pharmacies: 'pharmacies', scan: 'scan' };
         if (map[path] !== undefined) setRoute({ name: map[path], params: {} });
       }
     } else if (typeof target === 'object') {
@@ -190,6 +192,8 @@ function ClientApp() {
     case 'profile': page = <Profile />; break;
     case 'pharmacies': page = <Pharmacies />; break;
     case 'scan': page = <Scan />; break;
+    case 'scan_result': page = <ScanResult scanId={route.params.scanId} />; break;
+    case 'scan_history': page = <ScanHistory />; break;
     case 'addresses': page = <Addresses />; break;
     case 'favorites': page = <Favorites />; break;
     case 'payments': page = <Payments />; break;
