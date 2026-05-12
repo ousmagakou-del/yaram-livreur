@@ -24,6 +24,7 @@ import Admin from './pages/Admin';
 import Pharma from './pages/Pharma';
 import Livreur from './pages/Livreur';
 import ClientConfirm from './pages/ClientConfirm';
+import InstallPrompt from './components/InstallPrompt';
 
 const NavContext = createContext(null);
 export function useNav() { return useContext(NavContext); }
@@ -32,7 +33,6 @@ const UserContext = createContext(null);
 export function useUser() { return useContext(UserContext); }
 
 export default function App() {
-  // ⚡ Détection URL AVANT tout — pas besoin d'auth pour ces routes
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   if (params.has('admin')) return <Admin />;
   if (params.has('pharma')) return <Pharma />;
@@ -161,6 +161,7 @@ function ClientApp() {
           <div className="desktop-only-tag">DIAARA · Aperçu mobile</div>
           <div className="app-shell">
             <Onboarding onComplete={refreshUser} />
+            <InstallPrompt />
           </div>
         </UserContext.Provider>
       </NavContext.Provider>
@@ -174,6 +175,7 @@ function ClientApp() {
           <div className="desktop-only-tag">DIAARA · Aperçu mobile</div>
           <div className="app-shell">
             <SkinQuiz onComplete={refreshUser} />
+            <InstallPrompt />
           </div>
         </UserContext.Provider>
       </NavContext.Provider>
@@ -207,7 +209,10 @@ function ClientApp() {
     <NavContext.Provider value={{ navigate, goBack, route }}>
       <UserContext.Provider value={{ user, refreshUser }}>
         <div className="desktop-only-tag">DIAARA · Aperçu mobile</div>
-        <div className="app-shell">{page}</div>
+        <div className="app-shell">
+          {page}
+          <InstallPrompt />
+        </div>
       </UserContext.Provider>
     </NavContext.Provider>
   );
