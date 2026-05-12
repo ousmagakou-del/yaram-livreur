@@ -354,14 +354,19 @@ export async function clientReportDispute(orderId, reason) {
 
 export async function sendWhatsApp(to, text) {
   try {
-    const { data, error } = await supabase.functions.invoke('send-whatsapp', {
-      body: { to, text },
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qxhhnrnworwrnwmqekmb.supabase.co';
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4aGhucm53b3J3cm53bXFla21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTExMzYsImV4cCI6MjA5NDA4NzEzNn0.l_7-Eg06UFnXvSw1BQiuNw0yU94jillHNycx-jvP1Aw';
+    
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/send-whatsapp`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ to, text }),
     });
-    if (error) {
-      console.error('sendWhatsApp error:', error);
-      return { success: false, error: error.message };
-    }
-    return data;
+    
+    return await response.json();
   } catch (e) {
     console.error('sendWhatsApp exception:', e);
     return { success: false, error: e.message };
@@ -407,19 +412,26 @@ export const WhatsAppTemplates = {
 // ─── Analyse IA d'une photo de peau via Gemini ───
 export async function analyzeSkinPhotos({ frontBase64, leftBase64, rightBase64 }) {
   try {
-    const { data, error } = await supabase.functions.invoke('analyze-skin', {
-      body: {
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qxhhnrnworwrnwmqekmb.supabase.co';
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4aGhucm53b3J3cm53bXFla21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTExMzYsImV4cCI6MjA5NDA4NzEzNn0.l_7-Eg06UFnXvSw1BQiuNw0yU94jillHNycx-jvP1Aw';
+    
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/analyze-skin`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         photos: {
           front: frontBase64,
           left: leftBase64,
           right: rightBase64,
         },
-      },
+      }),
     });
-    if (error) {
-      console.error('analyzeSkinPhotos error:', error);
-      return { success: false, error: error.message };
-    }
+    
+    const data = await response.json();
+    console.log('analyzeSkinPhotos response:', data);
     return data;
   } catch (e) {
     console.error('analyzeSkinPhotos exception:', e);
