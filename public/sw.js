@@ -1,200 +1,171 @@
-// ═══════════════════════════════════════════════════════════════
-// DIAARA — Service Worker
-// Mode hors-ligne + cache intelligent
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// Diaara Service Worker v2 — Update-friendly
+// ════════════════════════════════════════════════
 
-const CACHE_VERSION = 'diaara-v1';
-const RUNTIME_CACHE = 'diaara-runtime-v1';
+const CACHE_VERSION = 'diaara-v2-' + Date.now();
+const STATIC_CACHE = 'diaara-static-v2';
 
-// Resources à précacher au moment de l'installation
-const PRECACHE_URLS = [
+// Fichiers essentiels (cache au install)
+const ESSENTIAL_FILES = [
   '/',
+  '/index.html',
   '/manifest.json',
+  '/offline.html',
   '/icon-192.png',
   '/icon-512.png',
 ];
 
-// ─── INSTALL ───
+// ─── INSTALL ─────────────────────────
 self.addEventListener('install', (event) => {
-  console.log('[SW Diaara] Installing...');
+  console.log('[SW Diaara v2] Install');
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).catch((err) => {
-        console.warn('[SW Diaara] Precache partial fail:', err);
-      });
-    }).then(() => self.skipWaiting())
+    caches.open(STATIC_CACHE).then(cache => 
+      cache.addAll(ESSENTIAL_FILES).catch(e => console.warn('[SW] Cache install warn:', e))
+    ).then(() => self.skipWaiting()) // Active immédiatement
   );
 });
 
-// ─── ACTIVATE ───
+// ─── ACTIVATE ─────────────────────────
 self.addEventListener('activate', (event) => {
-  console.log('[SW Diaara] Activating...');
+  console.log('[SW Diaara v2] Activate');
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_VERSION && name !== RUNTIME_CACHE)
-          .map((name) => caches.delete(name))
-      );
-    }).then(() => self.clients.claim())
+    Promise.all([
+      // Supprime les anciens caches
+      caches.keys().then(names => 
+        Promise.all(
+          names
+            .filter(name => name !== STATIC_CACHE)
+            .map(name => {
+              console.log('[SW] Delete old cache:', name);
+              return caches.delete(name);
+            })
+        )
+      ),
+      // Prend le contrôle immédiat de tous les clients
+      self.clients.claim(),
+    ])
   );
 });
 
-// ─── FETCH ───
-// Stratégie : 
-// - HTML/JS/CSS : Network-first (toujours frais)
-// - Images : Cache-first (rapide)
-// - API Supabase : Network-only (jamais cache)
-
+// ─── FETCH ─────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  
-  // Ignore les requêtes non-GET
+
+  // ❌ NE PAS toucher aux schemes spéciaux (chrome-extension, etc.)
+  if (!url.protocol.startsWith('http')) return;
+
+  // ❌ NE PAS cacher les requêtes POST/PUT/DELETE
   if (request.method !== 'GET') return;
-  
-  // Ignore les API Supabase (jamais en cache)
-  if (url.hostname.includes('supabase.co') || 
-      url.hostname.includes('generativelanguage.googleapis.com') ||
-      url.hostname.includes('wasenderapi.com')) {
-    return; // Laisse passer la requête normalement
-  }
-  
-  // Images, polices, fonts : Cache-first
-  if (request.destination === 'image' || 
-      request.destination === 'font' ||
-      url.pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|woff2?|ttf)$/i)) {
-    event.respondWith(cacheFirst(request));
-    return;
-  }
-  
-  // HTML, JS, CSS : Network-first avec fallback cache
-  if (request.destination === 'document' ||
-      request.destination === 'script' ||
-      request.destination === 'style' ||
-      url.pathname.endsWith('/') ||
-      url.pathname.endsWith('.html') ||
-      url.pathname.endsWith('.js') ||
-      url.pathname.endsWith('.css')) {
+
+  // ❌ NE PAS cacher Supabase API (toujours frais)
+  if (url.hostname.includes('supabase.co')) return;
+
+  // ❌ NE PAS cacher les analytics / extensions
+  if (url.hostname.includes('google-analytics') || 
+      url.hostname.includes('googletagmanager')) return;
+
+  // ✅ NETWORK FIRST pour l'app (HTML, JS, CSS)
+  if (request.destination === 'document' || 
+      request.destination === 'script' || 
+      request.destination === 'style') {
     event.respondWith(networkFirst(request));
     return;
   }
+
+  // ✅ CACHE FIRST pour images & assets statiques
+  if (request.destination === 'image' || 
+      request.destination === 'font' || 
+      url.pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|woff2?|ttf|ico)$/)) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // Par défaut : NETWORK FIRST
+  event.respondWith(networkFirst(request));
 });
 
-// ─── HELPERS ───
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(RUNTIME_CACHE);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch (err) {
-    // Offline + pas en cache → image placeholder
-    return new Response('', { status: 408 });
-  }
-}
+// ─── STRATÉGIES CACHE ─────────────────────────
 
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(RUNTIME_CACHE);
-      cache.put(request, response.clone());
+    
+    // Cache seulement si succès ET schéma compatible
+    if (response.ok && request.url.startsWith('http')) {
+      try {
+        const cache = await caches.open(STATIC_CACHE);
+        await cache.put(request, response.clone());
+      } catch (e) {
+        // Ignore les erreurs de cache (chrome-extension, etc.)
+      }
     }
     return response;
-  } catch (err) {
-    // Offline → essaye le cache
+  } catch (error) {
+    // Si réseau down → essai cache
     const cached = await caches.match(request);
     if (cached) return cached;
     
-    // Cache vide → page offline minimale
+    // Si c'est une page HTML → fallback offline
     if (request.destination === 'document') {
-      return new Response(
-        `<!DOCTYPE html>
-        <html lang="fr">
-        <head>
-          <meta charset="UTF-8">
-          <title>Diaara - Hors ligne</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body { margin: 0; font-family: system-ui, sans-serif;
-                   background: #1F8B4C; color: white;
-                   display: flex; align-items: center; justify-content: center;
-                   min-height: 100vh; text-align: center; padding: 20px; }
-            .box { max-width: 320px; }
-            .logo { width: 80px; height: 80px; border-radius: 50%;
-                    background: white; color: #1F8B4C; font-weight: 800;
-                    font-size: 48px; display: flex; align-items: center;
-                    justify-content: center; margin: 0 auto 20px; }
-            h1 { font-size: 24px; margin: 0 0 10px; }
-            p { opacity: 0.9; line-height: 1.5; }
-            button { margin-top: 24px; padding: 12px 24px; background: white;
-                     color: #1F8B4C; border: none; border-radius: 10px;
-                     font-weight: 700; cursor: pointer; }
-          </style>
-        </head>
-        <body>
-          <div class="box">
-            <div class="logo">D</div>
-            <h1>Pas de connexion</h1>
-            <p>Tu es hors ligne. Vérifie ta connexion internet pour utiliser Diaara.</p>
-            <button onclick="location.reload()">🔄 Réessayer</button>
-          </div>
-        </body>
-        </html>`,
-        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-      );
+      return caches.match('/offline.html');
     }
     
-    return new Response('Offline', { status: 408 });
+    throw error;
   }
 }
 
-// ─── PUSH NOTIFICATIONS ───
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+    if (response.ok && request.url.startsWith('http')) {
+      try {
+        const cache = await caches.open(STATIC_CACHE);
+        await cache.put(request, response.clone());
+      } catch (e) {
+        // Ignore
+      }
+    }
+    return response;
+  } catch (error) {
+    return new Response('', { status: 404 });
+  }
+}
+
+// ─── PUSH NOTIFICATIONS ─────────────────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   
-  let data;
   try {
-    data = event.data.json();
-  } catch {
-    data = { title: 'Diaara', body: event.data.text() };
+    const data = event.data.json();
+    const options = {
+      body: data.body || '',
+      icon: data.icon || '/icon-192.png',
+      badge: data.badge || '/icon-96.png',
+      vibrate: [200, 100, 200],
+      data: { url: data.url || '/' },
+      actions: data.actions || [],
+    };
+    event.waitUntil(self.registration.showNotification(data.title || 'Diaara', options));
+  } catch (e) {
+    console.error('[SW] Push error:', e);
   }
-  
-  const options = {
-    body: data.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-96.png',
-    vibrate: [200, 100, 200],
-    data: data.url || '/',
-    actions: data.actions || [],
-    tag: data.tag || 'diaara-notif',
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'Diaara', options)
-  );
 });
 
-// Click sur notification → ouvre l'app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data || '/';
+  const url = event.notification.data?.url || '/';
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(url) && 'focus' in client) {
-          return client.focus();
-        }
+    self.clients.matchAll({ type: 'window' }).then(clients => {
+      for (const client of clients) {
+        if (client.url.includes(url) && 'focus' in client) return client.focus();
       }
-      return clients.openWindow(url);
+      if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
 });
 
-console.log('[SW Diaara] Loaded ✓');
+console.log('[SW Diaara v2] Loaded');
