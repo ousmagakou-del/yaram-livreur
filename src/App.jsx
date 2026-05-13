@@ -25,6 +25,7 @@ import Pharma from './pages/Pharma';
 import Livreur from './pages/Livreur';
 import ClientConfirm from './pages/ClientConfirm';
 import Loyalty from './pages/Loyalty';
+import Referral from './pages/Referral';
 import InstallPrompt from './components/InstallPrompt';
 
 const NavContext = createContext(null);
@@ -52,49 +53,53 @@ function ClientApp() {
   useEffect(() => {
     let cancelled = false;
     
-    const init = async () => {
-      try {
-        console.log('App: init start');
-        const u = await getCurrentUser();
-        console.log('App: user', u);
-        if (!cancelled) {
-          setUser(u);
-          setAuthChecked(true);
-        }
-      } catch (e) {
-        console.error('App init error:', e);
-        if (!cancelled) {
-          setUser(null);
-          setAuthChecked(true);
-        }
-      }
-    };
-    
-    init();
-    
-    const timeout = setTimeout(() => {
-      if (!cancelled) {
-        console.warn('App: auth check timeout');
+    // Check session immédiatement (synchrone via localStorage)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      console.log('App: session', session?.user?.id || 'none');
+      if (session?.user) {
+        // Récupère le profil en arrière-plan
+        getCurrentUser().then(u => {
+          if (!cancelled) {
+            console.log('App: profile loaded', u?.id);
+            setUser(u || { id: session.user.id, email: session.user.email });
+            setAuthChecked(true);
+          }
+        }).catch(() => {
+          if (!cancelled) {
+            setUser({ id: session.user.id, email: session.user.email });
+            setAuthChecked(true);
+          }
+        });
+      } else {
+        setUser(null);
         setAuthChecked(true);
       }
-    }, 3000);
+    }).catch((e) => {
+      console.error('App: session error', e);
+      if (!cancelled) {
+        setUser(null);
+        setAuthChecked(true);
+      }
+    });
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      try {
-        if (session) {
+      if (cancelled) return;
+      console.log('App: auth change', _event, session?.user?.id || 'none');
+      if (session?.user) {
+        try {
           const u = await getCurrentUser();
-          if (!cancelled) setUser(u);
-        } else {
-          if (!cancelled) setUser(null);
+          if (!cancelled) setUser(u || { id: session.user.id, email: session.user.email });
+        } catch (e) {
+          if (!cancelled) setUser({ id: session.user.id, email: session.user.email });
         }
-      } catch (e) {
-        console.error('Auth state change error:', e);
+      } else {
+        if (!cancelled) setUser(null);
       }
     });
     
     return () => {
       cancelled = true;
-      clearTimeout(timeout);
       sub.subscription.unsubscribe();
     };
   }, []);
@@ -204,6 +209,7 @@ function ClientApp() {
     case 'categories': page = <Categories />; break;
     case 'quiz': page = <SkinQuiz onComplete={refreshUser} />; break;
     case 'loyalty': page = <Loyalty />; break;
+    case 'referral': page = <Referral />; break;
     default: page = <Home />;
   }
 
