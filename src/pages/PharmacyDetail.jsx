@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNav } from '../App';
-import { supabase, getAllProducts } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 export default function PharmacyDetail({ pharmacyId }) {
   const { navigate } = useNav();
@@ -19,15 +19,24 @@ export default function PharmacyDetail({ pharmacyId }) {
         .single();
       setPharmacy(ph);
 
-      // Produits dispo dans cette pharmacie
-      const { data: inv } = await supabase
+      // Produits dispo dans cette pharmacie - DEBUG
+      const { data: inv, error } = await supabase
         .from('inventory')
         .select('product_id, stock, products(*)')
         .eq('pharmacy_id', pharmacyId)
         .gt('stock', 0)
         .eq('active', true);
+      
+      console.log('Inventory query result:', { count: inv?.length, error, sample: inv?.[0] });
 
-      setProducts((inv || []).map(i => ({ ...i.products, stock: i.stock })).filter(p => p?.id));
+      // Construire la liste des produits, sans filtrer trop
+      const productList = (inv || [])
+        .filter(i => i.products) // Garder seulement ceux qui ont un produit lié
+        .map(i => ({ ...i.products, stock: i.stock }));
+      
+      console.log('Products after filter:', productList.length);
+      
+      setProducts(productList);
       setLoading(false);
     })();
   }, [pharmacyId]);
@@ -46,7 +55,7 @@ export default function PharmacyDetail({ pharmacyId }) {
   const whatsapp = pharmacy.whatsapp?.replace(/\s|\+/g, '') || '';
   const mapsUrl = pharmacy.latitude && pharmacy.longitude
     ? `https://www.google.com/maps/search/?api=1&query=${pharmacy.latitude},${pharmacy.longitude}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pharmacy.address + ' ' + pharmacy.city)}`;
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((pharmacy.address || '') + ' ' + (pharmacy.city || ''))}`;
 
   const waMessage = `Bonjour ${pharmacy.name} 👋\n\nJe vous écris depuis Diaara. J'aimerais avoir des infos.\n\nMerci 💚`;
 
@@ -84,25 +93,23 @@ export default function PharmacyDetail({ pharmacyId }) {
     productPrice: { fontSize: 13, fontWeight: 800, color: '#1F8B4C', marginTop: 4 },
     productStock: { fontSize: 10, color: '#1F8B4C', fontWeight: 600, marginTop: 2 },
     
-    badge: { display: 'inline-block', background: '#E8F5EC', color: '#166635', padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, marginRight: 6 },
+    badge: { display: 'inline-block', background: '#E8F5EC', color: '#166635', padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, marginRight: 6, marginBottom: 4 },
     
     empty: { textAlign: 'center', padding: 40, color: '#9B9B9B', fontSize: 13 },
   };
 
   return (
     <div style={S.screen}>
-      {/* Header sticky */}
       <header style={S.header}>
         <button onClick={() => navigate(-1)} style={S.backBtn}>←</button>
         <div style={S.headerTitle}>Détails pharmacie</div>
       </header>
 
-      {/* Cover image */}
       <div style={S.cover}>
         {pharmacy.image_url ? (
           <img src={pharmacy.image_url} alt={pharmacy.name} style={S.coverImg} />
-        ) : pharmacy.cover_url ? (
-          <img src={pharmacy.cover_url} alt={pharmacy.name} style={S.coverImg} />
+        ) : pharmacy.cover ? (
+          <img src={pharmacy.cover} alt={pharmacy.name} style={S.coverImg} />
         ) : (
           <div style={{ ...S.coverImg, background: 'linear-gradient(135deg, #1F8B4C, #166635)' }} />
         )}
@@ -113,7 +120,6 @@ export default function PharmacyDetail({ pharmacyId }) {
         </div>
       </div>
 
-      {/* Description */}
       {pharmacy.description && (
         <div style={S.section}>
           <p style={{ fontSize: 13, color: '#4B4B4B', lineHeight: 1.5 }}>
@@ -127,21 +133,24 @@ export default function PharmacyDetail({ pharmacyId }) {
         </div>
       )}
 
-      {/* Actions rapides */}
       <div style={S.actionsRow}>
-        <a href={`tel:${phone}`} style={S.actionBtn}>
-          <span style={S.actionIcon}>📞</span>
-          <span style={S.actionLabel}>Appeler</span>
-        </a>
-        <a 
-          href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(waMessage)}`}
-          target="_blank" 
-          rel="noopener noreferrer" 
-          style={{ ...S.actionBtn, background: '#E8F8EC', borderColor: '#25D366' }}
-        >
-          <span style={S.actionIcon}>💬</span>
-          <span style={{ ...S.actionLabel, color: '#166635' }}>WhatsApp</span>
-        </a>
+        {phone && (
+          <a href={`tel:${phone}`} style={S.actionBtn}>
+            <span style={S.actionIcon}>📞</span>
+            <span style={S.actionLabel}>Appeler</span>
+          </a>
+        )}
+        {whatsapp && (
+          <a 
+            href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(waMessage)}`}
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={{ ...S.actionBtn, background: '#E8F8EC', borderColor: '#25D366' }}
+          >
+            <span style={S.actionIcon}>💬</span>
+            <span style={{ ...S.actionLabel, color: '#166635' }}>WhatsApp</span>
+          </a>
+        )}
         <a 
           href={mapsUrl}
           target="_blank" 
@@ -153,7 +162,6 @@ export default function PharmacyDetail({ pharmacyId }) {
         </a>
       </div>
 
-      {/* Infos pharmacie */}
       <div style={S.section}>
         <div style={S.sectionTitle}>📋 Infos pharmacie</div>
 
@@ -214,7 +222,6 @@ export default function PharmacyDetail({ pharmacyId }) {
         )}
       </div>
 
-      {/* Carte */}
       {(pharmacy.latitude && pharmacy.longitude) && (
         <div style={{ ...S.section, padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: 16, paddingBottom: 0 }}>
@@ -239,7 +246,6 @@ export default function PharmacyDetail({ pharmacyId }) {
         </div>
       )}
 
-      {/* Produits dispo */}
       <div style={S.section}>
         <div style={S.sectionTitle}>
           🛍️ Produits disponibles ({products.length})
@@ -250,41 +256,42 @@ export default function PharmacyDetail({ pharmacyId }) {
             <p>Pas de produits actuellement</p>
           </div>
         ) : (
-          <div style={S.productGrid}>
-            {products.slice(0, 10).map(p => (
-              <button 
-                key={p.id} 
-                style={S.productCard}
-                onClick={() => navigate({ name: 'product', params: { id: p.id } })}
-              >
-                {p.img && <img src={p.img} alt="" style={S.productImg} />}
-                <div style={S.productBrand}>{p.brand}</div>
-                <div style={S.productName}>{p.name}</div>
-                <div style={S.productPrice}>{p.price?.toLocaleString('fr-FR')} FCFA</div>
-                <div style={S.productStock}>✓ {p.stock} en stock</div>
-              </button>
-            ))}
-          </div>
-        )}
+          <>
+            <div style={S.productGrid}>
+              {products.slice(0, 20).map(p => (
+                <button 
+                  key={p.id} 
+                  style={S.productCard}
+                  onClick={() => navigate({ name: 'product', params: { id: p.id } })}
+                >
+                  {p.img && <img src={p.img} alt="" style={S.productImg} />}
+                  <div style={S.productBrand}>{p.brand}</div>
+                  <div style={S.productName}>{p.name}</div>
+                  <div style={S.productPrice}>{p.price?.toLocaleString('fr-FR')} FCFA</div>
+                  <div style={S.productStock}>✓ {p.stock} en stock</div>
+                </button>
+              ))}
+            </div>
 
-        {products.length > 10 && (
-          <button 
-            onClick={() => navigate({ name: 'search', params: { pharmacy: pharmacy.id } })}
-            style={{ width: '100%', padding: 12, marginTop: 12, background: '#F4F4F2', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, color: '#1F8B4C', cursor: 'pointer' }}
-          >
-            Voir tous les {products.length} produits →
-          </button>
+            {products.length > 20 && (
+              <button 
+                onClick={() => navigate({ name: 'search', params: {} })}
+                style={{ width: '100%', padding: 12, marginTop: 12, background: '#F4F4F2', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, color: '#1F8B4C', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Voir les {products.length - 20} autres produits →
+              </button>
+            )}
+          </>
         )}
       </div>
 
-      {/* Badges qualité */}
       <div style={S.section}>
         <div style={S.sectionTitle}>✅ Garanties Diaara</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           <span style={S.badge}>✓ Pharmacie agréée</span>
           <span style={S.badge}>✓ Produits authentiques</span>
           <span style={S.badge}>✓ Livraison rapide</span>
-          <span style={S.badge}>✓ Commission Diaara 8%</span>
+          <span style={S.badge}>✓ Commission 8%</span>
         </div>
       </div>
     </div>
