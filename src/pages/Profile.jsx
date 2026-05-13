@@ -178,7 +178,7 @@ export default function Profile() {
 
           <div className="prof-menu-sep" />
 
-          <button className="prof-menu-row" onClick={handleShare}>
+          <button className="prof-menu-row" onClick={() => navigate({ name: 'referral', params: {} })}>
             <div className="prof-menu-icon">🎁</div>
             <div className="prof-menu-text">
               <strong>Parrainer une amie</strong>

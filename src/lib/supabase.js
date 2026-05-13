@@ -930,3 +930,162 @@ export function getTierInfo(tier) {
   if (tier === 'silver') return { label: 'Argent 🥈', color: '#9B9B9B', emoji: '🥈' };
   return { label: 'Bronze 🥉', color: '#CD7F32', emoji: '🥉' };
 }
+// ─── CODES PROMO ───
+
+export async function validatePromoCode(code, userId, orderTotal = 0) {
+  if (!code) return { valid: false, error: 'Code requis' };
+  
+  const { data: promo } = await supabase
+    .from('promo_codes')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .eq('active', true)
+    .maybeSingle();
+  
+  if (!promo) return { valid: false, error: 'Code invalide' };
+  
+  // Vérifications
+  const now = new Date();
+  if (promo.expires_at && new Date(promo.expires_at) < now) {
+    return { valid: false, error: 'Code expiré' };
+  }
+  if (promo.starts_at && new Date(promo.starts_at) > now) {
+    return { valid: false, error: 'Code pas encore actif' };
+  }
+  if (promo.max_uses && promo.uses_count >= promo.max_uses) {
+    return { valid: false, error: 'Code épuisé' };
+  }
+  if (promo.min_order && orderTotal < promo.min_order) {
+    return { valid: false, error: `Minimum ${promo.min_order.toLocaleString('fr-FR')} FCFA requis` };
+  }
+  
+  // Vérifie utilisations par user
+  if (userId && promo.per_user_limit) {
+    const { count } = await supabase
+      .from('promo_uses')
+      .select('id', { count: 'exact', head: true })
+      .eq('promo_id', promo.id)
+      .eq('user_id', userId);
+    if (count >= promo.per_user_limit) {
+      return { valid: false, error: 'Tu as déjà utilisé ce code' };
+    }
+  }
+  
+  // Calcule la réduction
+  let discount = 0;
+  if (promo.type === 'percent') {
+    discount = Math.floor((orderTotal * promo.value) / 100);
+  } else if (promo.type === 'fixed') {
+    discount = Math.min(promo.value, orderTotal);
+  } else if (promo.type === 'free_shipping') {
+    discount = 1000; // Livraison standard 1000 FCFA
+  }
+  
+  return { valid: true, promo, discount };
+}
+
+export async function applyPromoCode(promoId, userId, orderId, discount) {
+  const { error } = await supabase
+    .from('promo_uses')
+    .insert({
+      promo_id: promoId,
+      user_id: userId,
+      order_id: orderId,
+      discount_amount: discount,
+    });
+  if (error) return false;
+  
+  // Increment uses_count
+  const { data: promo } = await supabase
+    .from('promo_codes')
+    .select('uses_count')
+    .eq('id', promoId)
+    .single();
+  if (promo) {
+    await supabase
+      .from('promo_codes')
+      .update({ uses_count: (promo.uses_count || 0) + 1 })
+      .eq('id', promoId);
+  }
+  return true;
+}
+
+// ─── PARRAINAGE ───
+
+export async function getOrCreateReferralCode(userId) {
+  // Récupère le code existant
+  const { data } = await supabase
+    .from('users_profile')
+    .select('referral_code')
+    .eq('id', userId)
+    .single();
+  
+  if (data?.referral_code) return data.referral_code;
+  
+  // Génère un nouveau code
+  const { data: result, error } = await supabase
+    .rpc('generate_referral_code', { p_user_id: userId });
+  
+  if (error) {
+    console.error('referral_code error:', error);
+    return null;
+  }
+  return result;
+}
+
+export async function applyReferralCode(referredUserId, referralCode) {
+  // Trouve le parrain
+  const { data: referrer } = await supabase
+    .from('users_profile')
+    .select('id, first_name')
+    .eq('referral_code', referralCode.toUpperCase())
+    .maybeSingle();
+  
+  if (!referrer) return { success: false, error: 'Code parrainage invalide' };
+  if (referrer.id === referredUserId) return { success: false, error: 'Tu ne peux pas te parrainer toi-même' };
+  
+  // Vérifie pas déjà parrainée
+  const { data: me } = await supabase
+    .from('users_profile')
+    .select('referred_by')
+    .eq('id', referredUserId)
+    .single();
+  
+  if (me?.referred_by) return { success: false, error: 'Tu as déjà été parrainée' };
+  
+  // Applique le parrainage
+  await supabase
+    .from('users_profile')
+    .update({ referred_by: referrer.id })
+    .eq('id', referredUserId);
+  
+  // Donne bonus aux 2
+  // 500 points à la nouvelle, 500 points au parrain
+  await supabase.rpc('add_loyalty_points', {
+    p_user_id: referredUserId,
+    p_points: 500,
+    p_type: 'bonus',
+    p_reason: `Bonus inscription via ${referrer.first_name}`,
+  });
+  await supabase.rpc('add_loyalty_points', {
+    p_user_id: referrer.id,
+    p_points: 500,
+    p_type: 'bonus',
+    p_reason: `Bonus parrainage`,
+  });
+  
+  return { success: true, referrer };
+}
+
+export async function getReferralStats(userId) {
+  const { data: referrals } = await supabase
+    .from('users_profile')
+    .select('id, first_name, created_at')
+    .eq('referred_by', userId);
+  
+  return {
+    count: referrals?.length || 0,
+    list: referrals || [],
+    bonusEarned: (referrals?.length || 0) * 500,
+  };
+}
