@@ -53,7 +53,7 @@ export async function getCurrentUser() {
     // Timeout 2s pour auth.getUser()
     const userPromise = supabase.auth.getUser();
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Auth timeout')), 2000)
+      setTimeout(() => reject(new Error('Auth timeout')), 8000)
     );
     const { data: { user } } = await Promise.race([userPromise, timeoutPromise]);
     if (!user) return null;
