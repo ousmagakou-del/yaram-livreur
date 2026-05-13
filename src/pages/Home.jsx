@@ -1,25 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
-import { getAllProducts, getAllPharmacies } from '../lib/supabase';
+import { getAllProducts, getAllPharmacies, supabase } from '../lib/supabase';
 import ProductTile from '../components/ProductTile';
 import TabBar from '../components/TabBar';
 import BannerCarousel from '../components/BannerCarousel';
 import './Home.css';
 
-// Emojis pour chaque catégorie (fallback si pas d'image produit)
 const CATEGORY_EMOJI = {
-  'Visage': '✨',
-  'Corps': '🧴',
-  'Bébé': '👶',
-  'Bucco-dentaire': '🦷',
-  'Compléments': '💊',
-  'Cheveux': '💇',
-  'Solaire': '☀️',
-  'Intime': '🌸',
-  'Hygiène': '🧼',
-  'Pieds & Mains': '🦶',
-  'Lèvres': '💋',
-  'Déodorants': '🌿',
+  'Visage': '✨', 'Corps': '🧴', 'Bébé': '👶', 'Bucco-dentaire': '🦷',
+  'Compléments': '💊', 'Cheveux': '💇', 'Solaire': '☀️', 'Intime': '🌸',
+  'Hygiène': '🧼', 'Pieds & Mains': '🦶', 'Lèvres': '💋', 'Déodorants': '🌿',
 };
 
 export default function Home() {
@@ -28,6 +18,9 @@ export default function Home() {
   const [products, setProducts] = useState([]);
   const [pharmacies, setPharmacies] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [favIds, setFavIds] = useState([]);
+  const [bestSellers, setBestSellers] = useState([]);
+  const [latestScan, setLatestScan] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,31 +28,69 @@ export default function Home() {
       const [p, ph] = await Promise.all([getAllProducts(), getAllPharmacies()]);
       setProducts(p);
       setPharmacies(ph);
-      
-      // Construire les catégories à partir des vrais produits
+
+      // Catégories dynamiques
       const catMap = {};
       p.forEach(prod => {
         if (!prod.category) return;
-        // Normaliser : "serum" et "Sérums" → "Visage" 
-        // On garde uniquement les catégories qui commencent par majuscule
         const cat = prod.category;
-        if (cat[0] !== cat[0].toUpperCase()) return; // skip les minuscules
-        
-        if (!catMap[cat]) {
-          catMap[cat] = { id: cat, name: cat, count: 0, sampleImg: null };
-        }
+        if (cat[0] !== cat[0].toUpperCase()) return;
+        if (!catMap[cat]) catMap[cat] = { id: cat, name: cat, count: 0, sampleImg: null };
         catMap[cat].count++;
-        // Prendre l'image du premier produit de la catégorie (qui a une image)
-        if (!catMap[cat].sampleImg && prod.img) {
-          catMap[cat].sampleImg = prod.img;
-        }
+        if (!catMap[cat].sampleImg && prod.img) catMap[cat].sampleImg = prod.img;
       });
-      
-      const cats = Object.values(catMap).sort((a, b) => b.count - a.count);
-      setCategories(cats);
+      setCategories(Object.values(catMap).sort((a, b) => b.count - a.count));
+
+      // Favoris user (pour personnalisation)
+      if (user?.id) {
+        const { data: favs } = await supabase
+          .from('favorites')
+          .select('product_id')
+          .eq('user_id', user.id);
+        setFavIds((favs || []).map(f => f.product_id));
+      }
+
+      // Dernier scan IA (pour personnalisation)
+      if (user?.id) {
+        const { data: scan } = await supabase
+          .from('skin_scans')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setLatestScan(scan);
+      }
+
+      // BEST SELLERS basés sur les VRAIES commandes livrées
+      try {
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('items')
+          .in('status', ['delivered', 'shipped', 'ready', 'preparing']);
+        
+        const productSales = {};
+        (orders || []).forEach(o => {
+          (o.items || []).forEach(item => {
+            if (item.productId) {
+              productSales[item.productId] = (productSales[item.productId] || 0) + (item.qty || 1);
+            }
+          });
+        });
+        
+        const sortedIds = Object.entries(productSales)
+          .sort((a, b) => b[1] - a[1])
+          .map(([id]) => id);
+        
+        const best = sortedIds.map(id => p.find(pr => pr.id === id)).filter(Boolean);
+        setBestSellers(best);
+      } catch (e) {
+        console.error('best sellers error:', e);
+      }
+
       setLoading(false);
     })();
-  }, []);
+  }, [user?.id]);
 
   const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   const firstName = user?.first_name || 'toi';
@@ -68,7 +99,57 @@ export default function Home() {
   const phototype = user?.skin_phototype || 'VI';
   const concerns = user?.skin_concerns?.map(cap).join(' · ') || 'Taches post-acné · Brillance zone T';
 
-  // Filtre les produits compatibles avec le type de peau de la cliente
+  // ─── SCORE DE COMPATIBILITÉ PERSONNALISÉ ───
+  const scoreProduct = (p) => {
+    let score = 0;
+    
+    // 1. Compatibilité type de peau
+    const userSkin = (user?.skin_type || '').toLowerCase();
+    if (p.skin_types && p.skin_types.length > 0) {
+      const compatible = p.skin_types.some(t => 
+        t.toLowerCase() === userSkin || 
+        t.toLowerCase() === 'toutes' || 
+        t.toLowerCase() === 'all'
+      );
+      if (compatible) score += 30;
+    } else {
+      score += 15; // neutre si pas spécifié
+    }
+    
+    // 2. Score qualité du produit (0-100)
+    score += (p.score || 50) * 0.3;
+    
+    // 3. Bonus si ingrédients matchent les recommandations du scan IA
+    if (latestScan?.diagnosis?.ingredients_recommandes) {
+      const recommended = latestScan.diagnosis.ingredients_recommandes.map(i => i.toLowerCase());
+      const productText = `${p.name || ''} ${p.inci || ''} ${p.short_desc || ''}`.toLowerCase();
+      const matches = recommended.filter(ing => productText.includes(ing)).length;
+      score += matches * 5;
+    }
+    
+    // 4. Pénalité si ingrédients à éviter selon scan
+    if (latestScan?.diagnosis?.ingredients_a_eviter) {
+      const avoid = latestScan.diagnosis.ingredients_a_eviter.map(i => i.toLowerCase());
+      const productText = `${p.name || ''} ${p.inci || ''}`.toLowerCase();
+      const matches = avoid.filter(ing => productText.includes(ing)).length;
+      score -= matches * 10;
+    }
+    
+    // 5. Boost si concerns matchent
+    if (user?.skin_concerns && user.skin_concerns.length > 0 && p.short_desc) {
+      const desc = p.short_desc.toLowerCase();
+      user.skin_concerns.forEach(c => {
+        if (desc.includes(c.toLowerCase())) score += 5;
+      });
+    }
+    
+    // 6. Bonus si déjà liké des produits similaires
+    if (favIds.includes(p.id)) score += 20;
+    
+    return score;
+  };
+
+  // Produits compatibles
   const compatibleProducts = products.filter(p => {
     if (!p.skin_types || p.skin_types.length === 0) return true;
     const userSkin = (user?.skin_type || '').toLowerCase();
@@ -81,19 +162,27 @@ export default function Home() {
 
   const compat = compatibleProducts.length;
   const avoid = products.length - compat;
-  const favs = 6;
+  const favs = favIds.length;
 
-  // Top matches : produits compatibles avec le meilleur score
-  const topMatches = compatibleProducts
+  // ─── POUR TOI : personnalisation max ───
+  const topMatches = products
     .slice()
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .map(p => ({ ...p, _personalScore: scoreProduct(p) }))
+    .sort((a, b) => b._personalScore - a._personalScore)
     .slice(0, 6);
   
-  // Tendances : produits avec le plus de reviews
-  const trending = products
-    .slice()
-    .sort((a, b) => (b.review_count || 0) - (a.review_count || 0))
-    .slice(0, 4);
+  // ─── TENDANCES : best-sellers réels ou fallback ───
+  const trending = bestSellers.length > 0
+    ? bestSellers.slice(0, 4)
+    : products
+        .slice()
+        .sort((a, b) => {
+          // Combine reviews + score
+          const scoreA = (a.review_count || 0) * 0.6 + (a.score || 0) * 0.4;
+          const scoreB = (b.review_count || 0) * 0.6 + (b.score || 0) * 0.4;
+          return scoreB - scoreA;
+        })
+        .slice(0, 4);
 
   return (
     <div className="home-screen page-anim">
@@ -129,7 +218,6 @@ export default function Home() {
           <div className="home-skin-label">TON PROFIL PEAU</div>
           <div className="home-skin-type">{skinType} · Phototype {phototype}</div>
           <div className="home-skin-concerns">{concerns}</div>
-
           <div className="home-skin-stats">
             <div className="home-skin-stat">
               <div className="home-skin-num">{compat}</div>
@@ -144,13 +232,11 @@ export default function Home() {
               <div className="home-skin-stat-lbl">favoris</div>
             </div>
           </div>
-
           <button className="home-skin-cta" onClick={() => navigate({ name: 'scan', params: {} })}>
-            Refaire le diagnostic →
+            {latestScan ? 'Refaire le diagnostic →' : 'Faire ton diagnostic IA →'}
           </button>
         </div>
 
-        {/* BANNIÈRE CAROUSEL */}
         <div style={{ padding: '0 16px' }}>
           <BannerCarousel />
         </div>
@@ -164,7 +250,7 @@ export default function Home() {
           <span className="home-banner-arrow">→</span>
         </button>
 
-        {/* CATÉGORIES DYNAMIQUES */}
+        {/* CATÉGORIES */}
         <div className="home-section">
           <div className="home-section-head">
             <div className="section-title">Catégories</div>
@@ -184,43 +270,27 @@ export default function Home() {
                   key={cat.id}
                   onClick={() => navigate({ name: 'search', params: { category: cat.id } })}
                   style={{
-                    background: 'white',
-                    border: '1px solid #EEE',
-                    borderRadius: 14,
-                    padding: 10,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    textAlign: 'left',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
+                    background: 'white', border: '1px solid #EEE', borderRadius: 14,
+                    padding: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                   }}
                 >
                   <div style={{
-                    width: '100%',
-                    aspectRatio: '1/1',
+                    width: '100%', aspectRatio: '1/1',
                     background: 'linear-gradient(135deg, #1F8B4C20, #1F8B4C10)',
-                    borderRadius: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 36,
-                    marginBottom: 8,
-                    overflow: 'hidden',
+                    borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 36, marginBottom: 8, overflow: 'hidden',
                   }}>
                     {cat.sampleImg ? (
                       <img 
-                        src={cat.sampleImg} 
-                        alt="" 
+                        src={cat.sampleImg} alt="" 
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onError={e => { 
                           e.target.style.display = 'none'; 
                           e.target.parentElement.innerHTML = CATEGORY_EMOJI[cat.name] || '📦';
                         }}
                       />
-                    ) : (
-                      CATEGORY_EMOJI[cat.name] || '📦'
-                    )}
+                    ) : (CATEGORY_EMOJI[cat.name] || '📦')}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A', lineHeight: 1.2 }}>
                     {cat.name}
@@ -234,12 +304,17 @@ export default function Home() {
           )}
         </div>
 
-        {/* POUR TOI */}
+        {/* POUR TOI - PERSONNALISÉ */}
         <div className="home-section">
           <div className="home-section-head">
             <div>
               <div className="section-title">✨ Pour toi, {firstName}</div>
-              <div className="section-sub">Sélectionnés pour ta peau {skinType.toLowerCase()}</div>
+              <div className="section-sub">
+                {latestScan 
+                  ? `Basé sur ton scan IA · peau ${skinType.toLowerCase()}`
+                  : `Pour ta peau ${skinType.toLowerCase()}`
+                }
+              </div>
             </div>
           </div>
           {loading ? (
@@ -253,9 +328,19 @@ export default function Home() {
           )}
         </div>
 
-        {/* TENDANCES */}
+        {/* TENDANCES - VRAIS BEST SELLERS */}
         <div className="home-section">
-          <div className="section-title">🔥 Tendances cette semaine</div>
+          <div className="home-section-head">
+            <div>
+              <div className="section-title">🔥 Tendances cette semaine</div>
+              <div className="section-sub">
+                {bestSellers.length > 0 
+                  ? 'Les plus commandés par les Diaariennes'
+                  : 'Les produits les plus appréciés'
+                }
+              </div>
+            </div>
+          </div>
           {loading ? null : (
             <div className="product-grid" style={{ marginTop: 12 }}>
               {trending.map(p => <ProductTile key={p.id} product={p} />)}
