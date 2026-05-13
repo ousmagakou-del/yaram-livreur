@@ -1,45 +1,34 @@
 import { useNav } from '../App';
 
-// ─── Vrais logos SVG des opérateurs UEMOA ───
-const WaveLogo = ({ size = 36 }) => (
-  <div style={{
-    width: size, height: size, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #1DC8F2, #00A8E1)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'white', fontWeight: 800, fontSize: size * 0.4,
-    boxShadow: '0 2px 8px rgba(29,200,242,0.3)',
-  }}>
-    W
-  </div>
+// ─── Vrais logos officiels ───
+const WaveLogo = ({ size = 44 }) => (
+  <img 
+    src="/logos/wave.png" 
+    alt="Wave" 
+    style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
+    onError={e => { e.target.style.display = 'none'; }}
+  />
 );
 
-const OrangeMoneyLogo = ({ size = 36 }) => (
-  <div style={{
-    width: size, height: size, borderRadius: 8,
-    background: '#FF7900',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'white', fontWeight: 800, fontSize: size * 0.32,
-    letterSpacing: '-0.5px',
-    boxShadow: '0 2px 8px rgba(255,121,0,0.3)',
-  }}>
-    OM
-  </div>
+const OrangeMoneyLogo = ({ size = 44 }) => (
+  <img 
+    src="/logos/orange-money.png" 
+    alt="Orange Money" 
+    style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
+    onError={e => { e.target.style.display = 'none'; }}
+  />
 );
 
-const FreeMoneyLogo = ({ size = 36 }) => (
-  <div style={{
-    width: size, height: size, borderRadius: 8,
-    background: 'linear-gradient(135deg, #CD0066, #E5004C)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'white', fontWeight: 900, fontSize: size * 0.3,
-    letterSpacing: '-0.5px',
-    boxShadow: '0 2px 8px rgba(229,0,76,0.3)',
-  }}>
-    Free
-  </div>
+const YasLogo = ({ size = 44 }) => (
+  <img 
+    src="/logos/yas.png" 
+    alt="Yas" 
+    style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
+    onError={e => { e.target.style.display = 'none'; }}
+  />
 );
 
-const CashLogo = ({ size = 36 }) => (
+const CashLogo = ({ size = 44 }) => (
   <div style={{
     width: size, height: size, borderRadius: 8,
     background: '#1F8B4C',
@@ -51,7 +40,7 @@ const CashLogo = ({ size = 36 }) => (
   </div>
 );
 
-const CardLogo = ({ size = 36 }) => (
+const CardLogo = ({ size = 44 }) => (
   <div style={{
     width: size, height: size, borderRadius: 8,
     background: 'linear-gradient(135deg, #1A1A1A, #4B4B4B)',
@@ -85,11 +74,11 @@ export default function Payments() {
       tagColor: '#FF7900',
     },
     { 
-      id: 'free', 
-      Logo: FreeMoneyLogo,
-      name: 'Free Money', 
-      desc: 'Paiement via Free Money',
-      tag: 'Réseau Free',
+      id: 'yas', 
+      Logo: YasLogo,
+      name: 'Yas Money', 
+      desc: 'Paiement via Yas (ex-Free Money)',
+      tag: 'Réseau Yas',
       tagColor: '#E5004C',
     },
     { 
@@ -150,7 +139,7 @@ export default function Payments() {
             ✨ Diaara accepte tous les moyens de paiement
           </div>
           <div style={{ fontSize: 12, opacity: 0.9 }}>
-            Wave, Orange Money, Free Money et cash. Choisis ce qui te convient !
+            Wave, Orange Money, Yas et cash. Choisis ce qui te convient !
           </div>
         </div>
 
@@ -224,7 +213,7 @@ export default function Payments() {
             🔒 Paiements 100% sécurisés
           </div>
           <p style={{ lineHeight: 1.5 }}>
-            Aucune donnée bancaire n'est stockée par Diaara. Les paiements sont sécurisés par Wave, Orange Money, Free Money et notre partenaire BCEAO.
+            Aucune donnée bancaire n'est stockée par Diaara. Les paiements sont sécurisés par Wave, Orange Money, Yas et notre partenaire BCEAO.
           </p>
         </div>
 
