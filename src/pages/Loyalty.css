@@ -1,0 +1,227 @@
+.ly-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #F5F6F8);
+}
+.ly-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(var(--safe-top, 0px) + 14px) 16px 12px;
+  background: white;
+  border-bottom: 1px solid #EEE;
+}
+.ly-back {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ly-header h1 {
+  font-size: 18px;
+  font-weight: 800;
+}
+.ly-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: 80px;
+}
+
+/* Big points card */
+.ly-points-card {
+  background: linear-gradient(135deg, #1F8B4C 0%, #166635 100%);
+  color: white;
+  border-radius: 20px;
+  padding: 28px 20px;
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(31,139,76,0.25);
+}
+.ly-points-card::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+}
+.ly-tier-badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(10px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.ly-points-number {
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.ly-points-label {
+  font-size: 14px;
+  opacity: 0.9;
+  margin-bottom: 12px;
+}
+.ly-equiv {
+  background: #F4B53A;
+  color: #1A1A1A;
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* Progress */
+.ly-progress-card {
+  background: white;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid #EEE;
+}
+.ly-progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.ly-progress-head strong {
+  color: #1F8B4C;
+}
+.ly-progress-bar {
+  height: 8px;
+  background: #F4F4F2;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.ly-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1F8B4C, #F4B53A);
+  border-radius: 999px;
+  transition: width 0.5s;
+}
+.ly-progress-meta {
+  font-size: 11px;
+  color: #6B6B6B;
+  text-align: center;
+}
+
+/* Info card */
+.ly-info-card {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  border: 1px solid #EEE;
+}
+.ly-info-card h3 {
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.ly-info-card ul {
+  list-style: none;
+  padding: 0;
+}
+.ly-info-card li {
+  font-size: 13px;
+  padding: 6px 0 6px 24px;
+  position: relative;
+  color: #4B4B4B;
+}
+.ly-info-card li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #1F8B4C;
+  font-weight: 800;
+}
+
+/* Tiers */
+.ly-tiers {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  border: 1px solid #EEE;
+}
+.ly-tiers h3 {
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.ly-tier-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #F4F4F2;
+  font-size: 13px;
+}
+.ly-tier-row:last-child {
+  border-bottom: 0;
+}
+
+/* History */
+.ly-history {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  border: 1px solid #EEE;
+}
+.ly-history h3 {
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.ly-empty {
+  text-align: center;
+  padding: 20px;
+  color: #9B9B9B;
+  font-size: 13px;
+}
+.ly-tx {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #F4F4F2;
+}
+.ly-tx:last-child {
+  border-bottom: 0;
+}
+.ly-tx-info strong {
+  font-size: 13px;
+  display: block;
+}
+.ly-tx-info span {
+  font-size: 11px;
+  color: #6B6B6B;
+  margin-top: 2px;
+}
+.ly-tx-points {
+  font-size: 16px;
+  font-weight: 800;
+}
+.ly-tx-points.positive {
+  color: #1F8B4C;
+}
+.ly-tx-points.negative {
+  color: #D9342B;
+}

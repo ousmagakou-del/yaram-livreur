@@ -854,3 +854,79 @@ export async function getPharmacyStats(pharmacyId) {
     activeProductsCount: products?.length || 0,
   };
 }
+// ─── PROGRAMME FIDÉLITÉ ───
+
+export async function getMyLoyalty(userId) {
+  const { data } = await supabase
+    .from('users_profile')
+    .select('loyalty_points, loyalty_total_earned, loyalty_tier')
+    .eq('id', userId)
+    .single();
+  return data || { loyalty_points: 0, loyalty_total_earned: 0, loyalty_tier: 'bronze' };
+}
+
+export async function getLoyaltyTransactions(userId, limit = 50) {
+  const { data } = await supabase
+    .from('loyalty_transactions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return data || [];
+}
+
+export async function earnLoyaltyPoints(userId, amount, orderId = null) {
+  // 1 FCFA = 1 point. Achat de 8500 FCFA = 8500 points.
+  // À la fin de la commande, appeler cette fonction.
+  const points = Math.floor(amount);
+  const { error } = await supabase.rpc('add_loyalty_points', {
+    p_user_id: userId,
+    p_points: points,
+    p_type: 'earn',
+    p_reason: `Achat ${orderId || ''}`,
+    p_order_id: orderId,
+  });
+  if (error) console.error('earnLoyaltyPoints error:', error);
+  return !error;
+}
+
+export async function spendLoyaltyPoints(userId, points, reason = 'Réduction') {
+  const my = await getMyLoyalty(userId);
+  if (my.loyalty_points < points) return { success: false, error: 'Solde insuffisant' };
+  
+  const { error } = await supabase.rpc('add_loyalty_points', {
+    p_user_id: userId,
+    p_points: -points,
+    p_type: 'spend',
+    p_reason: reason,
+  });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function bonusLoyaltyPoints(userId, points, reason) {
+  const { error } = await supabase.rpc('add_loyalty_points', {
+    p_user_id: userId,
+    p_points: points,
+    p_type: 'bonus',
+    p_reason: reason,
+  });
+  return !error;
+}
+
+// Convertir des points en réduction FCFA
+// 100 points = 500 FCFA (taux 5x)
+export function pointsToFcfa(points) {
+  return Math.floor(points / 100) * 500;
+}
+
+export function fcfaToPoints(fcfa) {
+  return Math.floor(fcfa / 500) * 100;
+}
+
+// Tier label & color
+export function getTierInfo(tier) {
+  if (tier === 'gold') return { label: 'Or 🥇', color: '#F4B53A', emoji: '🥇' };
+  if (tier === 'silver') return { label: 'Argent 🥈', color: '#9B9B9B', emoji: '🥈' };
+  return { label: 'Bronze 🥉', color: '#CD7F32', emoji: '🥉' };
+}

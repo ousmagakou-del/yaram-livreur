@@ -24,6 +24,7 @@ import Admin from './pages/Admin';
 import Pharma from './pages/Pharma';
 import Livreur from './pages/Livreur';
 import ClientConfirm from './pages/ClientConfirm';
+import Loyalty from './pages/Loyalty';
 import InstallPrompt from './components/InstallPrompt';
 
 const NavContext = createContext(null);
@@ -202,6 +203,7 @@ function ClientApp() {
     case 'evolution': page = <Evolution />; break;
     case 'categories': page = <Categories />; break;
     case 'quiz': page = <SkinQuiz onComplete={refreshUser} />; break;
+    case 'loyalty': page = <Loyalty />; break;
     default: page = <Home />;
   }
 
