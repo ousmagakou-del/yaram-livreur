@@ -62,10 +62,10 @@ export default function PharmacyDetail({ pharmacyId }) {
   const displayed = showAll ? products : products.slice(0, 20);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F5F6F8', paddingBottom: 80, fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: '#F5F6F8', paddingBottom: 100, fontFamily: 'system-ui, sans-serif', WebkitOverflowScrolling: 'touch' }}>
       
       {/* HEADER */}
-      <header style={{ position: 'sticky', top: 0, background: 'white', borderBottom: '1px solid #EEE', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 10 }}>
+      <header style={{ position: 'relative', background: 'white', borderBottom: '1px solid #EEE', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, zIndex: 10 }}>
         <button onClick={() => navigate(-1)} style={{ width: 36, height: 36, borderRadius: '50%', background: '#F4F4F2', border: 'none', cursor: 'pointer', fontSize: 18 }}>←</button>
         <div style={{ fontSize: 15, fontWeight: 700 }}>Détails pharmacie</div>
       </header>
