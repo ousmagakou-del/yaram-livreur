@@ -25,6 +25,7 @@ import Admin from './pages/Admin';
 import Pharma from './pages/Pharma';
 import Livreur from './pages/Livreur';
 import ClientConfirm from './pages/ClientConfirm';
+import PiSpiTest from './pages/PiSpiTest';
 import Loyalty from './pages/Loyalty';
 import Referral from './pages/Referral';
 import NotifSettings from './pages/NotifSettings';
@@ -43,6 +44,7 @@ export default function App() {
   if (params.has('pharma')) return <Pharma />;
   if (params.has('livreur')) return <Livreur />;
   if (params.has('confirm')) return <ClientConfirm />;
+  if (params.has('pispi')) return <PiSpiTest />;
 
   return <ClientApp />;
 }
