@@ -687,6 +687,159 @@
   color: #D9342B;
 }
 
+/* PIN oublié — bloc de rappel pharmacie */
+.phar-forgot-target {
+  background: #E8F5EC;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.phar-forgot-target strong {
+  display: block;
+  font-size: 14px;
+  color: #1A1A1A;
+}
+.phar-forgot-target span {
+  font-size: 11px;
+  color: #6B6B6B;
+}
+.phar-pin-btn-wa {
+  background: #25D366;
+}
+.phar-pin-btn-wa:hover {
+  background: #1FB855;
+}
+
+/* ════════════════════════════════════════
+   PARAMÈTRES — section settings
+   ════════════════════════════════════════ */
+.phar-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}
+.phar-card {
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #EEE;
+  padding: 20px;
+}
+.phar-card-title {
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 14px;
+  color: #1A1A1A;
+}
+.phar-field {
+  margin-bottom: 12px;
+}
+.phar-field:last-child {
+  margin-bottom: 0;
+}
+.phar-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B6B6B;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.phar-input,
+.phar-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #DDD;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+  outline: none;
+  font-family: inherit;
+  background: white;
+  color: #1A1A1A;
+}
+.phar-input:focus,
+.phar-textarea:focus {
+  border-color: #1F8B4C;
+}
+.phar-textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+.phar-hint {
+  font-size: 11px;
+  color: #6B6B6B;
+  margin-top: 4px;
+  font-style: italic;
+}
+.phar-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.phar-row > .phar-field {
+  flex: 1;
+  min-width: 140px;
+  margin-bottom: 0;
+}
+
+/* Boutons paramètres */
+.phar-btn-primary {
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(135deg, #1F8B4C 0%, #166635 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.phar-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.phar-btn-outline {
+  width: 100%;
+  padding: 11px;
+  background: white;
+  color: #1A1A1A;
+  border: 1px solid #DDD;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.phar-btn-outline:hover {
+  border-color: #1F8B4C;
+  color: #1F8B4C;
+}
+
+/* Feedback save / erreur */
+.phar-save-ok {
+  background: #E8F5EC;
+  color: #1F8B4C;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 10px;
+}
+.phar-save-error {
+  background: #FCE9E7;
+  color: #D9342B;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
 /* Mobile */
 @media (max-width: 900px) {
   .phar-shell { flex-direction: column; }
