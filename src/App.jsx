@@ -12,6 +12,7 @@ import OrderTracking from './pages/OrderTracking';
 import Orders from './pages/Orders';
 import Profile from './pages/Profile';
 import Pharmacies from './pages/Pharmacies';
+import PharmacyDetail from './pages/PharmacyDetail';
 import Scan from './pages/Scan';
 import ScanResult from './pages/ScanResult';
 import ScanHistory from './pages/ScanHistory';
@@ -197,6 +198,7 @@ function ClientApp() {
     case 'orders': page = <Orders />; break;
     case 'profile': page = <Profile />; break;
     case 'pharmacies': page = <Pharmacies />; break;
+    case 'pharmacy_detail': page = <PharmacyDetail pharmacyId={route.params.id} />; break;
     case 'scan': page = <Scan />; break;
     case 'scan_result': page = <ScanResult scanId={route.params.scanId} />; break;
     case 'scan_history': page = <ScanHistory />; break;

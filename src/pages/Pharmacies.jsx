@@ -21,6 +21,10 @@ export default function Pharmacies() {
   const cities = ['all', ...Array.from(new Set(pharmacies.map(p => p.city)))];
   const filtered = filter === 'all' ? pharmacies : pharmacies.filter(p => p.city === filter);
 
+  const openDetail = (id) => {
+    navigate({ name: 'pharmacy_detail', params: { id } });
+  };
+
   return (
     <div className="ph-screen page-anim">
       <div className="ph-header">
@@ -55,7 +59,12 @@ export default function Pharmacies() {
           filtered.map(p => {
             const waUrl = p.whatsapp ? 'https://wa.me/' + p.whatsapp.replace(/\D/g, '') : null;
             return (
-              <div key={p.id} className="ph-card">
+              <div 
+                key={p.id} 
+                className="ph-card" 
+                onClick={() => openDetail(p.id)}
+                style={{ cursor: 'pointer' }}
+              >
                 {p.cover && (
                   <div className="ph-cover" style={{backgroundImage: 'url(' + p.cover + ')'}} />
                 )}
@@ -71,11 +80,38 @@ export default function Pharmacies() {
                   {p.tagline && <p className="ph-tagline">{p.tagline}</p>}
                   <div className="ph-info-row">🕐 {p.hours}</div>
                   {p.phone && <div className="ph-info-row">📞 {p.phone}</div>}
-                  {waUrl && (
-                    <a className="ph-wa" href={waUrl} target="_blank" rel="noopener noreferrer">
-                      💬 WhatsApp
-                    </a>
-                  )}
+                  
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    {waUrl && (
+                      <a 
+                        className="ph-wa" 
+                        href={waUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ flex: 1, textAlign: 'center' }}
+                      >
+                        💬 WhatsApp
+                      </a>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openDetail(p.id); }}
+                      style={{ 
+                        flex: 1, 
+                        padding: '10px 14px', 
+                        background: '#1F8B4C', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: 8, 
+                        fontSize: 13, 
+                        fontWeight: 700, 
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      Voir détails →
+                    </button>
+                  </div>
                 </div>
               </div>
             );
