@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken } from '../lib/supabase';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 import './Livreur.css';
 
 export default function Livreur() {
@@ -13,7 +14,8 @@ export default function Livreur() {
   const [showPhotoCapture, setShowPhotoCapture] = useState(null);
   const [showSignature, setShowSignature] = useState(false);
   const [showPinEntry, setShowPinEntry] = useState(false);
-  const [proofMethod, setProofMethod] = useState(null); // 'photo', 'signature', 'pin'
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [proofMethod, setProofMethod] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const watchIdRef = useRef(null);
 
@@ -44,7 +46,6 @@ export default function Livreur() {
     setTracking(data);
     setOrder(data.orders);
     
-    // Détecter quelle preuve a déjà été uploadée
     if (data.delivery_photo_url) setProofMethod('photo');
     else if (data.delivery_signature) setProofMethod('signature');
     else if (data.delivery_pin) setProofMethod('pin');
@@ -111,12 +112,15 @@ export default function Livreur() {
     const url = await uploadPhoto(file, type);
     if (!url) return;
     const fieldMap = {
+      pickup_before: 'pickup_before_photo_url',
+      pickup_after: 'pickup_after_photo_url',
       pickup: 'pickup_photo_url',
       product: 'product_photo_url',
       delivery: 'delivery_photo_url',
     };
+    const fieldName = fieldMap[type] || `${type}_photo_url`;
     await supabase.from('delivery_tracking')
-      .update({ [fieldMap[type]]: url }).eq('delivery_token', token);
+      .update({ [fieldName]: url }).eq('delivery_token', token);
     setShowPhotoCapture(null);
     if (type === 'delivery') {
       setProofMethod('photo');
@@ -126,6 +130,25 @@ export default function Livreur() {
       loadTracking(token);
       alert('✅ Photo enregistrée');
     }
+  };
+
+  const handleBarcodeScan = async (barcode) => {
+    // Ajoute le code-barres scanné à la liste
+    const scanned = tracking?.scanned_barcodes || [];
+    const newScanned = [...scanned, {
+      code: barcode,
+      scanned_at: new Date().toISOString(),
+    }];
+    
+    await supabase.from('delivery_tracking')
+      .update({ scanned_barcodes: newScanned })
+      .eq('delivery_token', token);
+    
+    loadTracking(token);
+    
+    // Feedback
+    if (navigator.vibrate) navigator.vibrate(100);
+    setShowBarcodeScanner(false);
   };
 
   const handleSignatureSubmit = async (signatureData) => {
@@ -163,7 +186,6 @@ export default function Livreur() {
       return;
     }
     
-    // Si commande cash et cash pas encore confirmé
     if (order.payment_method === 'cod' && !order.cash_received) {
       alert('⚠️ Tu dois d\'abord confirmer la réception du cash !');
       return;
@@ -171,7 +193,6 @@ export default function Livreur() {
     
     setConfirming(true);
     
-    // Génère un token de confirmation pour la cliente
     let confirmToken = order.confirmation_token;
     if (!confirmToken) {
       confirmToken = generateConfirmToken();
@@ -180,7 +201,6 @@ export default function Livreur() {
       }).eq('id', order.id);
     }
     
-    // Passe en awaiting_confirm
     await supabase.from('orders').update({
       status: 'awaiting_confirm',
       awaiting_confirm_at: new Date().toISOString(),
@@ -188,7 +208,6 @@ export default function Livreur() {
     
     await updateStatus('proof_uploaded');
     
-    // Envoie WhatsApp à la cliente
     const confirmUrl = `${window.location.origin}/?confirm=${confirmToken}`;
     if (order.address?.phone) {
       const msg = order.payment_method === 'cod'
@@ -225,6 +244,11 @@ export default function Livreur() {
   };
 
   const isCompleted = ['awaiting_confirm', 'delivered'].includes(order?.status);
+  
+  // Compteur produits scannés
+  const scannedCount = (tracking?.scanned_barcodes || []).length;
+  const totalProducts = (order?.items || []).reduce((sum, it) => sum + (it.qty || 1), 0);
+  const allScanned = scannedCount >= totalProducts && totalProducts > 0;
 
   return (
     <div className="liv-screen">
@@ -237,7 +261,6 @@ export default function Livreur() {
       </header>
 
       <main className="liv-main">
-        {/* Carte info client */}
         <div className="liv-card">
           <div className="liv-card-head">
             <code>{order?.id}</code>
@@ -265,7 +288,6 @@ export default function Livreur() {
           </div>
         </div>
 
-        {/* Articles + Mode de paiement */}
         <div className="liv-card">
           <h2>📦 Articles à livrer</h2>
           {Array.from(new Map((order?.items || []).map(it => [it.pharmacyId, it.pharmacyName]))).map(([phId, phName]) => (
@@ -295,7 +317,6 @@ export default function Livreur() {
           )}
         </div>
 
-        {/* GPS */}
         {!isCompleted && (
           <div className="liv-card">
             <h2>📡 Partage GPS</h2>
@@ -324,21 +345,22 @@ export default function Livreur() {
           </div>
         )}
 
-        {/* Étapes 1 à 4 */}
         {!isCompleted && (
           <div className="liv-card">
             <h2>✅ Étapes de livraison</h2>
             <div className="liv-steps-enriched">
               
-              {/* Étape 1 */}
+              {/* Étape 1 — Arrivée pharmacie */}
               <div className={`liv-step-card ${stepDone('picking') ? 'done' : ''}`}>
                 <div className="liv-step-num">1</div>
                 <div className="liv-step-content">
                   <strong>🏥 J'arrive à la pharmacie</strong>
-                  <p>Confirme ta présence</p>
-                  {tracking?.pickup_photo_url && <img src={tracking.pickup_photo_url} alt="" className="liv-thumb" />}
+                  <p>Photo de la pharmacie (preuve d'arrivée)</p>
+                  {tracking?.pickup_before_photo_url && <img src={tracking.pickup_before_photo_url} alt="" className="liv-thumb" />}
                   <div className="liv-step-actions">
-                    <button className="liv-mini-btn" onClick={() => setShowPhotoCapture('pickup')} disabled={stepDone('picked')}>📷 Photo (optionnel)</button>
+                    <button className="liv-mini-btn" onClick={() => setShowPhotoCapture('pickup_before')} disabled={stepDone('picked')}>
+                      📷 Photo avant
+                    </button>
                     <button className={stepDone('picking') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
                       onClick={() => updateStatus('picking')} disabled={stepDone('picking')}>
                       {stepDone('picking') ? '✓ Confirmé' : 'Je suis là'}
@@ -347,26 +369,96 @@ export default function Livreur() {
                 </div>
               </div>
 
-              {/* Étape 2 */}
-              <div className={`liv-step-card ${stepDone('picked') ? 'done' : ''}`}>
+              {/* Étape 2 — Scan code-barres */}
+              <div className={`liv-step-card ${allScanned ? 'done' : ''}`}>
                 <div className="liv-step-num">2</div>
                 <div className="liv-step-content">
-                  <strong>📦 Produit récupéré</strong>
-                  <p>Photo recommandée comme preuve</p>
-                  {tracking?.product_photo_url && <img src={tracking.product_photo_url} alt="" className="liv-thumb" />}
+                  <strong>📊 Vérifier les produits</strong>
+                  <p>Scanne le code-barres de chaque produit</p>
+                  
+                  {/* Compteur de scans */}
+                  <div style={{
+                    background: allScanned ? '#E8F5EC' : '#FEF6E5',
+                    color: allScanned ? '#1F8B4C' : '#A07700',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    marginBottom: 10,
+                    textAlign: 'center',
+                  }}>
+                    {scannedCount} / {totalProducts} produits scannés
+                    {allScanned && ' ✅'}
+                  </div>
+
+                  {/* Liste des scans déjà faits */}
+                  {scannedCount > 0 && (
+                    <div style={{
+                      background: '#F9FAFB',
+                      borderRadius: 8,
+                      padding: 8,
+                      marginBottom: 10,
+                      fontSize: 11,
+                      maxHeight: 100,
+                      overflowY: 'auto',
+                    }}>
+                      {(tracking?.scanned_barcodes || []).map((b, i) => (
+                        <div key={i} style={{ padding: '2px 0', display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{b.code}</span>
+                          <span style={{ color: '#9B9B9B' }}>{new Date(b.scanned_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                   <div className="liv-step-actions">
-                    <button className="liv-mini-btn" onClick={() => setShowPhotoCapture('product')} disabled={!stepDone('picking') || stepDone('in_route')}>📷 Photo (optionnel)</button>
-                    <button className={stepDone('picked') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
-                      onClick={() => updateStatus('picked')} disabled={!stepDone('picking') || stepDone('picked')}>
-                      {stepDone('picked') ? '✓ Récupéré' : 'Récupéré'}
+                    <button 
+                      className="liv-mini-btn pri" 
+                      onClick={() => setShowBarcodeScanner(true)}
+                      disabled={!stepDone('picking') || allScanned}
+                    >
+                      📊 Scanner un code-barres
+                    </button>
+                    <button 
+                      className="liv-mini-btn"
+                      onClick={async () => {
+                        if (confirm('Pas de code-barres sur certains produits ? On skip le scan ?')) {
+                          await supabase.from('delivery_tracking')
+                            .update({ scanned_barcodes: [{ code: 'SKIPPED', scanned_at: new Date().toISOString() }] })
+                            .eq('delivery_token', token);
+                          loadTracking(token);
+                        }
+                      }}
+                      disabled={!stepDone('picking') || scannedCount > 0}
+                    >
+                      Skip
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Étape 3 */}
-              <div className={`liv-step-card ${stepDone('in_route') ? 'done' : ''}`}>
+              {/* Étape 3 — Photo produit final + récupération */}
+              <div className={`liv-step-card ${stepDone('picked') ? 'done' : ''}`}>
                 <div className="liv-step-num">3</div>
+                <div className="liv-step-content">
+                  <strong>📦 Produits récupérés</strong>
+                  <p>Photo des produits avant de partir</p>
+                  {tracking?.pickup_after_photo_url && <img src={tracking.pickup_after_photo_url} alt="" className="liv-thumb" />}
+                  <div className="liv-step-actions">
+                    <button className="liv-mini-btn" onClick={() => setShowPhotoCapture('pickup_after')} disabled={!allScanned || stepDone('in_route')}>
+                      📷 Photo après
+                    </button>
+                    <button className={stepDone('picked') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
+                      onClick={() => updateStatus('picked')} disabled={!allScanned || stepDone('picked')}>
+                      {stepDone('picked') ? '✓ Récupéré' : 'Tout pris'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Étape 4 */}
+              <div className={`liv-step-card ${stepDone('in_route') ? 'done' : ''}`}>
+                <div className="liv-step-num">4</div>
                 <div className="liv-step-content">
                   <strong>🛵 En route vers la cliente</strong>
                   <p>{sharingGPS ? 'GPS actif · cliente notifiée' : 'Active le GPS d\'abord'}</p>
@@ -377,9 +469,9 @@ export default function Livreur() {
                 </div>
               </div>
 
-              {/* Étape 4 */}
+              {/* Étape 5 */}
               <div className={`liv-step-card ${stepDone('arrived') ? 'done' : ''}`}>
-                <div className="liv-step-num">4</div>
+                <div className="liv-step-num">5</div>
                 <div className="liv-step-content">
                   <strong>📍 Arrivé chez la cliente</strong>
                   <p>Devant la porte</p>
@@ -393,10 +485,9 @@ export default function Livreur() {
           </div>
         )}
 
-        {/* Étape 5 — Cash si COD */}
         {!isCompleted && isCash && stepDone('arrived') && (
           <div className="liv-card">
-            <h2>💵 Étape 5a · Encaissement Cash</h2>
+            <h2>💵 Encaissement Cash</h2>
             <div className="liv-cash-box">
               <p style={{ fontSize: 14, marginBottom: 12 }}>
                 Demande à la cliente <strong style={{ fontSize: 18, color: '#1F8B4C' }}>{order.total.toLocaleString('fr-FR')} FCFA</strong> cash.
@@ -404,11 +495,6 @@ export default function Livreur() {
               {order.cash_received ? (
                 <div className="liv-cash-done">
                   ✅ Cash de {order.total.toLocaleString('fr-FR')} FCFA reçu
-                  {order.cash_received_at && (
-                    <p style={{ fontSize: 11, opacity: 0.7 }}>
-                      {new Date(order.cash_received_at).toLocaleString('fr-FR')}
-                    </p>
-                  )}
                 </div>
               ) : (
                 <button className="liv-btn-pri" onClick={markCashReceived}>
@@ -419,42 +505,35 @@ export default function Livreur() {
           </div>
         )}
 
-        {/* Étape Preuve (5b ou 5) */}
         {!isCompleted && stepDone('arrived') && (!isCash || order?.cash_received) && (
           <div className="liv-card">
-            <h2>📸 Étape {isCash ? '5b' : '5'} · Preuve de livraison</h2>
+            <h2>📸 Preuve de livraison</h2>
             <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 14 }}>
               Choisis <strong>UNE</strong> méthode pour prouver la livraison :
             </p>
 
             <div className="liv-proof-grid">
-              <button
-                className={`liv-proof-option ${proofMethod === 'photo' ? 'selected' : ''}`}
+              <button className={`liv-proof-option ${proofMethod === 'photo' ? 'selected' : ''}`}
                 onClick={() => setShowPhotoCapture('delivery')}
-                disabled={proofMethod && proofMethod !== 'photo'}
-              >
+                disabled={proofMethod && proofMethod !== 'photo'}>
                 <div className="liv-proof-icon">📷</div>
                 <strong>Photo</strong>
                 <span>du colis remis</span>
                 {tracking?.delivery_photo_url && <span className="liv-proof-check">✓</span>}
               </button>
 
-              <button
-                className={`liv-proof-option ${proofMethod === 'signature' ? 'selected' : ''}`}
+              <button className={`liv-proof-option ${proofMethod === 'signature' ? 'selected' : ''}`}
                 onClick={() => setShowSignature(true)}
-                disabled={proofMethod && proofMethod !== 'signature'}
-              >
+                disabled={proofMethod && proofMethod !== 'signature'}>
                 <div className="liv-proof-icon">✍️</div>
                 <strong>Signature</strong>
                 <span>cliente signe</span>
                 {tracking?.delivery_signature && <span className="liv-proof-check">✓</span>}
               </button>
 
-              <button
-                className={`liv-proof-option ${proofMethod === 'pin' ? 'selected' : ''}`}
+              <button className={`liv-proof-option ${proofMethod === 'pin' ? 'selected' : ''}`}
                 onClick={() => setShowPinEntry(true)}
-                disabled={proofMethod && proofMethod !== 'pin'}
-              >
+                disabled={proofMethod && proofMethod !== 'pin'}>
                 <div className="liv-proof-icon">🔢</div>
                 <strong>Code PIN</strong>
                 <span>cliente dicte</span>
@@ -476,18 +555,13 @@ export default function Livreur() {
               </div>
             )}
 
-            {/* Bouton confirmer final */}
-            <button
-              className="liv-btn-final"
-              onClick={confirmDelivery}
-              disabled={!proofMethod || confirming || (isCash && !order.cash_received)}
-            >
+            <button className="liv-btn-final" onClick={confirmDelivery}
+              disabled={!proofMethod || confirming || (isCash && !order.cash_received)}>
               {confirming ? '⏳ Envoi en cours...' : '🎉 Confirmer la livraison'}
             </button>
           </div>
         )}
 
-        {/* Si en attente confirmation cliente */}
         {isCompleted && (
           <div className="liv-card" style={{ textAlign: 'center', padding: 24 }}>
             <div style={{ fontSize: 56, marginBottom: 12 }}>⏳</div>
@@ -500,34 +574,221 @@ export default function Livreur() {
                 ✅ Livraison confirmée par la cliente
               </div>
             )}
-            <p style={{ fontSize: 11, color: '#9B9B9B', marginTop: 16 }}>
-              Merci pour ton service · Diaara 💚
-            </p>
           </div>
         )}
       </main>
 
-      {/* Modals */}
       {showPhotoCapture && (
-        <PhotoCaptureModal
-          type={showPhotoCapture}
+        <PhotoCaptureModal type={showPhotoCapture}
           onCapture={(file) => handlePhotoCapture(file, showPhotoCapture)}
-          onCancel={() => setShowPhotoCapture(null)}
+          onCancel={() => setShowPhotoCapture(null)} />
+      )}
+      {showSignature && <SignatureModal onSubmit={handleSignatureSubmit} onCancel={() => setShowSignature(false)} />}
+      {showPinEntry && <PinEntryModal onSubmit={handlePinSubmit} onCancel={() => setShowPinEntry(false)} />}
+      {showBarcodeScanner && (
+        <BarcodeScannerModal 
+          onScan={handleBarcodeScan} 
+          onCancel={() => setShowBarcodeScanner(false)}
+          alreadyScanned={(tracking?.scanned_barcodes || []).map(b => b.code)}
         />
-      )}
-      {showSignature && (
-        <SignatureModal onSubmit={handleSignatureSubmit} onCancel={() => setShowSignature(false)} />
-      )}
-      {showPinEntry && (
-        <PinEntryModal onSubmit={handlePinSubmit} onCancel={() => setShowPinEntry(false)} />
       )}
     </div>
   );
 }
 
+// ─── MODAL SCANNER CODE-BARRES ───
+function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [] }) {
+  const videoRef = useRef(null);
+  const readerRef = useRef(null);
+  const [status, setStatus] = useState('starting');
+  const [detected, setDetected] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const reader = new BrowserMultiFormatReader();
+    readerRef.current = reader;
+    
+    (async () => {
+      try {
+        setStatus('starting');
+        
+        // Préfère la caméra arrière
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+        const backCamera = devices.find(d => /back|rear|environment/i.test(d.label));
+        const deviceId = backCamera?.deviceId || devices[0]?.deviceId;
+        
+        if (!deviceId) {
+          setStatus('no-camera');
+          return;
+        }
+        
+        setStatus('scanning');
+        
+        await reader.decodeFromVideoDevice(deviceId, videoRef.current, (result, err) => {
+          if (cancelled) return;
+          if (result) {
+            const code = result.getText();
+            
+            // Vérifie pas déjà scanné
+            if (alreadyScanned.includes(code)) {
+              setDetected({ code, alreadyScanned: true });
+              setTimeout(() => setDetected(null), 1500);
+              return;
+            }
+            
+            // Beep + vibration
+            if (navigator.vibrate) navigator.vibrate(100);
+            
+            setDetected({ code, success: true });
+            
+            // Valide après 800ms
+            setTimeout(() => {
+              if (!cancelled) onScan(code);
+            }, 800);
+          }
+        });
+      } catch (e) {
+        console.error('Scanner error:', e);
+        setStatus('error');
+      }
+    })();
+    
+    return () => {
+      cancelled = true;
+      try {
+        if (readerRef.current) {
+          readerRef.current.reset();
+        }
+      } catch (e) {}
+    };
+  }, []);
+
+  return (
+    <div className="liv-modal-overlay" onClick={onCancel}>
+      <div className="liv-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, padding: 16 }}>
+        <h3 style={{ marginBottom: 8 }}>📊 Scanner code-barres</h3>
+        <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 14 }}>
+          Pointe la caméra vers le code-barres du produit
+        </p>
+        
+        <div style={{
+          position: 'relative',
+          background: '#000',
+          borderRadius: 12,
+          overflow: 'hidden',
+          aspectRatio: '4/3',
+          marginBottom: 14,
+        }}>
+          <video 
+            ref={videoRef}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            playsInline
+            muted
+          />
+          
+          {/* Overlay scan zone */}
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              width: '80%',
+              height: '40%',
+              border: '3px solid rgba(31,139,76,0.8)',
+              borderRadius: 8,
+              boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)',
+            }} />
+          </div>
+          
+          {/* Statut */}
+          {status === 'starting' && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: 14,
+              fontWeight: 700,
+              background: 'rgba(0,0,0,0.5)',
+            }}>
+              ⏳ Démarrage caméra...
+            </div>
+          )}
+          
+          {status === 'no-camera' && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 700,
+              background: 'rgba(217,52,43,0.9)',
+              padding: 20,
+              textAlign: 'center',
+            }}>
+              📷 Pas de caméra détectée<br />Vérifie les permissions
+            </div>
+          )}
+          
+          {/* Feedback succès */}
+          {detected?.success && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              background: 'rgba(31,139,76,0.9)',
+              animation: 'fadeIn 0.2s',
+            }}>
+              <div style={{ fontSize: 48 }}>✅</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, marginTop: 8 }}>{detected.code}</div>
+            </div>
+          )}
+          
+          {/* Feedback déjà scanné */}
+          {detected?.alreadyScanned && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              background: 'rgba(217,52,43,0.9)',
+            }}>
+              <div style={{ fontSize: 48 }}>⚠️</div>
+              <div style={{ fontSize: 14, marginTop: 8 }}>Déjà scanné</div>
+            </div>
+          )}
+        </div>
+        
+        <button className="liv-btn-stop" onClick={onCancel} style={{ width: '100%' }}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL PHOTO ───
 function PhotoCaptureModal({ type, onCapture, onCancel }) {
   const fileInputRef = useRef(null);
   const labels = {
+    pickup_before: 'Photo de la pharmacie (à l\'arrivée)',
+    pickup_after: 'Photo des produits récupérés',
     pickup: 'Photo de la pharmacie',
     product: 'Photo du produit (étiquette visible)',
     delivery: 'Photo du colis remis à la cliente',
@@ -535,7 +796,7 @@ function PhotoCaptureModal({ type, onCapture, onCancel }) {
   return (
     <div className="liv-modal-overlay" onClick={onCancel}>
       <div className="liv-modal" onClick={e => e.stopPropagation()}>
-        <h3>📷 {labels[type]}</h3>
+        <h3>📷 {labels[type] || 'Photo'}</h3>
         <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 16 }}>
           Prends une photo claire avec ton téléphone
         </p>
@@ -551,6 +812,7 @@ function PhotoCaptureModal({ type, onCapture, onCancel }) {
   );
 }
 
+// ─── MODAL SIGNATURE ───
 function SignatureModal({ onSubmit, onCancel }) {
   const canvasRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
@@ -629,6 +891,7 @@ function SignatureModal({ onSubmit, onCancel }) {
   );
 }
 
+// ─── MODAL PIN ───
 function PinEntryModal({ onSubmit, onCancel }) {
   const [pin, setPin] = useState('');
   const submit = () => {
