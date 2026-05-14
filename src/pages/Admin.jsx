@@ -4,6 +4,7 @@ import { adminLogin, adminLogout, getAdminSession, changeAdminPin } from '../lib
 import DashboardSection from '../admin/DashboardSection';
 import OrdersSection from '../admin/OrdersSection';
 import FinancesSection from '../admin/FinancesSection';
+import PerformanceSection from '../admin/PerformanceSection';
 import PharmaciesSection from '../admin/PharmaciesSection';
 import ProductsSection from '../admin/ProductsSection';
 import BrandsSection from '../admin/BrandsSection';
@@ -26,6 +27,7 @@ const NAV = [
   { id: 'orders',      icon: '📦', label: 'Commandes', badge: true },
   { id: 'stats',       icon: '📈', label: 'Statistiques' },
   { id: 'pharmacies',  icon: '🏥', label: 'Pharmacies' },
+  { id: 'performance', icon: '📊', label: 'Performance' },
   { id: 'commissions', icon: '💰', label: 'Commissions' },
   { id: 'finances',    icon: '💸', label: 'Finances' },
   { id: 'products',    icon: '🛍️', label: 'Produits' },
@@ -216,6 +218,7 @@ export default function Admin() {
         {section === 'orders'      && <OrdersSection />}
         {section === 'stats'       && <StatsSection />}
         {section === 'pharmacies'  && <PharmaciesSection />}
+        {section === 'performance' && <PerformanceSection />}
         {section === 'commissions' && <CommissionsSection />}
         {section === 'finances'    && <FinancesSection />}
         {section === 'products'    && <ProductsSection />}
