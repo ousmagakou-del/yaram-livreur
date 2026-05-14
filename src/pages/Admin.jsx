@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, subscribeToNewOrders } from '../lib/supabase';
-import { adminLogin, adminLogout, getAdminSession, hasPermission, changeAdminPin } from '../lib/adminAuth';
+import { adminLogin, adminLogout, getAdminSession, changeAdminPin } from '../lib/adminAuth';
 import DashboardSection from '../admin/DashboardSection';
 import OrdersSection from '../admin/OrdersSection';
 import PharmaciesSection from '../admin/PharmaciesSection';
@@ -41,18 +41,15 @@ const NAV = [
 ];
 
 export default function Admin() {
-  // Session admin (null = pas connecté)
   const [session, setSession] = useState(() => getAdminSession());
   const [email, setEmail] = useState('');
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
-
   const [section, setSection] = useState('dashboard');
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [pendingValidationCount, setPendingValidationCount] = useState(0);
 
-  // Changement PIN (modale)
   const [pinModal, setPinModal] = useState(false);
   const [oldPin, setOldPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -60,14 +57,12 @@ export default function Admin() {
   const [pinModalError, setPinModalError] = useState('');
   const [pinModalOk, setPinModalOk] = useState('');
 
-  // ─── Realtime nouvelles commandes ───
   useEffect(() => {
     if (!session) return;
     const sub = subscribeToNewOrders(() => setNewOrdersCount(c => c + 1));
     return () => sub?.unsubscribe?.();
   }, [session]);
 
-  // ─── Count produits en attente de validation ───
   useEffect(() => {
     if (!session) return;
     const refresh = async () => {
@@ -77,40 +72,17 @@ export default function Admin() {
           .select('*', { count: 'exact', head: true })
           .eq('status', 'pending');
         setPendingValidationCount(count || 0);
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
     };
     refresh();
     const t = setInterval(refresh, 30000);
     return () => clearInterval(t);
   }, [session]);
 
-  // ─── Reset badge en visitant ───
   useEffect(() => {
     if (section === 'orders') setNewOrdersCount(0);
   }, [section]);
 
-  // ─── Si on perd la session (expiration), retour login ───
-  useEffect(() => {
-    const t = setInterval(() => {
-      const s = getAdminSession();
-      if (!s && session) {
-        setSession(null);
-      }
-    }, 30000);
-    return () => clearInterval(t);
-  }, [session]);
-
-  // ─── Si la section courante n'est plus accessible (changement de session), revient au dashboard ───
-  useEffect(() => {
-    if (session && !hasPermission(session, section) && section !== 'dashboard') {
-      setSection('dashboard');
-    }
-  }, [session, section]);
-
-  // ─── Sections autorisées pour cet admin ───
-  const allowedNav = NAV.filter(item => hasPermission(session, item.id));
-
-  // ─── Handlers ───
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     setLoginError('');
@@ -120,7 +92,6 @@ export default function Admin() {
     if (result.success) {
       setSession(result.admin);
       setPinInput('');
-      setLoginError('');
     } else {
       setLoginError(result.error);
       setPinInput('');
@@ -151,9 +122,7 @@ export default function Admin() {
     }
   };
 
-  // ════════════════════════════════════════
-  // ÉCRAN LOGIN
-  // ════════════════════════════════════════
+  // ────────── LOGIN ──────────
   if (!session) {
     return (
       <div className="adm-login">
@@ -196,9 +165,9 @@ export default function Admin() {
     );
   }
 
-  // ════════════════════════════════════════
-  // ÉCRAN ADMIN
-  // ════════════════════════════════════════
+  // ────────── ADMIN ──────────
+  // ⚠️ Pas de filtrage par permissions ici : tout est affiché.
+  // La sécurité est sur le LOGIN (hash bcrypt cote serveur).
   return (
     <div className="adm-shell">
       <aside className="adm-side">
@@ -206,13 +175,11 @@ export default function Admin() {
           <div className="adm-side-logo">D</div>
           <div>
             <div className="adm-side-brand">Diaara</div>
-            <div className="adm-side-role">
-              {session.name} · {roleLabel(session.role)}
-            </div>
+            <div className="adm-side-role">{session.name || 'Admin'}</div>
           </div>
         </div>
         <nav className="adm-nav">
-          {allowedNav.map(item => (
+          {NAV.map(item => (
             <button
               key={item.id}
               className={`adm-nav-item ${section === item.id ? 'active' : ''}`}
@@ -243,26 +210,25 @@ export default function Admin() {
       </aside>
 
       <main className="adm-main">
-        {section === 'dashboard'   && hasPermission(session, 'dashboard')   && <DashboardSection setSection={setSection} />}
-        {section === 'orders'      && hasPermission(session, 'orders')      && <OrdersSection />}
-        {section === 'stats'       && hasPermission(session, 'stats')       && <StatsSection />}
-        {section === 'pharmacies'  && hasPermission(session, 'pharmacies')  && <PharmaciesSection />}
-        {section === 'commissions' && hasPermission(session, 'commissions') && <CommissionsSection />}
-        {section === 'products'    && hasPermission(session, 'products')    && <ProductsSection />}
-        {section === 'validation'  && hasPermission(session, 'validation')  && <ProductsValidationSection />}
-        {section === 'brands'      && hasPermission(session, 'brands')      && <BrandsSection />}
-        {section === 'banners'     && hasPermission(session, 'banners')     && <BannersSection />}
-        {section === 'promos'      && hasPermission(session, 'promos')      && <PromosSection />}
-        {section === 'marketing'   && hasPermission(session, 'marketing')   && <MarketingSection />}
-        {section === 'reviews'     && hasPermission(session, 'reviews')     && <ReviewsSection />}
-        {section === 'users'       && hasPermission(session, 'users')       && <UsersSection />}
-        {section === 'deliveries'  && hasPermission(session, 'deliveries')  && <DeliveriesSection />}
-        {section === 'staff'       && hasPermission(session, 'staff')       && <StaffSection />}
-        {section === 'history'     && hasPermission(session, 'history')     && <HistorySection />}
-        {section === 'settings'    && hasPermission(session, 'settings')    && <SettingsSection />}
+        {section === 'dashboard'   && <DashboardSection setSection={setSection} />}
+        {section === 'orders'      && <OrdersSection />}
+        {section === 'stats'       && <StatsSection />}
+        {section === 'pharmacies'  && <PharmaciesSection />}
+        {section === 'commissions' && <CommissionsSection />}
+        {section === 'products'    && <ProductsSection />}
+        {section === 'validation'  && <ProductsValidationSection />}
+        {section === 'brands'      && <BrandsSection />}
+        {section === 'banners'     && <BannersSection />}
+        {section === 'promos'      && <PromosSection />}
+        {section === 'marketing'   && <MarketingSection />}
+        {section === 'reviews'     && <ReviewsSection />}
+        {section === 'users'       && <UsersSection />}
+        {section === 'deliveries'  && <DeliveriesSection />}
+        {section === 'staff'       && <StaffSection />}
+        {section === 'history'     && <HistorySection />}
+        {section === 'settings'    && <SettingsSection />}
       </main>
 
-      {/* MODAL CHANGEMENT PIN */}
       {pinModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
@@ -276,37 +242,26 @@ export default function Admin() {
             <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 16 }}>
               Choisis un nouveau code à 4-6 chiffres
             </p>
-
             <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Ancien PIN"
-              value={oldPin}
+              type="password" inputMode="numeric" maxLength={6}
+              placeholder="Ancien PIN" value={oldPin}
               onChange={e => { setOldPin(e.target.value.replace(/\D/g, '')); setPinModalError(''); }}
               style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #DDD', fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }}
               autoFocus
             />
             <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Nouveau PIN"
-              value={newPin}
+              type="password" inputMode="numeric" maxLength={6}
+              placeholder="Nouveau PIN" value={newPin}
               onChange={e => { setNewPin(e.target.value.replace(/\D/g, '')); setPinModalError(''); }}
               style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #DDD', fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }}
             />
             <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Confirme le nouveau PIN"
-              value={confirmPin}
+              type="password" inputMode="numeric" maxLength={6}
+              placeholder="Confirme le nouveau PIN" value={confirmPin}
               onChange={e => { setConfirmPin(e.target.value.replace(/\D/g, '')); setPinModalError(''); }}
               style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #DDD', fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }}
               onKeyDown={e => e.key === 'Enter' && handleChangePin()}
             />
-
             {pinModalError && (
               <div style={{ background: '#FCE9E7', color: '#D9342B', padding: 10, borderRadius: 8, fontSize: 13, marginBottom: 10 }}>
                 ⚠️ {pinModalError}
@@ -317,24 +272,15 @@ export default function Admin() {
                 {pinModalOk}
               </div>
             )}
-
             <button
               onClick={handleChangePin}
-              style={{
-                width: '100%', padding: 12, background: '#1F8B4C',
-                color: 'white', border: 'none', borderRadius: 10,
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              }}
+              style={{ width: '100%', padding: 12, background: '#1F8B4C', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
             >
               Modifier mon PIN
             </button>
             <button
               onClick={() => { setPinModal(false); setOldPin(''); setNewPin(''); setConfirmPin(''); setPinModalError(''); }}
-              style={{
-                width: '100%', padding: 10, marginTop: 8,
-                background: '#F4F4F2', color: '#1A1A1A', border: 'none', borderRadius: 10,
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
+              style={{ width: '100%', padding: 10, marginTop: 8, background: '#F4F4F2', color: '#1A1A1A', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               Annuler
             </button>
@@ -343,15 +289,4 @@ export default function Admin() {
       )}
     </div>
   );
-}
-
-// Helper : nom lisible du rôle
-function roleLabel(role) {
-  switch (role) {
-    case 'super_admin': return 'Super Admin';
-    case 'admin':       return 'Administrateur';
-    case 'moderator':   return 'Modérateur';
-    case 'dermato':     return 'Dermato partenaire';
-    default:            return role;
-  }
 }
