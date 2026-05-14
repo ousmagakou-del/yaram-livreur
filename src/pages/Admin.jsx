@@ -5,6 +5,7 @@ import DashboardSection from '../admin/DashboardSection';
 import OrdersSection from '../admin/OrdersSection';
 import FinancesSection from '../admin/FinancesSection';
 import PerformanceSection from '../admin/PerformanceSection';
+import SkinScansSection from '../admin/SkinScansSection';
 import PharmaciesSection from '../admin/PharmaciesSection';
 import ProductsSection from '../admin/ProductsSection';
 import BrandsSection from '../admin/BrandsSection';
@@ -28,6 +29,7 @@ const NAV = [
   { id: 'stats',       icon: '📈', label: 'Statistiques' },
   { id: 'pharmacies',  icon: '🏥', label: 'Pharmacies' },
   { id: 'performance', icon: '📊', label: 'Performance' },
+  { id: 'skinscans',   icon: '🧠', label: 'Stats Scans IA' },
   { id: 'commissions', icon: '💰', label: 'Commissions' },
   { id: 'finances',    icon: '💸', label: 'Finances' },
   { id: 'products',    icon: '🛍️', label: 'Produits' },
@@ -219,6 +221,7 @@ export default function Admin() {
         {section === 'stats'       && <StatsSection />}
         {section === 'pharmacies'  && <PharmaciesSection />}
         {section === 'performance' && <PerformanceSection />}
+        {section === 'skinscans'   && <SkinScansSection />}
         {section === 'commissions' && <CommissionsSection />}
         {section === 'finances'    && <FinancesSection />}
         {section === 'products'    && <ProductsSection />}
