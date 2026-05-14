@@ -4,9 +4,9 @@ import { getAdminSession } from '../lib/adminAuth';
 import { fmtDateTime } from '../lib/exports';
 
 const ROLES = [
-  { id: 'super_admin', label: 'Super Admin',         desc: 'Accès total + gestion des admins' },
+  { id: 'super_admin', label: 'Super Admin',         desc: 'Acces total + gestion des admins' },
   { id: 'admin',       label: 'Administrateur',      desc: 'Tous les modules sauf gestion admins' },
-  { id: 'moderator',   label: 'Modérateur',          desc: 'Modération avis + validation produits' },
+  { id: 'moderator',   label: 'Moderateur',          desc: 'Moderation avis + validation produits' },
   { id: 'dermato',     label: 'Dermato partenaire',  desc: 'Validation des scans peau uniquement' },
 ];
 
@@ -16,8 +16,10 @@ export default function AdminUsersSection() {
   const [showCreate, setShowCreate] = useState(false);
   const [msg, setMsg] = useState({ text: '', kind: '' });
   const [editingPin, setEditingPin] = useState(null);
+  const [myRole, setMyRole] = useState(null); // role recupere directement de la DB
   const session = getAdminSession();
-  const isSuperAdmin = session?.role === 'super_admin';
+
+  const isSuperAdmin = myRole === 'super_admin';
 
   const flash = (text, kind = 'ok') => {
     setMsg({ text, kind });
@@ -31,14 +33,46 @@ export default function AdminUsersSection() {
       .select('id, email, name, role, active, last_login_at, login_count, failed_attempts, locked_until, created_at, notes')
       .order('created_at', { ascending: false });
     setAdmins(data || []);
+
+    // Recupere le role CURRENT depuis la DB (pas la session qui peut etre cassee)
+    if (session?.id) {
+      const me = (data || []).find(a => a.id === session.id);
+      if (me) {
+        setMyRole(me.role);
+      } else if (session?.email) {
+        // fallback : cherche par email si l'id de session n'est pas dans data
+        const meByEmail = (data || []).find(a => a.email?.toLowerCase() === session.email.toLowerCase());
+        if (meByEmail) setMyRole(meByEmail.role);
+      }
+    } else if (session?.email) {
+      const me = (data || []).find(a => a.email?.toLowerCase() === session.email.toLowerCase());
+      if (me) setMyRole(me.role);
+    }
     setLoading(false);
   };
 
   useEffect(() => { refresh(); }, []);
 
+  // CallerId = soit la session, soit lookup par email (sinon les RPC vont planter)
+  const getCallerId = async () => {
+    if (session?.id) return session.id;
+    if (session?.email) {
+      const { data } = await supabase
+        .from('admin_users')
+        .select('id')
+        .eq('email', session.email.toLowerCase())
+        .single();
+      return data?.id;
+    }
+    return null;
+  };
+
   const handleCreate = async (form) => {
+    const callerId = await getCallerId();
+    if (!callerId) return flash('Session corrompue, reconnecte-toi', 'err');
+
     const { data, error } = await supabase.rpc('create_admin', {
-      p_caller_id: session.id,
+      p_caller_id: callerId,
       p_email: form.email,
       p_name: form.name,
       p_pin: form.pin,
@@ -47,60 +81,71 @@ export default function AdminUsersSection() {
     });
     if (error) return flash('Erreur : ' + error.message, 'err');
     if (data?.success) {
-      flash('✓ Admin créé');
+      flash('Admin cree');
       setShowCreate(false);
       refresh();
     } else {
-      flash('⚠️ ' + (data?.error || 'Erreur inconnue'), 'err');
+      flash((data?.error || 'Erreur inconnue'), 'err');
     }
   };
 
   const handleToggleActive = async (target) => {
-    if (!confirm(`${target.active ? 'Désactiver' : 'Réactiver'} ${target.name} ?`)) return;
+    if (!confirm(`${target.active ? 'Desactiver' : 'Reactiver'} ${target.name} ?`)) return;
+    const callerId = await getCallerId();
+    if (!callerId) return flash('Session corrompue', 'err');
+
     const { data, error } = await supabase.rpc('toggle_admin_active', {
-      p_caller_id: session.id,
+      p_caller_id: callerId,
       p_target_id: target.id,
       p_active: !target.active,
     });
     if (error) return flash('Erreur : ' + error.message, 'err');
     if (data?.success) {
-      flash(`✓ ${target.name} ${target.active ? 'désactivé' : 'réactivé'}`);
+      flash(`${target.name} ${target.active ? 'desactive' : 'reactive'}`);
       refresh();
     } else {
-      flash('⚠️ ' + (data?.error || 'Erreur'), 'err');
+      flash((data?.error || 'Erreur'), 'err');
     }
   };
 
   const handleResetPin = async (target, newPin) => {
+    const callerId = await getCallerId();
+    if (!callerId) return flash('Session corrompue', 'err');
+
     const { data, error } = await supabase.rpc('reset_admin_pin', {
-      p_caller_id: session.id,
+      p_caller_id: callerId,
       p_target_id: target.id,
       p_new_pin: newPin,
     });
     if (error) return flash('Erreur : ' + error.message, 'err');
     if (data?.success) {
-      flash(`✓ PIN de ${target.name} réinitialisé`);
+      flash(`PIN de ${target.name} reinitialise`);
       setEditingPin(null);
       refresh();
     } else {
-      flash('⚠️ ' + (data?.error || 'Erreur'), 'err');
+      flash((data?.error || 'Erreur'), 'err');
     }
   };
 
   const handleChangeRole = async (target, newRole) => {
+    const callerId = await getCallerId();
+    if (!callerId) return flash('Session corrompue', 'err');
+
     const { data, error } = await supabase.rpc('change_admin_role', {
-      p_caller_id: session.id,
+      p_caller_id: callerId,
       p_target_id: target.id,
       p_new_role: newRole,
     });
     if (error) return flash('Erreur : ' + error.message, 'err');
     if (data?.success) {
-      flash(`✓ Rôle de ${target.name} changé`);
+      flash(`Role de ${target.name} change`);
       refresh();
     } else {
-      flash('⚠️ ' + (data?.error || 'Erreur'), 'err');
+      flash((data?.error || 'Erreur'), 'err');
     }
   };
+
+  const myId = session?.id || admins.find(a => a.email?.toLowerCase() === session?.email?.toLowerCase())?.id;
 
   const S = {
     section: { padding: 24 },
@@ -131,39 +176,44 @@ export default function AdminUsersSection() {
     <div style={S.section}>
       <div style={S.header}>
         <div>
-          <h1 style={S.h1}>👥 Gestion des admins</h1>
+          <h1 style={S.h1}>Gestion des admins</h1>
           <p style={S.sub}>
-            {isSuperAdmin ? 'Créer, modifier, désactiver les comptes admins' : 'Lecture seule (réservé au super_admin)'}
+            {isSuperAdmin
+              ? 'Creer, modifier, desactiver les comptes admins'
+              : myRole === null
+                ? 'Verification de tes permissions...'
+                : 'Lecture seule (reserve au super_admin)'
+            }
           </p>
         </div>
         {isSuperAdmin && (
-          <button style={S.btnPrimary} onClick={() => setShowCreate(true)}>+ Créer un admin</button>
+          <button style={S.btnPrimary} onClick={() => setShowCreate(true)}>+ Creer un admin</button>
         )}
       </div>
 
       {msg.text && <div style={S.msg(msg.kind)}>{msg.text}</div>}
 
       {loading ? (
-        <p style={{ color: '#9B9B9B' }}>Chargement…</p>
+        <p style={{ color: '#9B9B9B' }}>Chargement...</p>
       ) : (
         <div style={S.card}>
           <table style={S.table}>
             <thead>
               <tr>
-                <th style={S.th}>Nom · Email</th>
-                <th style={S.th}>Rôle</th>
+                <th style={S.th}>Nom / Email</th>
+                <th style={S.th}>Role</th>
                 <th style={S.th}>Statut</th>
-                <th style={S.th}>Dernière connexion</th>
+                <th style={S.th}>Derniere connexion</th>
                 <th style={S.th}>Connexions</th>
                 {isSuperAdmin && <th style={S.th}>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {admins.map(a => {
-                const isMe = a.id === session?.id;
+                const isMe = a.id === myId;
                 const isLocked = a.locked_until && new Date(a.locked_until) > new Date();
                 const statusKind = isLocked ? 'locked' : a.active ? 'active' : 'disabled';
-                const statusLabel = isLocked ? 'Verrouillé' : a.active ? 'Actif' : 'Désactivé';
+                const statusLabel = isLocked ? 'Verrouille' : a.active ? 'Actif' : 'Desactive';
                 return (
                   <tr key={a.id} style={{ opacity: a.active ? 1 : 0.6 }}>
                     <td style={S.td}>
@@ -187,7 +237,7 @@ export default function AdminUsersSection() {
                       <span style={S.badge(statusKind)}>{statusLabel}</span>
                       {a.failed_attempts > 0 && (
                         <div style={{ fontSize: 10, color: '#D9342B', marginTop: 2 }}>
-                          {a.failed_attempts} échec{a.failed_attempts > 1 ? 's' : ''}
+                          {a.failed_attempts} echec{a.failed_attempts > 1 ? 's' : ''}
                         </div>
                       )}
                     </td>
@@ -202,19 +252,19 @@ export default function AdminUsersSection() {
                             <button
                               style={S.btnGhost}
                               onClick={() => setEditingPin(a)}
-                              title="Réinitialiser le PIN"
+                              title="Reinitialiser le PIN"
                             >
-                              🔑 PIN
+                              PIN
                             </button>
                             <button
                               style={{ ...(a.active ? S.btnDanger : S.btnGhost), marginLeft: 4 }}
                               onClick={() => handleToggleActive(a)}
                             >
-                              {a.active ? '🚫 Désactiver' : '↩️ Réactiver'}
+                              {a.active ? 'Desactiver' : 'Reactiver'}
                             </button>
                           </>
                         )}
-                        {isMe && <span style={{ fontSize: 11, color: '#9B9B9B' }}>—</span>}
+                        {isMe && <span style={{ fontSize: 11, color: '#9B9B9B' }}>-</span>}
                       </td>
                     )}
                   </tr>
@@ -225,7 +275,6 @@ export default function AdminUsersSection() {
         </div>
       )}
 
-      {/* MODALES */}
       {showCreate && (
         <CreateAdminModal onClose={() => setShowCreate(false)} onCreate={handleCreate} />
       )}
@@ -236,7 +285,6 @@ export default function AdminUsersSection() {
   );
 }
 
-// ════════════════ MODAL CRÉER ════════════════
 function CreateAdminModal({ onClose, onCreate }) {
   const [form, setForm] = useState({ email: '', name: '', pin: '', role: 'admin', notes: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -248,14 +296,14 @@ function CreateAdminModal({ onClose, onCreate }) {
   };
 
   return (
-    <ModalShell title="➕ Créer un admin" onClose={onClose}>
-      <label style={modalStyles.label}>Email *</label>
+    <ModalShell title="Creer un admin" onClose={onClose}>
+      <label style={modalStyles.label}>Email</label>
       <input style={modalStyles.input} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="prenom@diaara.app" />
 
-      <label style={modalStyles.label}>Nom complet *</label>
+      <label style={modalStyles.label}>Nom complet</label>
       <input style={modalStyles.input} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Aminata Fall" />
 
-      <label style={modalStyles.label}>PIN initial * (4-6 chiffres)</label>
+      <label style={modalStyles.label}>PIN initial (4-6 chiffres)</label>
       <input
         style={modalStyles.input}
         type="password"
@@ -263,39 +311,39 @@ function CreateAdminModal({ onClose, onCreate }) {
         maxLength={6}
         value={form.pin}
         onChange={e => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })}
-        placeholder="••••"
+        placeholder="----"
       />
 
-      <label style={modalStyles.label}>Rôle</label>
+      <label style={modalStyles.label}>Role</label>
       <select style={modalStyles.input} value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
-        {ROLES.map(r => (
-          <option key={r.id} value={r.id}>{r.label} — {r.desc}</option>
-        ))}
+        <option value="super_admin">Super Admin - Acces total + gestion admins</option>
+        <option value="admin">Administrateur - Tous les modules</option>
+        <option value="moderator">Moderateur - Reviews + validation</option>
+        <option value="dermato">Dermato - Validation scans peau</option>
       </select>
 
-      <label style={modalStyles.label}>Notes (optionnel)</label>
+      <label style={modalStyles.label}>Notes</label>
       <textarea
         style={{ ...modalStyles.input, minHeight: 60, resize: 'vertical' }}
         value={form.notes}
         onChange={e => setForm({ ...form, notes: e.target.value })}
-        placeholder="Comptable, basée à Saint-Louis..."
+        placeholder="Comptable, basee a Saint-Louis..."
       />
 
       <button style={modalStyles.btnPrimary} onClick={submit} disabled={submitting}>
-        {submitting ? 'Création…' : 'Créer l\'admin'}
+        {submitting ? 'Creation...' : "Creer l'admin"}
       </button>
       <button style={modalStyles.btnSec} onClick={onClose}>Annuler</button>
     </ModalShell>
   );
 }
 
-// ════════════════ MODAL RESET PIN ════════════════
 function ResetPinModal({ admin, onClose, onReset }) {
   const [pin, setPin] = useState('');
   return (
-    <ModalShell title={`🔑 Réinitialiser le PIN de ${admin.name}`} onClose={onClose}>
+    <ModalShell title={`Reinitialiser le PIN de ${admin.name}`} onClose={onClose}>
       <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 12 }}>
-        Communique-lui ce PIN par un canal sécurisé (WhatsApp). Il pourra ensuite le changer lui-même.
+        Communique-lui ce PIN par WhatsApp.
       </p>
       <label style={modalStyles.label}>Nouveau PIN (4-6 chiffres)</label>
       <input
@@ -305,18 +353,17 @@ function ResetPinModal({ admin, onClose, onReset }) {
         maxLength={6}
         value={pin}
         onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-        placeholder="••••"
+        placeholder="----"
         autoFocus
       />
       <button style={modalStyles.btnPrimary} onClick={() => onReset(admin, pin)} disabled={pin.length < 4}>
-        Réinitialiser
+        Reinitialiser
       </button>
       <button style={modalStyles.btnSec} onClick={onClose}>Annuler</button>
     </ModalShell>
   );
 }
 
-// ════════════════ SHELL MODAL ════════════════
 function ModalShell({ title, children, onClose }) {
   return (
     <div style={{

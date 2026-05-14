@@ -31,7 +31,7 @@ export default function PerformanceSection() {
       setPharmacies(pRes.data || []);
 
       // Reviews : on essaie de lire, si erreur on continue avec []
-      const rRes = await supabase.from('reviews').select('id, pharmacy_id, rating, created_at').limit(1000);
+      const rRes = { data: [] };  // reviews.pharmacy_id n'existe pas dans le schéma, on utilise pharmacies.rating
       setReviews(rRes.data || []);
 
       setLoading(false);
