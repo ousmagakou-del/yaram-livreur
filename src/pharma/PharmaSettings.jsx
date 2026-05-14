@@ -471,7 +471,7 @@ export default function PharmaSettings({ pharmacy, onUpdate }) {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 11, color: '#9B9B9B', marginTop: 4 }}>
-          Diaara · Dashboard Pharmacie
+          YARAM · Dashboard Pharmacie
         </p>
       </div>
     </div>

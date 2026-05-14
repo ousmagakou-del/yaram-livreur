@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getAllBanners, createBanner, updateBanner, deleteBanner, uploadBannerImage } from '../lib/supabase';
 
 const BG_COLORS = [
-  { color: '#1F8B4C', label: 'Vert Diaara' },
+  { color: '#1F8B4C', label: 'Vert YARAM' },
   { color: '#F4B53A', label: 'Jaune' },
   { color: '#E8385C', label: 'Rose' },
   { color: '#4285F4', label: 'Bleu' },
@@ -245,9 +245,9 @@ function BannerForm({ banner, onSave, onCancel }) {
           )}
         </div>
 
-        <label>Titre *<input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="🎉 Black Friday Diaara" /></label>
+        <label>Titre *<input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="🎉 Black Friday YARAM" /></label>
         <label>Sous-titre<input value={form.subtitle} onChange={e => setForm({...form, subtitle: e.target.value})} placeholder="-30% sur tous les sérums" /></label>
-        <label>Nom du sponsor<input value={form.sponsor_name} onChange={e => setForm({...form, sponsor_name: e.target.value})} placeholder="Ex: L'Oréal, Pharmacie X, Diaara" /></label>
+        <label>Nom du sponsor<input value={form.sponsor_name} onChange={e => setForm({...form, sponsor_name: e.target.value})} placeholder="Ex: L'Oréal, Pharmacie X, YARAM" /></label>
 
         <label>📷 Image (optionnel)
           <input type="file" accept="image/*" onChange={handleFile} disabled={uploading} />

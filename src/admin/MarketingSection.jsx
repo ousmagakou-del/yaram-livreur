@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 const TEMPLATES = [
-  { id: 'welcome', label: '🎁 Bienvenue', text: 'Salut {name} 👋 Bienvenue chez Diaara ! Avec le code BIENVENUE tu as -10% sur ta 1ère commande. https://diaara.pages.dev' },
-  { id: 'promo', label: '🔥 Promo flash', text: 'Hey {name} ✨ Flash promo : -15% sur tout avec le code DIAARA15. Profite vite : https://diaara.pages.dev' },
-  { id: 'abandoned', label: '🛒 Panier abandonné', text: 'Coucou {name} 💚 On a remarqué que tu as laissé des produits dans ton panier. Ils t\'attendent ! https://diaara.pages.dev' },
-  { id: 'new_product', label: '🆕 Nouveau produit', text: 'Hey {name} ! On vient d\'ajouter de nouveaux produits validés pour ta peau {skinType}. Découvre-les : https://diaara.pages.dev' },
-  { id: 'reactivation', label: '💌 Re-engagement', text: 'Salut {name}, ça fait un moment ! Profite de -20% avec le code COMEBACK20. https://diaara.pages.dev' },
+  { id: 'welcome', label: '🎁 Bienvenue', text: 'Salut {name} 👋 Bienvenue chez YARAM ! Avec le code BIENVENUE tu as -10% sur ta 1ère commande. https://yaram.pages.dev' },
+  { id: 'promo', label: '🔥 Promo flash', text: 'Hey {name} ✨ Flash promo : -15% sur tout avec le code YARAM15. Profite vite : https://yaram.pages.dev' },
+  { id: 'abandoned', label: '🛒 Panier abandonné', text: 'Coucou {name} 💚 On a remarqué que tu as laissé des produits dans ton panier. Ils t\'attendent ! https://yaram.pages.dev' },
+  { id: 'new_product', label: '🆕 Nouveau produit', text: 'Hey {name} ! On vient d\'ajouter de nouveaux produits validés pour ta peau {skinType}. Découvre-les : https://yaram.pages.dev' },
+  { id: 'reactivation', label: '💌 Re-engagement', text: 'Salut {name}, ça fait un moment ! Profite de -20% avec le code COMEBACK20. https://yaram.pages.dev' },
 ];
 
 export default function MarketingSection() {

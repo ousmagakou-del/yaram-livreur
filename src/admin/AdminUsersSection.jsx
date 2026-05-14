@@ -319,7 +319,7 @@ function CreateAdminModal({ onClose, onCreate }) {
   return (
     <ModalShell title="Creer un admin" onClose={onClose}>
       <label style={modalStyles.label}>Email</label>
-      <input style={modalStyles.input} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="prenom@diaara.app" />
+      <input style={modalStyles.input} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="prenom@yaram.app" />
 
       <label style={modalStyles.label}>Nom complet</label>
       <input style={modalStyles.input} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Aminata Fall" />

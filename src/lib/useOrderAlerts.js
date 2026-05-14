@@ -37,9 +37,9 @@ function showSystemNotification(pendingCount) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
   try {
-    const n = new Notification('🔔 Commande Diaara en attente', {
+    const n = new Notification('🔔 Commande YARAM en attente', {
       body: `${pendingCount} commande${pendingCount > 1 ? 's' : ''} à traiter`,
-      tag: 'diaara-pending', // remplace l'ancienne si déjà affichée
+      tag: 'yaram-pending', // remplace l'ancienne si déjà affichée
       requireInteraction: false,
     });
     setTimeout(() => n.close(), 6000);
@@ -52,7 +52,7 @@ export function useOrderAlerts(pharmacyId) {
   const [pendingCount, setPendingCount] = useState(0);
   // Mute initial depuis localStorage
   const [muted, setMutedState] = useState(() => {
-    try { return localStorage.getItem('diaara-pharma-mute') === '1'; } catch { return false; }
+    try { return localStorage.getItem('yaram-pharma-mute') === '1'; } catch { return false; }
   });
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
@@ -64,7 +64,7 @@ export function useOrderAlerts(pharmacyId) {
   // Persistance mute
   const setMuted = useCallback((v) => {
     setMutedState(v);
-    try { localStorage.setItem('diaara-pharma-mute', v ? '1' : '0'); } catch {}
+    try { localStorage.setItem('yaram-pharma-mute', v ? '1' : '0'); } catch {}
   }, []);
 
   // Demande la permission pour les notifs navigateur (à appeler depuis un onClick)

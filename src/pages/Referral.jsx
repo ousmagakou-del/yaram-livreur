@@ -65,12 +65,12 @@ export default function Referral() {
   }
 
   const shareUrl = `https://diaara-brg.pages.dev/?ref=${code}`;
-  const shareText = `Salut ! 💚 Je t'invite sur Diaara, la marketplace beauté pour la peau africaine. Utilise mon code ${code} et reçois 500 points (= 2500 FCFA de réduction) à ton inscription ! ${shareUrl}`;
+  const shareText = `Salut ! 💚 Je t'invite sur YARAM, la marketplace beauté pour la peau africaine. Utilise mon code ${code} et reçois 500 points (= 2500 FCFA de réduction) à ton inscription ! ${shareUrl}`;
 
   const handleShare = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Diaara', text: shareText, url: shareUrl });
+        await navigator.share({ title: 'YARAM', text: shareText, url: shareUrl });
       } catch (e) {}
     } else {
       navigator.clipboard.writeText(shareText);

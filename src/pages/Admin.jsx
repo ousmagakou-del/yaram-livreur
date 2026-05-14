@@ -138,7 +138,7 @@ export default function Admin() {
       <div className="adm-login">
         <div className="adm-login-card">
           <div className="adm-login-logo">D</div>
-          <h1>Admin Diaara</h1>
+          <h1>Admin YARAM</h1>
           <p>Connexion sécurisée</p>
           <form onSubmit={handleSubmit}>
             <input
@@ -184,7 +184,7 @@ export default function Admin() {
         <div className="adm-side-head">
           <div className="adm-side-logo">D</div>
           <div>
-            <div className="adm-side-brand">Diaara</div>
+            <div className="adm-side-brand">YARAM</div>
             <div className="adm-side-role">{session.name || 'Admin'}</div>
           </div>
         </div>

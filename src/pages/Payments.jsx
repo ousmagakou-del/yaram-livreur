@@ -136,7 +136,7 @@ export default function Payments() {
           marginBottom: 16,
         }}>
           <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>
-            ✨ Diaara accepte tous les moyens de paiement
+            ✨ YARAM accepte tous les moyens de paiement
           </div>
           <div style={{ fontSize: 12, opacity: 0.9 }}>
             Wave, Orange Money, Yas et cash. Choisis ce qui te convient !
@@ -213,7 +213,7 @@ export default function Payments() {
             🔒 Paiements 100% sécurisés
           </div>
           <p style={{ lineHeight: 1.5 }}>
-            Aucune donnée bancaire n'est stockée par Diaara. Les paiements sont sécurisés par Wave, Orange Money, Yas et notre partenaire BCEAO.
+            Aucune donnée bancaire n'est stockée par YARAM. Les paiements sont sécurisés par Wave, Orange Money, Yas et notre partenaire BCEAO.
           </p>
         </div>
 

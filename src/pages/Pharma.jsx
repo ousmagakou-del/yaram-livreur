@@ -51,7 +51,7 @@ export default function Pharma() {
 
   // Restaurer la session si déjà connectée
   useEffect(() => {
-    const saved = localStorage.getItem('diaara-pharma-session');
+    const saved = localStorage.getItem('yaram-pharma-session');
     if (saved) {
       try {
         const session = JSON.parse(saved);
@@ -82,7 +82,7 @@ export default function Pharma() {
     const result = await pharmacyLogin(selectedPharmacy.id, pinInput);
     if (result.success) {
       setSelectedPharmacy(result.pharmacy);
-      localStorage.setItem('diaara-pharma-session', JSON.stringify(result.pharmacy));
+      localStorage.setItem('yaram-pharma-session', JSON.stringify(result.pharmacy));
       setPhase('dashboard');
       setPinError('');
     } else {
@@ -114,7 +114,7 @@ export default function Pharma() {
 
     const updated = { ...selectedPharmacy, pin: pinInput };
     setSelectedPharmacy(updated);
-    localStorage.setItem('diaara-pharma-session', JSON.stringify(updated));
+    localStorage.setItem('yaram-pharma-session', JSON.stringify(updated));
     setPhase('dashboard');
     setPinError('');
     setPinInput('');
@@ -123,12 +123,12 @@ export default function Pharma() {
 
   const openForgotWhatsApp = () => {
     const ph = selectedPharmacy;
-    const msg = `Bonjour Ousmane 👋\n\nJe suis ${ph?.name || 'une pharmacie partenaire Diaara'}${ph?.city ? ` à ${ph.city}` : ''}.\n\nJ'ai oublié mon PIN d'accès au dashboard pharmacie. Peux-tu me le réinitialiser SVP ?\n\nMerci 💚`;
+    const msg = `Bonjour Ousmane 👋\n\nJe suis ${ph?.name || 'une pharmacie partenaire YARAM'}${ph?.city ? ` à ${ph.city}` : ''}.\n\nJ'ai oublié mon PIN d'accès au dashboard pharmacie. Peux-tu me le réinitialiser SVP ?\n\nMerci 💚`;
     window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const logout = () => {
-    localStorage.removeItem('diaara-pharma-session');
+    localStorage.removeItem('yaram-pharma-session');
     setSelectedPharmacy(null);
     setPhase('selectPharmacy');
     setPinInput('');
@@ -138,7 +138,7 @@ export default function Pharma() {
   // Callback pour PharmaSettings : remet à jour la pharmacie courante
   const handlePharmacyUpdate = (updated) => {
     setSelectedPharmacy(updated);
-    localStorage.setItem('diaara-pharma-session', JSON.stringify(updated));
+    localStorage.setItem('yaram-pharma-session', JSON.stringify(updated));
   };
 
   // === RENDER LOGIN PHASES ===

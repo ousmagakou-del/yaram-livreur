@@ -63,7 +63,7 @@ export default function Checkout({ items, paymentMethod }) {
         subtotal, shipping, total,
       });
       if (order) {
-        localStorage.removeItem('diaara_cart');
+        localStorage.removeItem('yaram_cart');
         navigate({ name: 'payment', params: { orderId: order.id } });
       } else {
         alert('Erreur création commande');
@@ -90,7 +90,7 @@ export default function Checkout({ items, paymentMethod }) {
         <div className="check-section">
           <h3 className="section-title">📦 Récap commande</h3>
           <div className="check-info-banner">
-            Commande chez <strong>{phCount} pharmacie{phCount > 1 ? 's' : ''}</strong> · 1 seule livraison Diaara
+            Commande chez <strong>{phCount} pharmacie{phCount > 1 ? 's' : ''}</strong> · 1 seule livraison YARAM
           </div>
           {Object.values(grouped).map((name, i) => (
             <div key={i} className="check-ph-row">🏥 {name}</div>

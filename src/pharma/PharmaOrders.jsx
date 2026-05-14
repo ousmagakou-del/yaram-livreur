@@ -41,7 +41,7 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
     
     // WhatsApp à la cliente
     if (order.address?.phone) {
-      const msg = `Salut ${order.address.name} 💚\n\nTa commande ${order.id} a été acceptée par ${pharmacyName} et est en préparation. On te tient au courant !\n\nDiaara`;
+      const msg = `Salut ${order.address.name} 💚\n\nTa commande ${order.id} a été acceptée par ${pharmacyName} et est en préparation. On te tient au courant !\n\nYARAM`;
       sendWhatsApp(order.address.phone, msg).then(r => console.log('Accept notif:', r));
     }
     
@@ -54,12 +54,12 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
     
     // WhatsApp à la cliente
     if (order.address?.phone) {
-      const msg = `Salut ${order.address.name}\n\nMalheureusement ${pharmacyName} ne peut pas honorer ta commande ${order.id} : ${reason}.\n\nDiaara va te rembourser et te proposer une autre pharmacie. On te recontacte rapidement.\n\nDiaara 💚`;
+      const msg = `Salut ${order.address.name}\n\nMalheureusement ${pharmacyName} ne peut pas honorer ta commande ${order.id} : ${reason}.\n\nYARAM va te rembourser et te proposer une autre pharmacie. On te recontacte rapidement.\n\nYARAM 💚`;
       sendWhatsApp(order.address.phone, msg).then(r => console.log('Refuse notif:', r));
     }
     
-    // WhatsApp à Diaara admin
-    sendWhatsApp('+221777608983', `⚠️ REFUS DIAARA\n\n${pharmacyName} a refusé la commande ${order.id}\nMotif : ${reason}\n\nClient : ${order.address?.name} · ${order.address?.phone}\nMontant : ${order.total?.toLocaleString('fr-FR')} FCFA`);
+    // WhatsApp à YARAM admin
+    sendWhatsApp('+221777608983', `⚠️ REFUS YARAM\n\n${pharmacyName} a refusé la commande ${order.id}\nMotif : ${reason}\n\nClient : ${order.address?.name} · ${order.address?.phone}\nMontant : ${order.total?.toLocaleString('fr-FR')} FCFA`);
     
     setRefusing(null);
     setSelectedOrder(null);
@@ -70,7 +70,7 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
     if (!confirm('Marquer cette commande prête à livrer ?')) return;
     await markOrderReady(order.id);
     
-    // WhatsApp à Diaara admin pour assigner livreur
+    // WhatsApp à YARAM admin pour assigner livreur
     sendWhatsApp('+221777608983', `✅ Commande ${order.id} prête chez ${pharmacyName}\n\nClient : ${order.address?.name}\n📍 ${order.address?.line}, ${order.address?.city}\n💰 ${order.total?.toLocaleString('fr-FR')} FCFA${order.payment_method === 'cod' ? ' (Cash)' : ''}\n\n👉 Assigne un livreur !`);
     
     refresh();

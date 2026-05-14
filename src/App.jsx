@@ -63,14 +63,12 @@ function pathToRoute(pathname, search = '') {
   
   const parts = path.split('/');
   
-  // Routes paramétrées
   if (parts[0] === 'product' && parts[1]) return { name: 'product', params: { id: parts[1] } };
   if (parts[0] === 'pharmacy' && parts[1]) return { name: 'pharmacy_detail', params: { id: parts[1] } };
   if (parts[0] === 'order' && parts[1]) return { name: 'order_tracking', params: { orderId: parts[1] } };
   if (parts[0] === 'scan' && parts[1] === 'result' && parts[2]) return { name: 'scan_result', params: { scanId: parts[2] } };
   if (parts[0] === 'payment' && parts[1]) return { name: 'payment', params: { orderId: parts[1] } };
   
-  // Routes simples
   const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications'];
   if (simpleRoutes.includes(parts[0])) {
     const params = {};
@@ -96,7 +94,6 @@ export default function App() {
 }
 
 function ClientApp() {
-  // ─── Route initiale depuis l'URL ───
   const initialRoute = typeof window !== 'undefined' 
     ? pathToRoute(window.location.pathname, window.location.search)
     : { name: 'home', params: {} };
@@ -105,7 +102,6 @@ function ClientApp() {
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // ─── Écoute le bouton retour navigateur ───
   useEffect(() => {
     const handlePopState = () => {
       const newRoute = pathToRoute(window.location.pathname, window.location.search);
@@ -115,7 +111,6 @@ function ClientApp() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // ─── Auth ───
   useEffect(() => {
     let cancelled = false;
     
@@ -164,7 +159,6 @@ function ClientApp() {
     };
   }, []);
 
-  // ─── Navigation avec URL update ───
   const navigate = (target) => {
     if (target === -1) { goBack(); return; }
     
@@ -184,7 +178,6 @@ function ClientApp() {
       return;
     }
     
-    // Push dans l'historique navigateur
     const newPath = routeToPath(newRoute);
     if (newPath !== window.location.pathname + window.location.search) {
       window.history.pushState(null, '', newPath);
@@ -208,6 +201,7 @@ function ClientApp() {
     }
   };
 
+  // ─── SPLASH SCREEN YARAM ───
   if (!authChecked) {
     return (
       <div style={{
@@ -217,12 +211,21 @@ function ClientApp() {
         alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{
-          width: 88, height: 88, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)', border: '3px solid white',
-          color: 'white', fontSize: 44, fontWeight: 800,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>D</div>
-        <div style={{ color: 'white', marginTop: 24, fontSize: 12, opacity: 0.7, letterSpacing: '0.2em', fontWeight: 600 }}>DIAARA</div>
+          color: 'white',
+          fontSize: 56,
+          fontWeight: 900,
+          letterSpacing: '0.15em',
+          textShadow: '0 4px 24px rgba(0,0,0,0.3)',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+        }}>YARAM</div>
+        <div style={{ 
+          color: 'white', 
+          marginTop: 16, 
+          fontSize: 11, 
+          opacity: 0.7, 
+          letterSpacing: '0.3em', 
+          fontWeight: 500,
+        }}>BEAUTÉ SÉNÉGAL</div>
       </div>
     );
   }
@@ -231,7 +234,7 @@ function ClientApp() {
     return (
       <NavContext.Provider value={{ navigate, goBack, route }}>
         <UserContext.Provider value={{ user, refreshUser }}>
-          <div className="desktop-only-tag">DIAARA · Aperçu mobile</div>
+          <div className="desktop-only-tag">YARAM · Aperçu mobile</div>
           <div className="app-shell">
             <Onboarding onComplete={refreshUser} />
             <InstallPrompt />
@@ -246,7 +249,7 @@ function ClientApp() {
     return (
       <NavContext.Provider value={{ navigate, goBack, route }}>
         <UserContext.Provider value={{ user, refreshUser }}>
-          <div className="desktop-only-tag">DIAARA · Aperçu mobile</div>
+          <div className="desktop-only-tag">YARAM · Aperçu mobile</div>
           <div className="app-shell">
             <SkinQuiz onComplete={refreshUser} />
             <InstallPrompt />
@@ -287,7 +290,7 @@ function ClientApp() {
   return (
     <NavContext.Provider value={{ navigate, goBack, route }}>
       <UserContext.Provider value={{ user, refreshUser }}>
-        <div className="desktop-only-tag">DIAARA · Aperçu mobile</div>
+        <div className="desktop-only-tag">YARAM · Aperçu mobile</div>
         <div className="app-shell">
           {page}
           <InstallPrompt />

@@ -314,7 +314,7 @@ function ProductEditor({ product, brands, onSave, onCancel }) {
         <div className="adm-form-section">
           <h3>Prix & Score</h3>
           <label>Prix (FCFA) *<input type="number" value={p.price} onChange={e => upd('price', e.target.value)} /></label>
-          <label>Score Diaara (0-100)<input type="number" min="0" max="100" value={p.score} onChange={e => upd('score', e.target.value)} /></label>
+          <label>Score YARAM (0-100)<input type="number" min="0" max="100" value={p.score} onChange={e => upd('score', e.target.value)} /></label>
           <label>Note moyenne<input type="number" step="0.1" min="0" max="5" value={p.rating} onChange={e => upd('rating', e.target.value)} /></label>
           <label>Nombre d'avis<input type="number" value={p.review_count} onChange={e => upd('review_count', e.target.value)} /></label>
         </div>

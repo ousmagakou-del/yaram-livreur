@@ -1,7 +1,7 @@
 // src/lib/cart.js
 // Gestion centralisée du panier localStorage
 
-const KEY = 'diaara_cart';
+const KEY = 'yaram_cart';
 
 export function getCart() {
   try {
@@ -15,7 +15,7 @@ export function setCart(items) {
   try {
     localStorage.setItem(KEY, JSON.stringify(items));
     // Évenement custom pour que d'autres composants (badge panier dans TabBar) réagissent
-    window.dispatchEvent(new CustomEvent('diaara-cart-updated', { detail: { items } }));
+    window.dispatchEvent(new CustomEvent('yaram-cart-updated', { detail: { items } }));
   } catch (e) {
     console.error('setCart error:', e);
   }

@@ -23,7 +23,7 @@ export default function HistorySection() {
       <header className="adm-header">
         <div>
           <h1>Historique</h1>
-          <p>Journal complet d'activité Diaara</p>
+          <p>Journal complet d'activité YARAM</p>
         </div>
       </header>
 

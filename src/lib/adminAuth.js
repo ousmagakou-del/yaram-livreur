@@ -3,7 +3,7 @@
 
 import { supabase } from './supabase';
 
-const SESSION_KEY = 'diaara-admin-session';
+const SESSION_KEY = 'yaram-admin-session';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h
 
 // Extrait une valeur quel que soit le prefixe utilise par la RPC

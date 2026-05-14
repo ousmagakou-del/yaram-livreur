@@ -25,8 +25,8 @@ export default function NotifSettings() {
     setPermission(getNotificationPermission());
     
     // Récupère les prefs
-    const m = localStorage.getItem('diaara-routine-morning');
-    const e = localStorage.getItem('diaara-routine-evening');
+    const m = localStorage.getItem('yaram-routine-morning');
+    const e = localStorage.getItem('yaram-routine-evening');
     if (m) { setMorningTime(m); setEnableMorning(true); }
     else setEnableMorning(false);
     if (e) { setEveningTime(e); setEnableEvening(true); }
@@ -64,7 +64,7 @@ export default function NotifSettings() {
   };
 
   const handleTestNotif = () => {
-    showLocalNotification('💚 Test Diaara', 'Si tu vois ce message, tout marche parfaitement !');
+    showLocalNotification('💚 Test YARAM', 'Si tu vois ce message, tout marche parfaitement !');
   };
 
   if (!supported) {
@@ -78,7 +78,7 @@ export default function NotifSettings() {
           <div style={{ fontSize: 48 }}>📵</div>
           <h2>Pas supporté</h2>
           <p>Ton navigateur ne supporte pas les notifications push.</p>
-          <p>Sur iPhone : Mets à jour iOS vers 16.4 minimum, et installe Diaara en PWA d'abord.</p>
+          <p>Sur iPhone : Mets à jour iOS vers 16.4 minimum, et installe YARAM en PWA d'abord.</p>
         </div>
       </div>
     );
@@ -99,7 +99,7 @@ export default function NotifSettings() {
               <div className="ns-status-icon">🔔</div>
               <div>
                 <strong>Notifications activées</strong>
-                <p>Tu reçois les notifications de Diaara</p>
+                <p>Tu reçois les notifications de YARAM</p>
               </div>
               <button className="ns-btn-disable" onClick={handleDisable} disabled={loading}>
                 Désactiver

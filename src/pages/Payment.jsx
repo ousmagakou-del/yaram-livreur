@@ -53,7 +53,7 @@ export default function Payment({ orderId }) {
             </>
           )}
           {order.payment_method === 'cod' && (
-            <p>Tu paieras <strong>{order.total.toLocaleString('fr-FR')} FCFA</strong> en cash au livreur Diaara</p>
+            <p>Tu paieras <strong>{order.total.toLocaleString('fr-FR')} FCFA</strong> en cash au livreur YARAM</p>
           )}
           {order.payment_method === 'card' && (
             <p>Paiement carte bancaire à venir. Choisis Wave ou OM pour l'instant.</p>

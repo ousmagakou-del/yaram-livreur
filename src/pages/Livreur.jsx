@@ -264,7 +264,7 @@ export default function Livreur() {
       <header className="liv-header">
         <div className="liv-logo">D</div>
         <div>
-          <strong>Diaara · Livraison</strong>
+          <strong>YARAM · Livraison</strong>
           <p>{tracking?.delivery_person_name || 'Livreur'}</p>
         </div>
       </header>
@@ -846,7 +846,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
           <div style={{ textAlign: 'center', padding: 20 }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📷</div>
             <p style={{ fontSize: 14, marginBottom: 16, color: '#4B4B4B' }}>
-              Diaara a besoin d'accéder à ta caméra pour scanner les codes-barres
+              YARAM a besoin d'accéder à ta caméra pour scanner les codes-barres
             </p>
             <button 
               className="liv-btn-pri" 

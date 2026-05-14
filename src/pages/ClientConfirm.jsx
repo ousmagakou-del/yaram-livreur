@@ -64,7 +64,7 @@ export default function ClientConfirm() {
     await clientReportDispute(order.id, reason);
     setSubmitting(false);
     setShowDispute(false);
-    alert('⚠️ Ton problème a été signalé à Diaara. Notre équipe va te contacter rapidement.');
+    alert('⚠️ Ton problème a été signalé à YARAM. Notre équipe va te contacter rapidement.');
   };
 
   if (loading) {
@@ -104,7 +104,7 @@ export default function ClientConfirm() {
               style={{ marginTop: 20 }}
             >⭐ Noter ma livraison</button>
           )}
-          <a href="/" className="cc-link">← Retour à l'app Diaara</a>
+          <a href="/" className="cc-link">← Retour à l'app YARAM</a>
         </div>
         {showRating && (
           <RatingModal
@@ -122,7 +122,7 @@ export default function ClientConfirm() {
       <header className="cc-header">
         <div className="cc-logo">D</div>
         <div>
-          <strong>Diaara</strong>
+          <strong>YARAM</strong>
           <p>Confirmation de livraison</p>
         </div>
       </header>
@@ -253,7 +253,7 @@ function DisputeModal({ onSubmit, onCancel }) {
       <div className="cc-modal" onClick={e => e.stopPropagation()}>
         <h3>⚠️ Signaler un problème</h3>
         <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 16 }}>
-          Choisis le motif. Diaara va te contacter rapidement.
+          Choisis le motif. YARAM va te contacter rapidement.
         </p>
         <div className="cc-reasons">
           {reasons.map(r => (
@@ -278,7 +278,7 @@ function DisputeModal({ onSubmit, onCancel }) {
           />
         )}
         <button className="cc-btn-yes" onClick={submit} style={{ marginTop: 16 }}>
-          📨 Envoyer à Diaara
+          📨 Envoyer à YARAM
         </button>
         <button className="cc-btn-link" onClick={onCancel} style={{ marginTop: 8 }}>Annuler</button>
       </div>

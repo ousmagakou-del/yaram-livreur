@@ -10,7 +10,7 @@ export default function Cart() {
   useEffect(() => { refresh(); }, []);
   const refresh = () => {
     try {
-      const c = JSON.parse(localStorage.getItem('diaara_cart') || '[]');
+      const c = JSON.parse(localStorage.getItem('yaram_cart') || '[]');
       setItems(c);
     } catch { setItems([]); }
   };
@@ -19,13 +19,13 @@ export default function Cart() {
     const next = [...items];
     next[idx].qty = Math.max(0, next[idx].qty + delta);
     if (next[idx].qty === 0) next.splice(idx, 1);
-    localStorage.setItem('diaara_cart', JSON.stringify(next));
+    localStorage.setItem('yaram_cart', JSON.stringify(next));
     setItems(next);
   };
 
   const removeItem = (idx) => {
     const next = items.filter((_, i) => i !== idx);
-    localStorage.setItem('diaara_cart', JSON.stringify(next));
+    localStorage.setItem('yaram_cart', JSON.stringify(next));
     setItems(next);
   };
 
@@ -96,13 +96,13 @@ export default function Cart() {
 
         <div className="cart-summary">
           <div className="cart-row"><span>Sous-total</span><strong>{formatPrice(subtotal)} FCFA</strong></div>
-          <div className="cart-row"><span>Livraison Diaara</span><strong>{formatPrice(shipping)} FCFA</strong></div>
+          <div className="cart-row"><span>Livraison YARAM</span><strong>{formatPrice(shipping)} FCFA</strong></div>
           <div className="cart-row cart-row-total"><span>Total</span><strong>{formatPrice(total)} FCFA</strong></div>
         </div>
 
         {Object.keys(grouped).length > 1 && (
           <div className="cart-info-banner">
-            ℹ️ Commande chez {Object.keys(grouped).length} pharmacies, livrée en une seule fois par Diaara
+            ℹ️ Commande chez {Object.keys(grouped).length} pharmacies, livrée en une seule fois par YARAM
           </div>
         )}
 

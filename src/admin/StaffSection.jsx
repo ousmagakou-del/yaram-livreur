@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 const ROLES = [
-  { id: 'super_admin', label: 'Super Admin', desc: 'Accès total Diaara' },
+  { id: 'super_admin', label: 'Super Admin', desc: 'Accès total YARAM' },
   { id: 'admin', label: 'Admin', desc: 'Gestion commandes, produits' },
   { id: 'staff', label: 'Staff pharmacie', desc: 'Gestion stock de sa pharmacie' },
   { id: 'delivery', label: 'Livreur', desc: 'Mise à jour livraisons' },

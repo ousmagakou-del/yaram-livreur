@@ -73,7 +73,7 @@ export default function PharmaProducts({ pharmacyId, pharmacyName }) {
     <div className="ph-section">
       <header className="ph-header">
         <h1>📦 Mes produits</h1>
-        <p>Propose des produits à ajouter au catalogue Diaara</p>
+        <p>Propose des produits à ajouter au catalogue YARAM</p>
       </header>
 
       <div className="ph-filters">
@@ -203,7 +203,7 @@ function ProductForm({ product, brands, onSave, onCancel }) {
       <div className="ph-modal" onClick={e => e.stopPropagation()}>
         <h3>{product.id ? '✏️ Modifier' : '📦 Nouveau produit'}</h3>
         <p style={{ fontSize: 12, color: '#6B6B6B', marginBottom: 16 }}>
-          Le produit sera vérifié par Diaara avant d'apparaître dans le catalogue
+          Le produit sera vérifié par YARAM avant d'apparaître dans le catalogue
         </p>
 
         {/* PHOTO UPLOAD */}

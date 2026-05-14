@@ -58,7 +58,7 @@ export default function PiSpiTest() {
       <div style={S.container}>
         <div style={S.header}>
           <div style={S.title}>🏦 PI-SPI BCEAO Test</div>
-          <div style={S.subtitle}>Sandbox · Diaara Gateway</div>
+          <div style={S.subtitle}>Sandbox · YARAM Gateway</div>
         </div>
 
         <div style={S.section}>
@@ -152,7 +152,7 @@ export default function PiSpiTest() {
         )}
 
         <div style={{ fontSize: 11, color: '#9B9B9B', textAlign: 'center', marginTop: 16 }}>
-          Diaara · PI-SPI Sandbox Tester · v1.0
+          YARAM · PI-SPI Sandbox Tester · v1.0
         </div>
       </div>
     </div>

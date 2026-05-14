@@ -261,7 +261,7 @@ export default function Scan() {
         <button className="fs-close" onClick={() => navigate('/')}>✕</button>
         <div className="fs-intro-content">
           <div className="fs-intro-icon">🤖</div>
-          <h1>Scan IA Diaara</h1>
+          <h1>Scan IA YARAM</h1>
           <p className="fs-intro-subtitle">Diagnostic peau professionnel en 20 secondes</p>
           
           <div className="fs-intro-steps">

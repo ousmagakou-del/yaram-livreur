@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════
-// Diaara Service Worker v4 — PROPRE & FIABLE
+// YARAM Service Worker v4 — PROPRE & FIABLE
 // ════════════════════════════════════════════════
 // - Network-first pour l'app (toujours fraîche)
 // - Cache-first pour assets statiques (rapide)
@@ -8,7 +8,7 @@
 // ════════════════════════════════════════════════
 
 const SW_VERSION = 'v4-2026-05-13';
-const CACHE_STATIC = 'diaara-static-v4';
+const CACHE_STATIC = 'yaram-static-v4';
 
 // Fichiers essentiels à cacher au install
 const ESSENTIAL = [
@@ -143,7 +143,7 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {
     const data = event.data.json();
-    event.waitUntil(self.registration.showNotification(data.title || 'Diaara', {
+    event.waitUntil(self.registration.showNotification(data.title || 'YARAM', {
       body: data.body || '',
       icon: data.icon || '/icon-192.png',
       badge: data.badge || '/icon-96.png',
@@ -173,4 +173,4 @@ self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') self.skipWaiting();
 });
 
-console.log('[SW Diaara v4] Loaded');
+console.log('[SW YARAM v4] Loaded');

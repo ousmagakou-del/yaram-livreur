@@ -182,7 +182,7 @@ export default function FinancesSection() {
       { key: 'net_pharmacie', label: 'Net pharmacie' },
     ];
     const today = new Date().toISOString().slice(0, 10);
-    exportCSV(rows, headers, `diaara-commandes-${today}.csv`, { format });
+    exportCSV(rows, headers, `yaram-commandes-${today}.csv`, { format });
     setExportMenu(null);
   };
 
@@ -196,11 +196,11 @@ export default function FinancesSection() {
     const headers = [
       { key: 'pharmacie', label: 'Pharmacie' },
       { key: 'ca_brut', label: 'CA brut FCFA' },
-      { key: 'commission_8', label: 'Commission Diaara 8%' },
+      { key: 'commission_8', label: 'Commission YARAM 8%' },
       { key: 'net_a_verser', label: 'Net à verser FCFA' },
     ];
     const today = new Date().toISOString().slice(0, 10);
-    exportCSV(rows, headers, `diaara-commissions-${today}.csv`, { format });
+    exportCSV(rows, headers, `yaram-commissions-${today}.csv`, { format });
     setExportMenu(null);
   };
 
@@ -248,7 +248,7 @@ export default function FinancesSection() {
   return (
     <div style={S.section} onClick={() => exportMenu && setExportMenu(null)}>
       <h1 style={S.h1}>💰 Finances</h1>
-      <p style={S.sub}>CA, commissions, exports comptables · Commission Diaara fixée à 8%</p>
+      <p style={S.sub}>CA, commissions, exports comptables · Commission YARAM fixée à 8%</p>
 
       <div style={S.filters}>
         {[['7d','7 jours'],['30d','30 jours'],['90d','90 jours'],['year','1 an'],['all','Tout']].map(([k, label]) => (
@@ -271,7 +271,7 @@ export default function FinancesSection() {
               <div style={S.kpiMeta}>{kpi.orderCount} commande{kpi.orderCount > 1 ? 's' : ''}</div>
             </div>
             <div style={S.kpiCard}>
-              <div style={S.kpiLabel}>💰 Commission Diaara</div>
+              <div style={S.kpiLabel}>💰 Commission YARAM</div>
               <div style={{ ...S.kpiValue, color: '#1F8B4C' }}>{fmtFCFA(kpi.totalCommission)}</div>
               <div style={S.kpiMeta}>8% sur {fmtFCFA(kpi.totalRevenue)}</div>
             </div>

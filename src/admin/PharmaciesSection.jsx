@@ -176,7 +176,7 @@ function PharmacyEditor({ pharmacy, onSave, onCancel }) {
 
         <div className="adm-form-section">
           <h3>Business</h3>
-          <label>Commission Diaara (%)<input type="number" step="0.1" value={p.commission} onChange={e => upd('commission', e.target.value)} /></label>
+          <label>Commission YARAM (%)<input type="number" step="0.1" value={p.commission} onChange={e => upd('commission', e.target.value)} /></label>
           <label>PIN d'accès staff<input value={p.pin} onChange={e => upd('pin', e.target.value)} placeholder="4 chiffres" /></label>
         </div>
       </div>

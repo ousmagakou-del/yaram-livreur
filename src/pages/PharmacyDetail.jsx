@@ -49,7 +49,7 @@ export default function PharmacyDetail({ pharmacyId }) {
     ? `https://www.google.com/maps/search/?api=1&query=${pharmacy.lat},${pharmacy.lng}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((pharmacy.address || '') + ' ' + (pharmacy.city || ''))}`;
 
-  const waMessage = `Bonjour ${pharmacy.name} 👋\n\nJe vous écris depuis Diaara.\n\nMerci 💚`;
+  const waMessage = `Bonjour ${pharmacy.name} 👋\n\nJe vous écris depuis YARAM.\n\nMerci 💚`;
   const displayed = showAll ? products : products.slice(0, 20);
 
   return (
@@ -231,7 +231,7 @@ export default function PharmacyDetail({ pharmacyId }) {
       </div>
 
       <div style={{ background: 'white', margin: '12px 16px', borderRadius: 14, padding: 16, border: '1px solid #EEE' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>✅ Garanties Diaara</div>
+        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>✅ Garanties YARAM</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           <span style={{ background: '#E8F5EC', color: '#166635', padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>✓ Pharmacie agréée</span>
           <span style={{ background: '#E8F5EC', color: '#166635', padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>✓ Produits authentiques</span>

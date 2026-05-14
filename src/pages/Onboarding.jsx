@@ -3,7 +3,7 @@ import { signUp, signIn, signInWithGoogle } from '../lib/supabase';
 import './Onboarding.css';
 
 const SLIDES = [
-  { icon: '✨', title: 'Beauté validée pour ta peau', desc: 'Diaara analyse chaque produit et te dit s\'il est fait pour toi. Plus de mauvaises surprises.' },
+  { icon: '✨', title: 'Beauté validée pour ta peau', desc: 'YARAM analyse chaque produit et te dit s\'il est fait pour toi. Plus de mauvaises surprises.' },
   { icon: '📱', title: 'Scanne, score, achète', desc: 'Score sur 100, INCI décodé, avis filtrés par profil similaire. Livré chez toi.' },
   { icon: '🇸🇳', title: 'Livré chez toi à Dakar', desc: 'Wave, Orange Money, cash à la livraison. 24h Dakar, 48h Thiès & Mbour.' },
 ];
@@ -111,7 +111,7 @@ export default function Onboarding({ onComplete }) {
         <div className="ob-auth-top">
           <div className="ob-logo-circle">D</div>
           <h2 className="ob-auth-title">
-            {mode === 'signup' ? 'Bienvenue sur Diaara' : 'Re-bonjour'}
+            {mode === 'signup' ? 'Bienvenue sur YARAM' : 'Re-bonjour'}
           </h2>
           <p className="ob-auth-desc">
             {mode === 'signup' ? 'Crée ton compte pour des recommandations personnalisées' : 'Connecte-toi pour continuer'}

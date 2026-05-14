@@ -49,7 +49,7 @@ export default function Product({ id }) {
     haptic('light');
     const shareData = {
       title: product.name,
-      text: `Découvre ${product.name} de ${product.brand} sur Diaara ! ${product.score}/100 ⭐`,
+      text: `Découvre ${product.name} de ${product.brand} sur YARAM ! ${product.score}/100 ⭐`,
       url: window.location.href,
     };
     try {
@@ -71,7 +71,7 @@ export default function Product({ id }) {
       return;
     }
     try {
-      const cart = JSON.parse(localStorage.getItem('diaara_cart') || '[]');
+      const cart = JSON.parse(localStorage.getItem('yaram_cart') || '[]');
       const exists = cart.find(c => c.productId === product.id && c.pharmacyId === selectedPh.pharmacy.id);
       if (exists) exists.qty += qty;
       else cart.push({
@@ -84,7 +84,7 @@ export default function Product({ id }) {
         price: product.price,
         qty: qty,
       });
-      localStorage.setItem('diaara_cart', JSON.stringify(cart));
+      localStorage.setItem('yaram_cart', JSON.stringify(cart));
       haptic('success');
       
       // Animation

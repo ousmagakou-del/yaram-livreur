@@ -16,7 +16,7 @@ export default function PharmaInventory({ pharmacyId }) {
 
   const refresh = async () => {
     setLoading(true);
-    // Tous les produits validés du catalogue Diaara
+    // Tous les produits validés du catalogue YARAM
     const { data: prods } = await supabase
       .from('products')
       .select('*')

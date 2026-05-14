@@ -245,7 +245,7 @@ export default function PerformanceSection() {
                     </div>
                   </div>
                   {p.whatsapp && (
-                    <a href={`https://wa.me/${String(p.whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour ${p.name}, ${p.stalePending} commande(s) Diaara sont en attente depuis +24h. Peux-tu y jeter un œil stp ? Merci 💚`)}`}
+                    <a href={`https://wa.me/${String(p.whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour ${p.name}, ${p.stalePending} commande(s) YARAM sont en attente depuis +24h. Peux-tu y jeter un œil stp ? Merci 💚`)}`}
                       target="_blank" rel="noopener noreferrer"
                       style={{ padding: '8px 14px', background: '#25D366', color: 'white', borderRadius: 8, textDecoration: 'none', fontSize: 12, fontWeight: 700 }}>
                       💬 Relancer

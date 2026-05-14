@@ -22,7 +22,7 @@ export default function InstallPrompt() {
     if (isStandalone) return;
     
     // Si déjà dismissed cette semaine, ne plus afficher
-    const dismissed = localStorage.getItem('diaara-pwa-dismissed');
+    const dismissed = localStorage.getItem('yaram-pwa-dismissed');
     if (dismissed) {
       const dismissedDate = new Date(dismissed);
       const daysSince = (Date.now() - dismissedDate) / (1000 * 60 * 60 * 24);
@@ -66,7 +66,7 @@ export default function InstallPrompt() {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem('diaara-pwa-dismissed', new Date().toISOString());
+    localStorage.setItem('yaram-pwa-dismissed', new Date().toISOString());
     setShowPrompt(false);
   };
 
@@ -79,7 +79,7 @@ export default function InstallPrompt() {
           <button onClick={() => setShowIOSInstructions(false)} style={closeStyle}>✕</button>
           <div style={{ fontSize: 56, marginBottom: 10 }}>📱</div>
           <h2 style={{ margin: '0 0 10px', fontSize: 20, color: '#1A1A1A' }}>
-            Installer Diaara
+            Installer YARAM
           </h2>
           <p style={{ fontSize: 14, color: '#6B6B6B', marginBottom: 24 }}>
             Sur iPhone, suis ces étapes :
@@ -126,7 +126,7 @@ export default function InstallPrompt() {
                     flexShrink: 0 }}>D</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <strong style={{ fontSize: 14, display: 'block', color: 'white' }}>
-          Installe Diaara sur ton téléphone
+          Installe YARAM sur ton téléphone
         </strong>
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', display: 'block', marginTop: 2 }}>
           Accès rapide depuis ton écran d'accueil

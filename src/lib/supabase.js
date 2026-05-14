@@ -9,7 +9,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     detectSessionInUrl: true,
     storage: window.localStorage,
-    storageKey: 'diaara-auth',
+    storageKey: 'yaram-auth',
   },
 });
 
@@ -311,25 +311,25 @@ export async function sendWhatsApp(to, text) {
 
 export const WhatsAppTemplates = {
   driverAssigned: (driverName, order, trackingUrl) =>
-    `Salut ${driverName}! 🛵\n\nNouvelle livraison Diaara :\n\n📦 N° ${order.id}\n👤 ${order.address?.name}\n📍 ${order.address?.line}, ${order.address?.city}\n💰 ${order.total?.toLocaleString('fr-FR')} FCFA${order.payment_method === 'cod' ? ' (à ENCAISSER cash 💵)' : ' (déjà payé en ligne ✅)'}\n\n🔗 Lien tracking GPS :\n${trackingUrl}\n\nOuvre ce lien sur ton téléphone, partage ta position et suis les étapes.\n\nDiaara 💚`,
+    `Salut ${driverName}! 🛵\n\nNouvelle livraison YARAM :\n\n📦 N° ${order.id}\n👤 ${order.address?.name}\n📍 ${order.address?.line}, ${order.address?.city}\n💰 ${order.total?.toLocaleString('fr-FR')} FCFA${order.payment_method === 'cod' ? ' (à ENCAISSER cash 💵)' : ' (déjà payé en ligne ✅)'}\n\n🔗 Lien tracking GPS :\n${trackingUrl}\n\nOuvre ce lien sur ton téléphone, partage ta position et suis les étapes.\n\nYARAM 💚`,
   orderCreatedDigital: (clientName, orderId, total, method) =>
-    `Salut ${clientName} 💚\n\nTa commande Diaara ${orderId} est reçue !\n\n💳 Paiement ${method} : ${total.toLocaleString('fr-FR')} FCFA\n\nDès validation, on prépare ton colis 📦\n\nDiaara`,
+    `Salut ${clientName} 💚\n\nTa commande YARAM ${orderId} est reçue !\n\n💳 Paiement ${method} : ${total.toLocaleString('fr-FR')} FCFA\n\nDès validation, on prépare ton colis 📦\n\nYARAM`,
   orderCreatedCash: (clientName, orderId, total) =>
-    `Salut ${clientName} 💚\n\nTa commande Diaara ${orderId} est reçue !\n\n💵 Prépare ${total.toLocaleString('fr-FR')} FCFA cash pour la livraison\n\nOn te notifie dès que le livreur arrive 🛵\n\nDiaara`,
+    `Salut ${clientName} 💚\n\nTa commande YARAM ${orderId} est reçue !\n\n💵 Prépare ${total.toLocaleString('fr-FR')} FCFA cash pour la livraison\n\nOn te notifie dès que le livreur arrive 🛵\n\nYARAM`,
   orderPaid: (clientName, orderId) =>
-    `Salut ${clientName} 💚\n\nTon paiement pour la commande ${orderId} est confirmé ✅\n\nOn prépare ta commande, tu seras notifiée quand le livreur arrive 🛵\n\nDiaara`,
+    `Salut ${clientName} 💚\n\nTon paiement pour la commande ${orderId} est confirmé ✅\n\nOn prépare ta commande, tu seras notifiée quand le livreur arrive 🛵\n\nYARAM`,
   orderShipped: (clientName, orderId, driverName, driverPhone) =>
-    `Hey ${clientName} 🛵\n\nTa commande ${orderId} est en route !\n\n👤 Livreur : ${driverName}\n📞 WhatsApp : ${driverPhone || '—'}\n\nSuis sa progression en temps réel dans l'app Diaara.\n\nDiaara 💚`,
+    `Hey ${clientName} 🛵\n\nTa commande ${orderId} est en route !\n\n👤 Livreur : ${driverName}\n📞 WhatsApp : ${driverPhone || '—'}\n\nSuis sa progression en temps réel dans l'app YARAM.\n\nYARAM 💚`,
   orderAwaitingConfirm: (clientName, orderId, confirmUrl) =>
-    `Bonjour ${clientName} 💚\n\nLe livreur indique avoir livré ta commande ${orderId}.\n\n👉 Confirme ta réception ici :\n${confirmUrl}\n\nDis-nous si tout va bien ou si tu as un souci.\n\nDiaara 💚`,
+    `Bonjour ${clientName} 💚\n\nLe livreur indique avoir livré ta commande ${orderId}.\n\n👉 Confirme ta réception ici :\n${confirmUrl}\n\nDis-nous si tout va bien ou si tu as un souci.\n\nYARAM 💚`,
   orderAwaitingConfirmCash: (clientName, orderId, total, confirmUrl) =>
-    `Bonjour ${clientName} 💚\n\nLe livreur indique avoir livré ta commande ${orderId} et reçu ${total.toLocaleString('fr-FR')} FCFA cash.\n\n👉 Confirme ta réception ici :\n${confirmUrl}\n\nDis-nous si tout va bien ou si tu as un souci.\n\nDiaara 💚`,
+    `Bonjour ${clientName} 💚\n\nLe livreur indique avoir livré ta commande ${orderId} et reçu ${total.toLocaleString('fr-FR')} FCFA cash.\n\n👉 Confirme ta réception ici :\n${confirmUrl}\n\nDis-nous si tout va bien ou si tu as un souci.\n\nYARAM 💚`,
   orderDelivered: (clientName, orderId) =>
-    `🎉 Bonjour ${clientName} !\n\nTa commande ${orderId} est officiellement livrée !\n\nMerci pour ta confiance 💚\n\nN'hésite pas à noter ton expérience dans l'app.\n\nDiaara`,
+    `🎉 Bonjour ${clientName} !\n\nTa commande ${orderId} est officiellement livrée !\n\nMerci pour ta confiance 💚\n\nN'hésite pas à noter ton expérience dans l'app.\n\nYARAM`,
   newOrderToPharmacy: (pharmacyName, order) =>
-    `🏥 Hello ${pharmacyName}\n\nNouvelle commande Diaara à préparer :\n\n📦 N° ${order.id}\n👤 ${order.address?.name}\n📍 ${order.address?.city}\n\nVoir tes commandes : ${window.location.origin}/?pharma\n\nDiaara 💚`,
+    `🏥 Hello ${pharmacyName}\n\nNouvelle commande YARAM à préparer :\n\n📦 N° ${order.id}\n👤 ${order.address?.name}\n📍 ${order.address?.city}\n\nVoir tes commandes : ${window.location.origin}/?pharma\n\nYARAM 💚`,
   disputeToAdmin: (orderId, clientName, reason) =>
-    `⚠️ LITIGE Diaara\n\nCommande : ${orderId}\nCliente : ${clientName}\nMotif : ${reason}\n\nVérifie les preuves dans l'admin et contacte la cliente.\n\nDiaara`,
+    `⚠️ LITIGE YARAM\n\nCommande : ${orderId}\nCliente : ${clientName}\nMotif : ${reason}\n\nVérifie les preuves dans l'admin et contacte la cliente.\n\nYARAM`,
 };
 
 // ═══════════════════════════════════════════════
@@ -723,7 +723,7 @@ export async function getReferralStats(userId) {
     bonusEarned: (referrals?.length || 0) * 500,
   };
 }
-// VAPID public key (générée pour Diaara)
+// VAPID public key (générée pour YARAM)
 // ⚠️ Tu dois générer ta propre clé en prod via web-push library
 const VAPID_PUBLIC_KEY = 'BNxe7DjGiK8jp_LdEKgZbI3oFG9p_X0wmKHHfsXOlVHwBE3FB_pIRgFb_VxkN1xnzPxRzz0w8hYqYnFw7yWEpQk';
 
@@ -875,8 +875,8 @@ export async function createNotification({ userId, title, body, url, type = 'inf
 // Programme local des rappels (pas besoin de serveur push)
 export function scheduleSkinRoutineReminders(morningTime, eveningTime) {
   // Stocker en localStorage
-  localStorage.setItem('diaara-routine-morning', morningTime || '');
-  localStorage.setItem('diaara-routine-evening', eveningTime || '');
+  localStorage.setItem('yaram-routine-morning', morningTime || '');
+  localStorage.setItem('yaram-routine-evening', eveningTime || '');
   
   // Démarrer le check
   startRoutineReminderCheck();
@@ -893,19 +893,19 @@ function startRoutineReminderCheck() {
     const now = new Date();
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
-    const morning = localStorage.getItem('diaara-routine-morning');
-    const evening = localStorage.getItem('diaara-routine-evening');
-    const lastNotif = localStorage.getItem('diaara-last-reminder');
+    const morning = localStorage.getItem('yaram-routine-morning');
+    const evening = localStorage.getItem('yaram-routine-evening');
+    const lastNotif = localStorage.getItem('yaram-last-reminder');
     const today = now.toDateString();
     
     if (morning && currentTime === morning && lastNotif !== `${today}-morning`) {
       showLocalNotification('☀️ Routine matin', 'C\'est l\'heure de ta routine matinale ! Nettoie, hydrate, protège.');
-      localStorage.setItem('diaara-last-reminder', `${today}-morning`);
+      localStorage.setItem('yaram-last-reminder', `${today}-morning`);
     }
     
     if (evening && currentTime === evening && lastNotif !== `${today}-evening`) {
       showLocalNotification('🌙 Routine soir', 'C\'est l\'heure de ta routine du soir ! Démaquille, nettoie, traite.');
-      localStorage.setItem('diaara-last-reminder', `${today}-evening`);
+      localStorage.setItem('yaram-last-reminder', `${today}-evening`);
     }
   }, 60000); // chaque minute
 }

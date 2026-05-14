@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════
-// Diaara — Helpers géolocalisation
+// YARAM — Helpers géolocalisation
 // ════════════════════════════════════════════════
 
 // Calcul distance Haversine (en km) entre 2 points GPS

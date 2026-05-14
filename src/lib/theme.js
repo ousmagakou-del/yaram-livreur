@@ -1,4 +1,4 @@
-const THEME_KEY = 'diaara_theme';
+const THEME_KEY = 'yaram_theme';
 
 export function getTheme() {
   try { return localStorage.getItem(THEME_KEY) || 'light'; } catch { return 'light'; }

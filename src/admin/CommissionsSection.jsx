@@ -66,7 +66,7 @@ export default function CommissionsSection() {
           </div>
         </div>
         <div className="adm-kpi">
-          <div className="adm-kpi-label">💰 COMMISSION DIAARA</div>
+          <div className="adm-kpi-label">💰 COMMISSION YARAM</div>
           <div className="adm-kpi-value" style={{ color: '#166635' }}>
             {totals.commission.toLocaleString('fr-FR')}<small>FCFA</small>
           </div>

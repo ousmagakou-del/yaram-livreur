@@ -90,7 +90,7 @@ export function openInvoicePrintWindow(order, pharmacy) {
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Facture Diaara #${shortId}</title>
+<title>Facture YARAM #${shortId}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 40px; color: #1A1A1A; }
@@ -125,7 +125,7 @@ export function openInvoicePrintWindow(order, pharmacy) {
 
 <div class="head">
   <div>
-    <div class="logo">Diaara</div>
+    <div class="logo">YARAM</div>
     <p style="margin: 6px 0 0; color: #6B6B6B; font-size: 13px;">Beauté & Santé · Sénégal</p>
   </div>
   <div class="head-right">
@@ -182,13 +182,13 @@ export function openInvoicePrintWindow(order, pharmacy) {
 </div>
 
 <div class="commission-block">
-  <h4>Détail commission Diaara</h4>
-  <div class="row"><span>Commission Diaara (8%)</span><strong>${commission.toLocaleString('fr-FR')} FCFA</strong></div>
+  <h4>Détail commission YARAM</h4>
+  <div class="row"><span>Commission YARAM (8%)</span><strong>${commission.toLocaleString('fr-FR')} FCFA</strong></div>
   <div class="row"><span>Net pour la pharmacie</span><strong>${netPharmacy.toLocaleString('fr-FR')} FCFA</strong></div>
 </div>
 
 <div class="footer">
-  Document généré automatiquement · Diaara — Beauté pour la peau africaine 🇸🇳
+  Document généré automatiquement · YARAM — Beauté pour la peau africaine 🇸🇳
 </div>
 </body>
 </html>`;

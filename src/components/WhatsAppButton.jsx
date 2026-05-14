@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useUser } from '../App';
 import './WhatsAppButton.css';
 
-// Numéro Diaara support (modifiable)
-const DIAARA_PHONE = '221777608983'; // sans le +
-const DIAARA_NAME = 'Diaara Support';
+// Numéro YARAM support (modifiable)
+const YARAM_PHONE = '221777608983'; // sans le +
+const YARAM_NAME = 'YARAM Support';
 
 export default function WhatsAppButton() {
   const { user } = useUser();
@@ -16,17 +16,17 @@ export default function WhatsAppButton() {
     {
       label: '👋 Bonjour',
       icon: '👋',
-      text: `Salut Diaara${userName ? `, c'est ${userName}` : ''} 👋`,
+      text: `Salut YARAM${userName ? `, c'est ${userName}` : ''} 👋`,
     },
     {
       label: '❓ Une question sur un produit',
       icon: '❓',
-      text: `Salut${userName ? ` c'est ${userName}` : ''}, j'ai une question sur un produit que j'ai vu sur Diaara.`,
+      text: `Salut${userName ? ` c'est ${userName}` : ''}, j'ai une question sur un produit que j'ai vu sur YARAM.`,
     },
     {
       label: '📦 Suivi commande',
       icon: '📦',
-      text: `Salut${userName ? ` c'est ${userName}` : ''}, je voudrais des nouvelles de ma commande Diaara.`,
+      text: `Salut${userName ? ` c'est ${userName}` : ''}, je voudrais des nouvelles de ma commande YARAM.`,
     },
     {
       label: '🤖 Question sur le Scan IA',
@@ -36,17 +36,17 @@ export default function WhatsAppButton() {
     {
       label: '🛵 Problème de livraison',
       icon: '🛵',
-      text: `Salut${userName ? ` c'est ${userName}` : ''}, j'ai un problème avec ma livraison Diaara.`,
+      text: `Salut${userName ? ` c'est ${userName}` : ''}, j'ai un problème avec ma livraison YARAM.`,
     },
     {
       label: '💚 Autre',
       icon: '💚',
-      text: `Salut Diaara${userName ? `, c'est ${userName}` : ''}, j'aurais besoin d'aide...`,
+      text: `Salut YARAM${userName ? `, c'est ${userName}` : ''}, j'aurais besoin d'aide...`,
     },
   ];
   
   const handleSend = (msg) => {
-    const url = `https://wa.me/${DIAARA_PHONE}?text=${encodeURIComponent(msg)}`;
+    const url = `https://wa.me/${YARAM_PHONE}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
     setOpen(false);
   };
@@ -67,7 +67,7 @@ export default function WhatsAppButton() {
             <div className="wa-modal-head">
               <div className="wa-modal-avatar">D</div>
               <div className="wa-modal-info">
-                <strong>{DIAARA_NAME}</strong>
+                <strong>{YARAM_NAME}</strong>
                 <span>● En ligne · Réponse rapide</span>
               </div>
               <button className="wa-close" onClick={() => setOpen(false)}>✕</button>

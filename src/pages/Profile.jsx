@@ -63,8 +63,8 @@ export default function Profile() {
   };
 
   const handleShare = () => {
-    const code = 'AICHA-DIAARA';
-    const msg = `Salut ! J'utilise Diaara, l'app beauté validée pour notre peau africaine. Avec mon code ${code} tu as 3000 FCFA offerts sur ta 1ère commande 💚 https://diaara.pages.dev`;
+    const code = 'AICHA-YARAM';
+    const msg = `Salut ! J'utilise YARAM, l'app beauté validée pour notre peau africaine. Avec mon code ${code} tu as 3000 FCFA offerts sur ta 1ère commande 💚 https://yaram.pages.dev`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -290,7 +290,7 @@ export default function Profile() {
         </button>
 
         <div className="prof-footer">
-          Diaara v0.1 · Beauté Sénégal 🇸🇳
+          YARAM v0.1 · Beauté Sénégal 🇸🇳
         </div>
 
         <div style={{ height: 30 }} />

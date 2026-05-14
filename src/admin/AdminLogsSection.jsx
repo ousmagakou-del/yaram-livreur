@@ -69,7 +69,7 @@ export default function AdminLogsSection() {
       { key: 'details', label: 'Détails' },
     ];
     const today = new Date().toISOString().slice(0, 10);
-    exportCSV(rows, headers, `diaara-logs-admin-${today}.csv`, { format });
+    exportCSV(rows, headers, `yaram-logs-admin-${today}.csv`, { format });
   };
 
   const S = {

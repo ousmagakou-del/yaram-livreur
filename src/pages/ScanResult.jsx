@@ -249,7 +249,7 @@ export default function ScanResult({ scanId }) {
         {d.advice && (
           <div className="sr-advice">
             <div style={{ fontSize: 32, marginBottom: 8 }}>💚</div>
-            <h2>Conseil Diaara</h2>
+            <h2>Conseil YARAM</h2>
             <p>{d.advice}</p>
           </div>
         )}
