@@ -20,7 +20,7 @@ export default function Home() {
   const [pharmacies, setPharmacies] = useState([]);
   const [nearbyPharmacies, setNearbyPharmacies] = useState([]);
   const [userPos, setUserPos] = useState(null);
-  const [gpsStatus, setGpsStatus] = useState('unknown'); // 'unknown' | 'requesting' | 'granted' | 'denied'
+  const [gpsStatus, setGpsStatus] = useState('unknown');
   const [categories, setCategories] = useState([]);
   const [favIds, setFavIds] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
@@ -32,14 +32,12 @@ export default function Home() {
     (async () => {
       const state = await getPermissionState();
       if (state === 'granted') {
-        // Déjà autorisé → on récupère direct
         const pos = await getUserPosition();
         if (pos) {
           setUserPos(pos);
           setGpsStatus('granted');
         }
       } else if (state === 'prompt' || state === 'unknown') {
-        // Pas encore demandé → on tente
         setGpsStatus('requesting');
         const pos = await getUserPosition(3000);
         if (pos) {
@@ -61,7 +59,6 @@ export default function Home() {
       setProducts(p);
       setPharmacies(ph);
 
-      // Catégories dynamiques
       const catMap = {};
       p.forEach(prod => {
         if (!prod.category) return;
@@ -85,12 +82,11 @@ export default function Home() {
         setLatestScan(scan);
       }
 
-      // Best sellers
       try {
         const { data: orders } = await supabase
           .from('orders').select('items')
           .in('status', ['delivered', 'shipped', 'ready', 'preparing']);
-        
+
         const productSales = {};
         (orders || []).forEach(o => {
           (o.items || []).forEach(item => {
@@ -99,7 +95,7 @@ export default function Home() {
             }
           });
         });
-        
+
         const sortedIds = Object.entries(productSales)
           .sort((a, b) => b[1] - a[1]).map(([id]) => id);
         const best = sortedIds.map(id => p.find(pr => pr.id === id)).filter(Boolean);
@@ -112,10 +108,9 @@ export default function Home() {
     })();
   }, [user?.id]);
 
-  // ─── Trier pharmacies par distance quand GPS dispo ───
+  // ─── Trier pharmacies par distance ───
   useEffect(() => {
     if (pharmacies.length === 0) return;
-    
     if (userPos) {
       const sorted = sortByDistance(pharmacies, userPos.lat, userPos.lng);
       setNearbyPharmacies(sorted.slice(0, 5));
@@ -138,59 +133,66 @@ export default function Home() {
   const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   const firstName = user?.first_name || 'toi';
   const avatar = user?.avatar || ('https://ui-avatars.com/api/?background=1F8B4C&color=fff&bold=true&name=' + encodeURIComponent(firstName));
-  const skinType = cap(user?.skin_type) || 'Mixte';
-  const phototype = user?.skin_phototype || 'VI';
-  const concerns = user?.skin_concerns?.map(cap).join(' · ') || 'Taches post-acné · Brillance zone T';
 
+  // ─── Données du scan IA (priorité) ou fallback user ───
+  const diag = latestScan?.diagnosis || {};
+  const skinTypeRaw = latestScan?.skin_type || diag.skin_type || user?.skin_type || null;
+  const skinType = skinTypeRaw ? cap(skinTypeRaw) : null;
+  const phototype = user?.skin_phototype || diag.phototype || null;
+  const skinScore = latestScan?.skin_score ?? diag.skin_score ?? null;
+
+  // Concerns réelles du scan IA, fallback sur user.skin_concerns si pas de scan
+  const concernsList = (() => {
+    if (Array.isArray(diag.concerns) && diag.concerns.length > 0) {
+      return diag.concerns.map(c => cap(c.name || c)).filter(Boolean);
+    }
+    if (Array.isArray(user?.skin_concerns) && user.skin_concerns.length > 0) {
+      return user.skin_concerns.map(cap);
+    }
+    return [];
+  })();
+  const concernsText = concernsList.length > 0 ? concernsList.slice(0, 3).join(' · ') : null;
+  const concernsCount = concernsList.length;
+  const favs = favIds.length;
+
+  // ─── Recommandation produits basée sur le scan ───
   const scoreProduct = (p) => {
     let score = 0;
-    const userSkin = (user?.skin_type || '').toLowerCase();
+    const userSkin = (skinTypeRaw || '').toLowerCase();
     if (p.skin_types && p.skin_types.length > 0) {
-      const compatible = p.skin_types.some(t => 
+      const compatible = p.skin_types.some(t =>
         t.toLowerCase() === userSkin || t.toLowerCase() === 'toutes' || t.toLowerCase() === 'all'
       );
       if (compatible) score += 30;
     } else score += 15;
     score += (p.score || 50) * 0.3;
-    
-    if (latestScan?.diagnosis?.ingredients_recommandes) {
-      const recommended = latestScan.diagnosis.ingredients_recommandes.map(i => i.toLowerCase());
+
+    if (diag.ingredients_recommandes) {
+      const recommended = diag.ingredients_recommandes.map(i => i.toLowerCase());
       const productText = `${p.name || ''} ${p.inci || ''} ${p.short_desc || ''}`.toLowerCase();
       const matches = recommended.filter(ing => productText.includes(ing)).length;
       score += matches * 5;
     }
-    if (latestScan?.diagnosis?.ingredients_a_eviter) {
-      const avoid = latestScan.diagnosis.ingredients_a_eviter.map(i => i.toLowerCase());
+    if (diag.ingredients_a_eviter) {
+      const avoid = diag.ingredients_a_eviter.map(i => i.toLowerCase());
       const productText = `${p.name || ''} ${p.inci || ''}`.toLowerCase();
       const matches = avoid.filter(ing => productText.includes(ing)).length;
       score -= matches * 10;
     }
-    if (user?.skin_concerns && p.short_desc) {
+    if (concernsList.length > 0 && p.short_desc) {
       const desc = p.short_desc.toLowerCase();
-      user.skin_concerns.forEach(c => { if (desc.includes(c.toLowerCase())) score += 5; });
+      concernsList.forEach(c => { if (desc.includes(c.toLowerCase())) score += 5; });
     }
     if (favIds.includes(p.id)) score += 20;
     return score;
   };
-
-  const compatibleProducts = products.filter(p => {
-    if (!p.skin_types || p.skin_types.length === 0) return true;
-    const userSkin = (user?.skin_type || '').toLowerCase();
-    return p.skin_types.some(t => 
-      t.toLowerCase() === userSkin || t.toLowerCase() === 'toutes' || t.toLowerCase() === 'all'
-    );
-  });
-
-  const compat = compatibleProducts.length;
-  const avoid = products.length - compat;
-  const favs = favIds.length;
 
   const topMatches = products
     .slice()
     .map(p => ({ ...p, _personalScore: scoreProduct(p) }))
     .sort((a, b) => b._personalScore - a._personalScore)
     .slice(0, 6);
-  
+
   const trending = bestSellers.length > 0
     ? bestSellers.slice(0, 4)
     : products.slice().sort((a, b) => {
@@ -228,32 +230,67 @@ export default function Home() {
           <span>Cherche un produit, une marque...</span>
         </button>
 
+        {/* ─── PROFIL PEAU — tout dynamique ─── */}
         <div className="home-skin-card">
           <div className="home-skin-label">TON PROFIL PEAU</div>
-          <div className="home-skin-type">{skinType} · Phototype {phototype}</div>
-          <div className="home-skin-concerns">{concerns}</div>
-          <div className="home-skin-stats">
-            <div className="home-skin-stat">
-              <div className="home-skin-num">{compat}</div>
-              <div className="home-skin-stat-lbl">compatibles</div>
-            </div>
-            <div className="home-skin-stat">
-              <div className="home-skin-num">{avoid}</div>
-              <div className="home-skin-stat-lbl">à éviter</div>
-            </div>
-            <div className="home-skin-stat">
-              <div className="home-skin-num">{favs}</div>
-              <div className="home-skin-stat-lbl">favoris</div>
-            </div>
-          </div>
-          <button className="home-skin-cta" onClick={() => navigate({ name: 'scan', params: {} })}>
-            {latestScan ? 'Refaire le diagnostic →' : 'Faire ton diagnostic IA →'}
-          </button>
+
+          {latestScan ? (
+            <>
+              <div className="home-skin-type">
+                {skinType || 'Peau'}
+                {phototype ? ` · Phototype ${phototype}` : ''}
+              </div>
+              {concernsText && (
+                <div className="home-skin-concerns">{concernsText}</div>
+              )}
+              <div className="home-skin-stats">
+                <div className="home-skin-stat">
+                  <div className="home-skin-num">{skinScore != null ? skinScore : '—'}</div>
+                  <div className="home-skin-stat-lbl">score peau</div>
+                </div>
+                <div className="home-skin-stat">
+                  <div className="home-skin-num">{concernsCount}</div>
+                  <div className="home-skin-stat-lbl">à surveiller</div>
+                </div>
+                <div className="home-skin-stat">
+                  <div className="home-skin-num">{favs}</div>
+                  <div className="home-skin-stat-lbl">favoris</div>
+                </div>
+              </div>
+              <button className="home-skin-cta" onClick={() => navigate({ name: 'scan', params: {} })}>
+                Refaire le diagnostic →
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="home-skin-type">Pas encore de diagnostic</div>
+              <div className="home-skin-concerns">
+                Fais ton 1er scan IA pour obtenir des recommandations personnalisées
+              </div>
+              <div className="home-skin-stats">
+                <div className="home-skin-stat">
+                  <div className="home-skin-num">—</div>
+                  <div className="home-skin-stat-lbl">score peau</div>
+                </div>
+                <div className="home-skin-stat">
+                  <div className="home-skin-num">—</div>
+                  <div className="home-skin-stat-lbl">à surveiller</div>
+                </div>
+                <div className="home-skin-stat">
+                  <div className="home-skin-num">{favs}</div>
+                  <div className="home-skin-stat-lbl">favoris</div>
+                </div>
+              </div>
+              <button className="home-skin-cta" onClick={() => navigate({ name: 'scan', params: {} })}>
+                Faire ton diagnostic IA →
+              </button>
+            </>
+          )}
         </div>
 
         <div style={{ padding: '0 16px' }}><BannerCarousel /></div>
 
-        {/* 🆕 PRÈS DE CHEZ TOI - GPS */}
+        {/* PRÈS DE CHEZ TOI */}
         <div style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', marginBottom: 12 }}>
             <div>
@@ -271,7 +308,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-            <button 
+            <button
               onClick={() => navigate({ name: 'pharmacies', params: {} })}
               style={{ background: 'transparent', border: 'none', color: '#1F8B4C', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
@@ -301,8 +338,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Cards horizontales scrollables */}
-          <div style={{ 
+          <div style={{
             display: 'flex', gap: 12, padding: '0 16px',
             overflowX: 'auto', WebkitOverflowScrolling: 'touch',
             scrollSnapType: 'x mandatory',
@@ -321,7 +357,7 @@ export default function Home() {
               >
                 <div style={{
                   height: 100,
-                  background: ph.cover 
+                  background: ph.cover
                     ? `url(${ph.cover}) center/cover`
                     : 'linear-gradient(135deg, #1F8B4C, #166635)',
                   position: 'relative',
@@ -382,7 +418,7 @@ export default function Home() {
                     fontSize: 36, marginBottom: 8, overflow: 'hidden',
                   }}>
                     {cat.sampleImg ? (
-                      <img src={cat.sampleImg} alt="" 
+                      <img src={cat.sampleImg} alt=""
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = CATEGORY_EMOJI[cat.name] || '📦'; }}
                       />
@@ -402,7 +438,7 @@ export default function Home() {
             <div>
               <div className="section-title">✨ Pour toi, {firstName}</div>
               <div className="section-sub">
-                {latestScan ? `Basé sur ton scan IA · peau ${skinType.toLowerCase()}` : `Pour ta peau ${skinType.toLowerCase()}`}
+                {latestScan ? `Basé sur ton scan IA · peau ${(skinType || '').toLowerCase()}` : 'Fais ton scan pour des recos perso'}
               </div>
             </div>
           </div>
