@@ -1,244 +1,564 @@
-.home-screen {
+/* ═══════════════════════════════════════════════════
+   YARAM Home — Design refondu style Uber Eats / Pharmashop
+   Toutes les classes prefixees `yhome-` pour eviter
+   tout conflit avec ton CSS existant
+   ═══════════════════════════════════════════════════ */
+
+.yhome-screen {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
-}
-.home-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding-bottom: calc(var(--tabbar-height) + 20px);
+  background: var(--bg, #F8F8F6);
 }
 
-.home-header {
+.yhome-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(var(--tabbar-height, 64px) + 20px);
+  background: #F8F8F6;
+}
+
+/* ─── HEADER VERT YARAM ─── */
+.yhome-hero {
+  background: linear-gradient(180deg, #1F8B4C 0%, #166635 100%);
+  padding: calc(var(--safe-top, 14px) + 14px) 16px 22px;
+  color: white;
+}
+
+.yhome-hero-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: calc(var(--safe-top) + 14px) 16px 10px;
+  margin-bottom: 14px;
 }
-.home-avatar-btn {
+
+.yhome-avatar-btn {
   display: flex;
   align-items: center;
   gap: 10px;
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 0;
+  cursor: pointer;
   text-align: left;
+  font-family: inherit;
 }
-.home-avatar-btn img {
-  width: 44px;
-  height: 44px;
+
+.yhome-avatar-img {
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   object-fit: cover;
-  background: var(--bg-soft);
+  background: rgba(255,255,255,0.25);
 }
-.home-hello {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -0.3px;
-}
-.home-loc {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--ink-soft);
-  margin-top: 2px;
-}
-.home-dot {
-  width: 7px;
-  height: 7px;
+
+.yhome-avatar-letter {
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  background: var(--excellent);
-}
-.home-bell {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--bg-soft);
-  color: var(--ink);
+  background: rgba(255,255,255,0.25);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
 }
-.home-bell-dot {
+
+.yhome-hello {
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -0.2px;
+}
+
+.yhome-loc {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.9);
+  margin-top: 2px;
+}
+
+.yhome-loc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5DCAA5;
+}
+
+.yhome-bell {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.yhome-bell-dot {
   position: absolute;
   top: 9px;
   right: 11px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--bad);
-  border: 2px solid var(--bg-soft);
+  background: #F4B53A;
+  border: 2px solid #166635;
 }
 
-.home-search-bar {
-  margin: 6px 16px 14px;
-  width: calc(100% - 32px);
-  padding: 13px 16px;
-  background: var(--bg-soft);
+.yhome-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.yhome-search-bar {
+  flex: 1;
+  background: white;
+  border: none;
+  padding: 11px 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6B6B6B;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.yhome-search-bar svg {
+  color: #1F8B4C;
+  flex-shrink: 0;
+}
+
+.yhome-scan-btn {
+  background: white;
+  border: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1F8B4C;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+/* ─── COUPON PROMO COLLANT (overlap sur le hero) ─── */
+.yhome-coupon {
+  margin: -14px 16px 0;
+  background: white;
   border-radius: 14px;
+  padding: 12px 14px;
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
-  color: var(--ink-mute);
-  text-align: left;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  position: relative;
+  z-index: 2;
 }
 
-/* Carte profil peau */
-.home-skin-card {
-  margin: 0 16px 14px;
-  padding: 18px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+.yhome-coupon-badge {
+  background: linear-gradient(135deg, #E8385C, #C92043);
   color: white;
-  border-radius: 18px;
-  position: relative;
-  overflow: hidden;
-}
-.home-skin-card::before {
-  content: '';
-  position: absolute;
-  top: -40px;
-  right: -40px;
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.08);
-}
-.home-skin-card::after {
-  content: '';
-  position: absolute;
-  bottom: -60px;
-  right: 20px;
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.05);
-}
-.home-skin-label {
-  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.15em;
-  opacity: 0.9;
-  margin-bottom: 8px;
-}
-.home-skin-type {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.home-skin-concerns {
+  padding: 8px 10px;
+  border-radius: 10px;
   font-size: 13px;
-  opacity: 0.92;
-  margin-bottom: 18px;
+  min-width: 58px;
+  text-align: center;
+  line-height: 1.2;
+  flex-shrink: 0;
 }
-.home-skin-stats {
-  display: flex;
-  gap: 8px;
-  padding: 14px 0;
-  border-top: 1px solid rgba(255,255,255,0.2);
-  margin-bottom: 14px;
-  position: relative;
-  z-index: 1;
-}
-.home-skin-stat {
-  flex: 1;
-}
-.home-skin-num {
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1;
-}
-.home-skin-stat-lbl {
-  font-size: 11px;
+
+.yhome-coupon-badge span {
+  font-size: 9px;
   opacity: 0.85;
-  margin-top: 4px;
-}
-.home-skin-cta {
-  width: 100%;
-  padding: 13px;
-  background: white;
-  color: var(--primary-dark);
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 700;
-  position: relative;
-  z-index: 1;
-}
-
-/* Bannière pharmacies */
-.home-banner {
-  margin: 0 16px 18px;
-  width: calc(100% - 32px);
-  padding: 14px;
-  background: var(--accent);
-  color: var(--ink);
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-align: left;
-}
-.home-banner-icon { font-size: 28px; }
-.home-banner-text { flex: 1; display: flex; flex-direction: column; }
-.home-banner-text strong { font-size: 14px; font-weight: 700; }
-.home-banner-text span { font-size: 11px; opacity: 0.8; margin-top: 2px; }
-.home-banner-arrow { font-size: 18px; font-weight: 700; }
-
-/* Sections */
-.home-section { padding: 0 16px 18px; }
-.home-section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.section-link {
-  font-size: 12px;
-  color: var(--primary);
   font-weight: 600;
 }
 
-/* Catégories en grille avec image en fond */
-.cat-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.yhome-coupon-text {
+  flex: 1;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #1A1A1A;
+  min-width: 0;
 }
-.cat-tile {
-  position: relative;
-  aspect-ratio: 1.7;
-  border-radius: 14px;
-  overflow: hidden;
-  background: var(--bg-soft);
+
+.yhome-coupon-text strong {
+  font-weight: 700;
+  display: block;
+}
+
+.yhome-coupon-text span {
+  color: #6B6B6B;
+  font-size: 10px;
+}
+
+.yhome-coupon-code {
+  background: white;
+  border: 1.5px dashed #1F8B4C;
+  color: #1F8B4C;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.yhome-coupon-close {
+  background: transparent;
+  border: none;
+  color: #9B9B9B;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+/* ─── SECTIONS génériques ─── */
+.yhome-section {
+  padding: 20px 16px 0;
+}
+
+.yhome-section-head {
   display: flex;
+  justify-content: space-between;
   align-items: flex-end;
-  padding: 12px;
+  margin-bottom: 12px;
 }
-.cat-tile img {
-  position: absolute;
-  inset: 0;
+
+.yhome-section-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1A1A1A;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.yhome-section-sub {
+  font-size: 11px;
+  color: #6B6B6B;
+  margin-top: 2px;
+}
+
+.yhome-section-sub.success {
+  color: #1F8B4C;
+  font-weight: 600;
+}
+
+.yhome-section-link {
+  background: none;
+  border: none;
+  color: #1F8B4C;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* ─── MARQUES (carrousel cercles) ─── */
+.yhome-brands-row {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0 6px;
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  scroll-snap-type: x proximity;
+}
+
+.yhome-brand-item {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  padding: 0;
+  font-family: inherit;
+  scroll-snap-align: start;
+}
+
+.yhome-brand-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid #EEE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1A1A1A;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.yhome-brand-circle img {
   width: 100%;
   height: 100%;
+  object-fit: contain;
+}
+
+.yhome-brand-initials {
+  font-size: 9px;
+  line-height: 1.1;
+  word-break: break-word;
+  text-align: center;
+}
+
+.yhome-brand-name {
+  font-size: 10px;
+  color: #1A1A1A;
+  font-weight: 600;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── BANNIÈRE HERO ─── */
+.yhome-banner-card {
+  position: relative;
+  height: 140px;
+  border-radius: 16px;
+  overflow: hidden;
+  padding: 18px;
+  cursor: pointer;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.yhome-banner-sponsor {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+.yhome-banner-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  position: relative;
+  z-index: 1;
+  max-width: 65%;
+}
+
+.yhome-banner-subtitle {
+  font-size: 12px;
+  opacity: 0.95;
+  margin-top: 4px;
+  position: relative;
+  z-index: 1;
+  max-width: 65%;
+}
+
+.yhome-banner-cta {
+  align-self: flex-start;
+  background: white;
+  color: #1F8B4C;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+  font-family: inherit;
+}
+
+.yhome-banner-img {
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 110px;
+  height: 110px;
+  border-radius: 12px;
   object-fit: cover;
   opacity: 0.85;
 }
-.cat-tile::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.6), transparent 50%);
-}
-.cat-name {
-  position: relative;
-  z-index: 1;
-  font-size: 14px;
-  font-weight: 700;
-  color: white;
+
+.yhome-banner-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 10px;
 }
 
-.product-grid {
+.yhome-banner-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #DDD;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.yhome-banner-dot.active {
+  width: 18px;
+  border-radius: 999px;
+  background: #1F8B4C;
+}
+
+/* ─── CATÉGORIES (grille 4×N) ─── */
+.yhome-cat-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
+}
+
+.yhome-cat-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: center;
+  font-family: inherit;
+}
+
+.yhome-cat-tile {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  font-size: 24px;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.yhome-cat-tile img {
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+}
+
+.yhome-cat-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: #1A1A1A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── PRÈS DE CHEZ TOI ─── */
+.yhome-gps-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #1F8B4C, #166635);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 12px;
+  font-family: inherit;
+}
+
+.yhome-pharma-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -16px;
+  padding: 0 16px 4px;
+  scroll-snap-type: x mandatory;
+}
+
+.yhome-pharma-card {
+  flex-shrink: 0;
+  width: 200px;
+  background: white;
+  border: 1px solid #EEE;
+  border-radius: 14px;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  font-family: inherit;
+  scroll-snap-align: start;
+}
+
+.yhome-pharma-cover {
+  height: 90px;
+  position: relative;
+}
+
+.yhome-pharma-dist {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: white;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1F8B4C;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.yhome-pharma-info {
+  padding: 10px;
+}
+
+.yhome-pharma-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yhome-pharma-area {
+  font-size: 11px;
+  color: #6B6B6B;
+  margin-bottom: 5px;
+}
+
+.yhome-pharma-rating {
+  font-size: 11px;
+  color: #F4B53A;
+  font-weight: 700;
+}
+
+.yhome-pharma-rating span {
+  color: #9B9B9B;
+  font-weight: 400;
 }
