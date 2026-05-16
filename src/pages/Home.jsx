@@ -350,8 +350,8 @@ export default function Home() {
                   onClick={() => navigate({ name: 'search', params: { brand: brand.name } })}
                 >
                   <div className="yhome-brand-circle">
-                    {brand.logo ? (
-                      <img src={brand.logo} alt={brand.name} onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.textContent = brand.name.substring(0, 8); }} />
+                    {brand.img ? (
+                      <img src={brand.img} alt={brand.name} onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.textContent = brand.name.substring(0, 8); }} />
                     ) : (
                       <span className="yhome-brand-initials">{brand.name.substring(0, 8)}</span>
                     )}
