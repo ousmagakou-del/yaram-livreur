@@ -29,6 +29,7 @@ import PiSpiTest from './pages/PiSpiTest';
 import Loyalty from './pages/Loyalty';
 import Referral from './pages/Referral';
 import NotifSettings from './pages/NotifSettings';
+import Promos from './pages/Promos';
 import InstallPrompt from './components/InstallPrompt';
 import WhatsAppButton from './components/WhatsAppButton';
 
@@ -50,6 +51,7 @@ function routeToPath(route) {
     case 'payment': return `/payment/${params.orderId}`;
     case 'search': 
       if (params.category) return `/search?category=${encodeURIComponent(params.category)}`;
+      if (params.brand) return `/search?brand=${encodeURIComponent(params.brand)}`;
       return '/search';
     default: return `/${route.name}`;
   }
@@ -69,12 +71,14 @@ function pathToRoute(pathname, search = '') {
   if (parts[0] === 'scan' && parts[1] === 'result' && parts[2]) return { name: 'scan_result', params: { scanId: parts[2] } };
   if (parts[0] === 'payment' && parts[1]) return { name: 'payment', params: { orderId: parts[1] } };
   
-  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications'];
+  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'promos'];
   if (simpleRoutes.includes(parts[0])) {
     const params = {};
     if (parts[0] === 'search') {
       const cat = searchParams.get('category');
       if (cat) params.category = cat;
+      const br = searchParams.get('brand');
+      if (br) params.brand = br;
     }
     return { name: parts[0], params };
   }
@@ -169,7 +173,7 @@ function ClientApp() {
       if (path.startsWith('product/')) {
         newRoute = { name: 'product', params: { id: path.split('/')[1] } };
       } else {
-        const map = { '': 'home', search: 'search', cart: 'cart', profile: 'profile', orders: 'orders', pharmacies: 'pharmacies', scan: 'scan' };
+        const map = { '': 'home', search: 'search', cart: 'cart', profile: 'profile', orders: 'orders', pharmacies: 'pharmacies', scan: 'scan', promos: 'promos', loyalty: 'loyalty' };
         newRoute = { name: map[path] || 'home', params: {} };
       }
     } else if (typeof target === 'object') {
@@ -284,6 +288,7 @@ function ClientApp() {
     case 'loyalty': page = <Loyalty />; break;
     case 'referral': page = <Referral />; break;
     case 'notifications': page = <NotifSettings />; break;
+    case 'promos': page = <Promos />; break;
     default: page = <Home />;
   }
 

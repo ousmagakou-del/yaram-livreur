@@ -335,6 +335,19 @@ export default function Home() {
           </div>
         )}
 
+        {/* ════════ CARTE BONS PLANS ════════ */}
+        <button
+          className="yhome-promo-link"
+          onClick={() => navigate({ name: 'promos', params: {} })}
+        >
+          <div className="yhome-promo-link-icon">🎁</div>
+          <div className="yhome-promo-link-text">
+            <strong>Bons plans</strong>
+            <span>Découvre toutes les promos actives</span>
+          </div>
+          <div className="yhome-promo-link-arrow">→</div>
+        </button>
+
         {/* ════════ MARQUES (cercles) ════════ */}
         {topBrands.length > 0 && (
           <section className="yhome-section">

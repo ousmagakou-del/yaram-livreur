@@ -559,3 +559,57 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+
+/* ─── CARTE BONS PLANS (lien vers /promos) ─── */
+.yhome-promo-link {
+  margin: 14px 16px 0;
+  background: linear-gradient(135deg, #FFF4D6 0%, #FFE4D6 100%);
+  border: none;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  width: calc(100% - 32px);
+  box-shadow: 0 2px 8px rgba(255,121,0,0.12);
+  transition: transform 0.15s;
+}
+
+.yhome-promo-link:active {
+  transform: scale(0.98);
+}
+
+.yhome-promo-link-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.yhome-promo-link-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  min-width: 0;
+}
+
+.yhome-promo-link-text strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #993C1D;
+  letter-spacing: -0.2px;
+}
+
+.yhome-promo-link-text span {
+  font-size: 11px;
+  color: #854F0B;
+  font-weight: 500;
+}
+
+.yhome-promo-link-arrow {
+  font-size: 18px;
+  color: #993C1D;
+  font-weight: 800;
+  flex-shrink: 0;
+}
