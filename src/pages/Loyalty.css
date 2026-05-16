@@ -1,227 +1,372 @@
-.ly-screen {
+/* ═══════════════════════════════════════════════════
+   YARAM — Page Fidélité
+   Préfixe `yloy-` pour pas de conflit
+   ═══════════════════════════════════════════════════ */
+
+.yloy-screen {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg, #F5F6F8);
+  background: #F8F8F6;
 }
-.ly-header {
+
+.yloy-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(var(--tabbar-height, 64px) + 20px);
+}
+
+/* HEADER */
+.yloy-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: calc(var(--safe-top, 0px) + 14px) 16px 12px;
+  padding: calc(var(--safe-top, 14px) + 14px) 16px 16px;
   background: white;
-  border-bottom: 1px solid #EEE;
 }
-.ly-back {
-  background: none;
+
+.yloy-back {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #F4F4F2;
   border: none;
-  font-size: 22px;
-  cursor: pointer;
-  width: 36px;
-  height: 36px;
+  color: #1A1A1A;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.ly-header h1 {
-  font-size: 18px;
-  font-weight: 800;
-}
-.ly-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  padding-bottom: 80px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-/* Big points card */
-.ly-points-card {
-  background: linear-gradient(135deg, #1F8B4C 0%, #166635 100%);
-  color: white;
+.yloy-header h1 {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0;
+  color: #1A1A1A;
+  letter-spacing: -0.4px;
+}
+
+.yloy-header p {
+  font-size: 12px;
+  color: #6B6B6B;
+  margin: 2px 0 0;
+}
+
+/* CARTE TIER + SOLDE */
+.yloy-card {
+  margin: 16px;
+  padding: 22px;
   border-radius: 20px;
-  padding: 28px 20px;
-  text-align: center;
-  margin-bottom: 16px;
+  color: white;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(31,139,76,0.25);
 }
-.ly-points-card::before {
+
+.yloy-card::before {
   content: '';
   position: absolute;
-  top: -30px;
-  right: -30px;
-  width: 120px;
-  height: 120px;
+  top: -40px;
+  right: -40px;
+  width: 160px;
+  height: 160px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.1);
 }
-.ly-tier-badge {
-  display: inline-block;
-  background: rgba(255,255,255,0.2);
-  backdrop-filter: blur(10px);
-  padding: 6px 14px;
+
+.yloy-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.25);
+  padding: 6px 12px;
   border-radius: 999px;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.yloy-tier-icon {
+  font-size: 16px;
+}
+
+.yloy-tier-name {
   font-size: 12px;
   font-weight: 700;
-  margin-bottom: 16px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
-.ly-points-number {
-  font-size: 64px;
+
+.yloy-balance-label {
+  font-size: 11px;
+  opacity: 0.9;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.yloy-balance-value {
+  font-size: 44px;
   font-weight: 800;
   line-height: 1;
-  margin-bottom: 4px;
-}
-.ly-points-label {
-  font-size: 14px;
-  opacity: 0.9;
-  margin-bottom: 12px;
-}
-.ly-equiv {
-  background: #F4B53A;
-  color: #1A1A1A;
-  display: inline-block;
-  padding: 8px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 800;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 1;
+  letter-spacing: -1px;
 }
 
-/* Progress */
-.ly-progress-card {
-  background: white;
-  border-radius: 14px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  border: 1px solid #EEE;
+.yloy-balance-equiv {
+  font-size: 13px;
+  opacity: 0.95;
+  margin-bottom: 18px;
+  position: relative;
+  z-index: 1;
+  font-weight: 500;
 }
-.ly-progress-head {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  margin-bottom: 8px;
+
+.yloy-progress-info {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 1;
+  font-weight: 600;
 }
-.ly-progress-head strong {
-  color: #1F8B4C;
-}
-.ly-progress-bar {
-  height: 8px;
-  background: #F4F4F2;
+
+.yloy-progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.25);
   border-radius: 999px;
   overflow: hidden;
-  margin-bottom: 6px;
-}
-.ly-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #1F8B4C, #F4B53A);
-  border-radius: 999px;
-  transition: width 0.5s;
-}
-.ly-progress-meta {
-  font-size: 11px;
-  color: #6B6B6B;
-  text-align: center;
-}
-
-/* Info card */
-.ly-info-card {
-  background: white;
-  border-radius: 14px;
-  padding: 18px;
-  margin-bottom: 16px;
-  border: 1px solid #EEE;
-}
-.ly-info-card h3 {
-  font-size: 14px;
-  font-weight: 800;
-  margin-bottom: 12px;
-}
-.ly-info-card ul {
-  list-style: none;
-  padding: 0;
-}
-.ly-info-card li {
-  font-size: 13px;
-  padding: 6px 0 6px 24px;
   position: relative;
-  color: #4B4B4B;
-}
-.ly-info-card li::before {
-  content: '✓';
-  position: absolute;
-  left: 0;
-  color: #1F8B4C;
-  font-weight: 800;
+  z-index: 1;
 }
 
-/* Tiers */
-.ly-tiers {
+.yloy-progress-fill {
+  height: 100%;
   background: white;
-  border-radius: 14px;
-  padding: 18px;
-  margin-bottom: 16px;
-  border: 1px solid #EEE;
-}
-.ly-tiers h3 {
-  font-size: 14px;
-  font-weight: 800;
-  margin-bottom: 12px;
-}
-.ly-tier-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #F4F4F2;
-  font-size: 13px;
-}
-.ly-tier-row:last-child {
-  border-bottom: 0;
+  border-radius: 999px;
+  transition: width 0.5s ease;
 }
 
-/* History */
-.ly-history {
-  background: white;
-  border-radius: 14px;
-  padding: 18px;
-  border: 1px solid #EEE;
+/* SECTIONS */
+.yloy-section {
+  padding: 20px 16px 0;
 }
-.ly-history h3 {
-  font-size: 14px;
+
+.yloy-section-title {
+  font-size: 15px;
   font-weight: 800;
-  margin-bottom: 12px;
+  margin: 0 0 4px;
+  color: #1A1A1A;
 }
-.ly-empty {
-  text-align: center;
-  padding: 20px;
-  color: #9B9B9B;
-  font-size: 13px;
-}
-.ly-tx {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #F4F4F2;
-}
-.ly-tx:last-child {
-  border-bottom: 0;
-}
-.ly-tx-info strong {
-  font-size: 13px;
-  display: block;
-}
-.ly-tx-info span {
-  font-size: 11px;
+
+.yloy-section-sub {
+  font-size: 12px;
   color: #6B6B6B;
-  margin-top: 2px;
+  margin-bottom: 12px;
 }
-.ly-tx-points {
+
+/* GRILLE REDEEM */
+.yloy-redeem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.yloy-redeem-btn {
+  background: white;
+  border: 2px solid #1F8B4C;
+  border-radius: 14px;
+  padding: 14px 10px;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.yloy-redeem-btn:active:not(.disabled):not(:disabled) {
+  transform: scale(0.97);
+  box-shadow: 0 4px 12px rgba(31,139,76,0.2);
+}
+
+.yloy-redeem-btn.disabled,
+.yloy-redeem-btn:disabled {
+  border-color: #DDD;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.yloy-redeem-btn.loading {
+  opacity: 0.6;
+}
+
+.yloy-redeem-pts {
   font-size: 16px;
   font-weight: 800;
+  color: #1A1A1A;
 }
-.ly-tx-points.positive {
+
+.yloy-redeem-arrow {
+  font-size: 14px;
+  color: #1F8B4C;
+  margin: 4px 0;
+}
+
+.yloy-redeem-fcfa {
+  font-size: 16px;
+  font-weight: 800;
   color: #1F8B4C;
 }
-.ly-tx-points.negative {
-  color: #D9342B;
+
+.yloy-redeem-miss {
+  font-size: 10px;
+  color: #9B9B9B;
+  margin-top: 4px;
+}
+
+/* COMMENT GAGNER */
+.yloy-earn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yloy-earn-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  border: 1px solid #EEE;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.yloy-earn-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #E8F5EC;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.yloy-earn-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.yloy-earn-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.yloy-earn-text span {
+  font-size: 11px;
+  color: #6B6B6B;
+}
+
+.yloy-earn-cta {
+  background: #F4F4F2;
+  border: none;
+  color: #1F8B4C;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+/* HISTORIQUE */
+.yloy-loading {
+  padding: 30px;
+  text-align: center;
+  color: #9B9B9B;
+}
+
+.yloy-empty {
+  text-align: center;
+  padding: 30px;
+  color: #6B6B6B;
+}
+
+.yloy-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yloy-tx-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  border: 1px solid #EEE;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.yloy-tx-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.yloy-tx-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.yloy-tx-text strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1A1A1A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yloy-tx-text span {
+  font-size: 10px;
+  color: #9B9B9B;
+}
+
+.yloy-tx-pts {
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.yloy-tx-pts.positive { color: #1F8B4C; }
+.yloy-tx-pts.negative { color: #D9342B; }
+
+/* TOAST */
+.yloy-toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1A1A1A;
+  color: white;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  z-index: 2500;
+  pointer-events: none;
+  white-space: nowrap;
 }

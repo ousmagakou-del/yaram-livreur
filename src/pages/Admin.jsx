@@ -24,6 +24,7 @@ import ProductsValidationSection from '../admin/ProductsValidationSection';
 import CommissionsSection from '../admin/CommissionsSection';
 import BannersSection from '../admin/BannersSection';
 import CategoriesSection from '../admin/CategoriesSection';
+import LoyaltySection from '../admin/LoyaltySection';
 import './Admin.css';
 
 const NAV = [
@@ -35,6 +36,7 @@ const NAV = [
   { id: 'skinscans',   icon: '🧠', label: 'Stats Scans IA' },
   { id: 'commissions', icon: '💰', label: 'Commissions' },
   { id: 'finances',    icon: '💸', label: 'Finances' },
+  { id: 'loyalty',     icon: '💚', label: 'Fidélité' },
   { id: 'products',    icon: '🛍️', label: 'Produits' },
   { id: 'validation',  icon: '✨', label: 'Validation produits', badge: true },
   { id: 'brands',      icon: '🏷️', label: 'Marques' },
@@ -230,6 +232,7 @@ export default function Admin() {
         {section === 'skinscans'   && <SkinScansSection />}
         {section === 'commissions' && <CommissionsSection />}
         {section === 'finances'    && <FinancesSection />}
+        {section === 'loyalty'     && <LoyaltySection />}
         {section === 'products'    && <ProductsSection />}
         {section === 'validation'  && <ProductsValidationSection />}
         {section === 'brands'      && <BrandsSection />}
