@@ -262,7 +262,7 @@ function ClientApp() {
 
   let page;
   switch (route.name) {
-    case 'search': page = <Search initialCategory={route.params?.category} />; break;
+    case 'search': page = <Search initialCategory={route.params?.category} initialBrand={route.params?.brand} />; break;
     case 'product': page = <Product id={route.params.id} />; break;
     case 'cart': page = <Cart />; break;
     case 'checkout': page = <Checkout items={route.params.items} paymentMethod={route.params.paymentMethod} />; break;

@@ -39,7 +39,7 @@ const CAT_LABELS = {
   hydratant: 'Hydratants', masque: 'Masques', corps: 'Corps',
   levres: 'Lèvres', maquillage: 'Maquillage', cheveux: 'Cheveux', huile: 'Huiles',
   hygiene: 'Hygiène', bebe: 'Bébé', bouche: 'Bouche', complement: 'Compléments',
-  parfum: 'Parfums',
+  parfum: 'Parfums', pieds_mains: 'Pieds & Mains', intime: 'Intime', deodorants: 'Déodorants',
 };
 
 function catLabel(cat) {
@@ -47,7 +47,7 @@ function catLabel(cat) {
   return CAT_LABELS[cat] || (cat.charAt(0).toUpperCase() + cat.slice(1));
 }
 
-export default function Search({ initialCategory }) {
+export default function Search({ initialCategory, initialBrand }) {
   const { navigate } = useNav();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState(initialCategory || null);
@@ -57,19 +57,41 @@ export default function Search({ initialCategory }) {
   const [showFilters, setShowFilters] = useState(false);
 
   const [sort, setSort] = useState('recommended');
-  const [selectedBrands, setSelectedBrands] = useState([]);
+  const [selectedBrands, setSelectedBrands] = useState(initialBrand ? [initialBrand] : []);
   const [scoreRange, setScoreRange] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [selectedBadges, setSelectedBadges] = useState([]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const [p, b] = await Promise.all([getAllProducts(), getAllBrands()]);
-      setProducts(p);
-      setBrands(b);
-      setLoading(false);
+      try {
+        const [p, b] = await Promise.all([getAllProducts(), getAllBrands()]);
+        if (cancelled) return;
+        setProducts(p || []);
+        setBrands(b || []);
+      } catch (e) {
+        console.error('Search load error:', e);
+      }
+      if (!cancelled) setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, []);
+
+  // Si initialBrand change (navigation depuis Home), on met à jour
+  useEffect(() => {
+    if (initialBrand && !selectedBrands.includes(initialBrand)) {
+      setSelectedBrands([initialBrand]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialBrand]);
+
+  useEffect(() => {
+    if (initialCategory && category !== initialCategory) {
+      setCategory(initialCategory);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCategory]);
 
   const filtered = useMemo(() => {
     let list = [...products];
@@ -126,10 +148,10 @@ export default function Search({ initialCategory }) {
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           <input
-            autoFocus={!category}
+            autoFocus={!category && !initialBrand}
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder={category ? `Filtrer dans ${catLabel(category)}...` : "Produit, marque, ingrédient..."}
+            placeholder={category ? `Filtrer dans ${catLabel(category)}...` : initialBrand ? `Filtrer dans ${initialBrand}...` : "Produit, marque, ingrédient..."}
           />
           {q && <button onClick={() => setQ('')} className="search-clear">×</button>}
         </div>
@@ -180,7 +202,7 @@ export default function Search({ initialCategory }) {
           )}
           {selectedBrands.map(b => (
             <span key={b} className="search-cat-chip alt">
-              {b}
+              🏷️ {b}
               <button onClick={() => toggleBrand(b)}>×</button>
             </span>
           ))}
@@ -210,8 +232,9 @@ export default function Search({ initialCategory }) {
               <div className="search-count">
                 <strong>{filtered.length}</strong> produit{filtered.length > 1 ? 's' : ''}
                 {category ? ` dans ${catLabel(category)}` : ''}
+                {selectedBrands.length === 1 && !category ? ` chez ${selectedBrands[0]}` : ''}
               </div>
-              <div className="product-grid">
+              <div className="search-product-grid-2">
                 {filtered.map(p => <ProductTile key={p.id} product={p} />)}
               </div>
             </div>

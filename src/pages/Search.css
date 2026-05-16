@@ -256,3 +256,25 @@
 .filters-foot .btn-primary {
   flex: 1;
 }
+.search-product-grid-2 {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px;
+}
+
+.search-product-grid-2 > * {
+  min-width: 0; /* Empêche le débordement */
+  max-width: 100%;
+}
+
+/* Force aussi la grille du Home si jamais elle est dans la même CSS */
+.yhome-product-grid-2 {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px;
+}
+
+.yhome-product-grid-2 > * {
+  min-width: 0;
+  max-width: 100%;
+}
