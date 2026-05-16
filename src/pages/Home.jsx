@@ -10,6 +10,8 @@ import {
 import { getUserPosition, sortByDistance, formatDistance, getPermissionState } from '../lib/geo';
 import ProductTile from '../components/ProductTile';
 import TabBar from '../components/TabBar';
+import BarcodeScannerClient from '../components/BarcodeScannerClient';
+import '../components/BarcodeScannerClient.css';
 import './Home.css';
 
 const DEFAULT_CATEGORY_PRESET = {
@@ -34,6 +36,7 @@ export default function Home() {
   const [bestSellers, setBestSellers] = useState([]);
   const [latestScan, setLatestScan] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [couponDismissed, setCouponDismissed] = useState(() => {
     try { return localStorage.getItem('yaram_coupon_dismissed') === '1'; } catch { return false; }
   });
@@ -71,22 +74,13 @@ export default function Home() {
         setProducts(p);
         setPharmacies(ph);
 
-        // ─── Categories (depuis la table) ou fallback depuis produits ───
+        // Categories
         const catData = catRes?.data || [];
         if (catData.length > 0) {
-          // Compte les produits par slug pour afficher la couverture reelle
           const counts = {};
-          p.forEach(prod => {
-            const c = prod.category;
-            if (c) counts[c] = (counts[c] || 0) + 1;
-          });
-          const enriched = catData.map(cat => ({
-            ...cat,
-            product_count: counts[cat.slug] || 0,
-          }));
-          setCategories(enriched);
+          p.forEach(prod => { if (prod.category) counts[prod.category] = (counts[prod.category] || 0) + 1; });
+          setCategories(catData.map(cat => ({ ...cat, product_count: counts[cat.slug] || 0 })));
         } else {
-          // Fallback : agrege depuis products (cas ou la table est vide)
           const catMap = {};
           p.forEach(prod => {
             if (!prod.category) return;
@@ -106,19 +100,16 @@ export default function Home() {
           setCategories(Object.values(catMap).sort((a, b) => b.product_count - a.product_count).slice(0, 12));
         }
 
-        // ─── Top marques (par nb de produits) ───
+        // Top marques
         const brandCount = {};
-        p.forEach(prod => {
-          const b = prod.brand;
-          if (b) brandCount[b] = (brandCount[b] || 0) + 1;
-        });
+        p.forEach(prod => { if (prod.brand) brandCount[prod.brand] = (brandCount[prod.brand] || 0) + 1; });
         const sortedBrands = (br || [])
           .map(b => ({ ...b, _count: brandCount[b.name] || 0 }))
           .sort((a, b) => b._count - a._count)
           .slice(0, 10);
         setTopBrands(sortedBrands);
 
-        // ─── Bannieres actives, filtrees par date ───
+        // Bannieres
         const now = new Date();
         const activeBn = (bn || []).filter(b =>
           b.active !== false &&
@@ -126,7 +117,6 @@ export default function Home() {
         );
         setBanners(activeBn);
 
-        // ─── Favoris user ───
         if (user?.id) {
           const { data: favs } = await supabase
             .from('favorites').select('product_id').eq('user_id', user.id);
@@ -139,7 +129,6 @@ export default function Home() {
           setLatestScan(scan);
         }
 
-        // ─── Best sellers ───
         try {
           const { data: orders } = await supabase
             .from('orders').select('items')
@@ -147,18 +136,13 @@ export default function Home() {
           const productSales = {};
           (orders || []).forEach(o => {
             (o.items || []).forEach(item => {
-              if (item.productId) {
-                productSales[item.productId] = (productSales[item.productId] || 0) + (item.qty || 1);
-              }
+              if (item.productId) productSales[item.productId] = (productSales[item.productId] || 0) + (item.qty || 1);
             });
           });
-          const sortedIds = Object.entries(productSales)
-            .sort((a, b) => b[1] - a[1]).map(([id]) => id);
+          const sortedIds = Object.entries(productSales).sort((a, b) => b[1] - a[1]).map(([id]) => id);
           const best = sortedIds.map(id => p.find(pr => pr.id === id)).filter(Boolean);
           setBestSellers(best);
-        } catch (e) {
-          console.error('best sellers error:', e);
-        }
+        } catch (e) { console.error('best sellers error:', e); }
       } catch (err) {
         console.error('Home load error:', err);
       }
@@ -180,9 +164,7 @@ export default function Home() {
   // ─── Auto-rotate bannieres ───
   useEffect(() => {
     if (banners.length <= 1) return;
-    const t = setInterval(() => {
-      setActiveBannerIdx(i => (i + 1) % banners.length);
-    }, 5000);
+    const t = setInterval(() => setActiveBannerIdx(i => (i + 1) % banners.length), 5000);
     return () => clearInterval(t);
   }, [banners.length]);
 
@@ -227,16 +209,14 @@ export default function Home() {
     } else score += 15;
     score += (p.score || 50) * 0.3;
     if (diag.ingredients_recommandes) {
-      const recommended = diag.ingredients_recommandes.map(i => i.toLowerCase());
-      const productText = `${p.name || ''} ${p.inci || ''} ${p.short_desc || ''}`.toLowerCase();
-      const matches = recommended.filter(ing => productText.includes(ing)).length;
-      score += matches * 5;
+      const rec = diag.ingredients_recommandes.map(i => i.toLowerCase());
+      const txt = `${p.name || ''} ${p.inci || ''} ${p.short_desc || ''}`.toLowerCase();
+      score += rec.filter(ing => txt.includes(ing)).length * 5;
     }
     if (diag.ingredients_a_eviter) {
-      const avoid = diag.ingredients_a_eviter.map(i => i.toLowerCase());
-      const productText = `${p.name || ''} ${p.inci || ''}`.toLowerCase();
-      const matches = avoid.filter(ing => productText.includes(ing)).length;
-      score -= matches * 10;
+      const avo = diag.ingredients_a_eviter.map(i => i.toLowerCase());
+      const txt = `${p.name || ''} ${p.inci || ''}`.toLowerCase();
+      score -= avo.filter(ing => txt.includes(ing)).length * 10;
     }
     if (concernsList.length > 0 && p.short_desc) {
       const desc = p.short_desc.toLowerCase();
@@ -246,41 +226,35 @@ export default function Home() {
     return score;
   };
 
-  const topMatches = products
-    .slice()
-    .map(p => ({ ...p, _personalScore: scoreProduct(p) }))
-    .sort((a, b) => b._personalScore - a._personalScore)
-    .slice(0, 6);
+  const topMatches = products.slice().map(p => ({ ...p, _personalScore: scoreProduct(p) }))
+    .sort((a, b) => b._personalScore - a._personalScore).slice(0, 4);
 
   const trending = bestSellers.length > 0
-    ? bestSellers.slice(0, 6)
+    ? bestSellers.slice(0, 4)
     : products.slice().sort((a, b) => {
         const sA = (a.review_count || 0) * 0.6 + (a.score || 0) * 0.4;
         const sB = (b.review_count || 0) * 0.6 + (b.score || 0) * 0.4;
         return sB - sA;
-      }).slice(0, 6);
+      }).slice(0, 4);
 
   // ─── Handler clic banniere ───
   const handleBannerClick = (banner) => {
-    // Increment click_count (silencieux, on attend pas)
     if (banner.id) {
       supabase.rpc('increment_banner_click', { banner_id: banner.id }).catch(() => {
-        // fallback : update direct
         supabase.from('banners').update({ click_count: (banner.click_count || 0) + 1 }).eq('id', banner.id);
       });
     }
-    // Navigation selon link_type
-    if (banner.link_type === 'scan') {
-      navigate({ name: 'scan', params: {} });
-    } else if (banner.link_type === 'pharmacy') {
-      navigate({ name: 'pharmacies', params: {} });
-    } else if (banner.link_type === 'product' && banner.link_target) {
-      navigate({ name: 'product', params: { id: banner.link_target } });
-    } else if (banner.link_type === 'category' && banner.link_target) {
-      navigate({ name: 'search', params: { category: banner.link_target } });
-    } else if (banner.link_type === 'external' && banner.link_target) {
-      window.open(banner.link_target, '_blank');
-    }
+    if (banner.link_type === 'scan') navigate({ name: 'scan', params: {} });
+    else if (banner.link_type === 'pharmacy') navigate({ name: 'pharmacies', params: {} });
+    else if (banner.link_type === 'product' && banner.link_target) navigate({ name: 'product', params: { id: banner.link_target } });
+    else if (banner.link_type === 'category' && banner.link_target) navigate({ name: 'search', params: { category: banner.link_target } });
+    else if (banner.link_type === 'external' && banner.link_target) window.open(banner.link_target, '_blank');
+  };
+
+  // ─── Handler scan code-barres → ouvre la fiche produit ───
+  const handleProductFound = (productId) => {
+    setScannerOpen(false);
+    navigate({ name: 'product', params: { id: productId } });
   };
 
   return (
@@ -320,10 +294,20 @@ export default function Home() {
               </svg>
               <span>Cherche un produit, une marque...</span>
             </button>
-            <button className="yhome-scan-btn" onClick={() => navigate({ name: 'scan', params: {} })} aria-label="Scan IA">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
-                <path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3"/>
-                <line x1="7" y1="12" x2="17" y2="12"/>
+            <button
+              className="yhome-scan-btn"
+              onClick={() => setScannerOpen(true)}
+              aria-label="Scanner un code-barres"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+                <path d="M3 5a2 2 0 0 1 2-2h2"/>
+                <path d="M19 3h2a2 2 0 0 1 2 2v2"/>
+                <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+                <path d="M5 21H3a2 2 0 0 1-2-2v-2"/>
+                <line x1="7" y1="7" x2="7" y2="17"/>
+                <line x1="10" y1="7" x2="10" y2="17"/>
+                <line x1="13" y1="7" x2="13" y2="17"/>
+                <line x1="16" y1="7" x2="16" y2="17"/>
               </svg>
             </button>
           </div>
@@ -351,14 +335,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* ════════ MARQUES (carrousel cercles) ════════ */}
+        {/* ════════ MARQUES (cercles) ════════ */}
         {topBrands.length > 0 && (
           <section className="yhome-section">
             <div className="yhome-section-head">
               <h2 className="yhome-section-title">Marques</h2>
-              <button className="yhome-section-link" onClick={() => navigate('/search')}>
-                Tout voir →
-              </button>
+              <button className="yhome-section-link" onClick={() => navigate('/search')}>Tout voir →</button>
             </div>
             <div className="yhome-brands-row">
               {topBrands.map(brand => (
@@ -383,31 +365,36 @@ export default function Home() {
           </section>
         )}
 
-        {/* ════════ BANNIÈRE HERO ════════ */}
+        {/* ════════ BANNIÈRE 100% IMAGE ════════ */}
         {banners.length > 0 && (
           <section className="yhome-section">
-            <div
-              className="yhome-banner-card"
-              style={{
-                background: banners[activeBannerIdx]?.bg_color || '#1F8B4C',
-                color: banners[activeBannerIdx]?.text_color || '#FFFFFF',
-              }}
-              onClick={() => handleBannerClick(banners[activeBannerIdx])}
-            >
-              {banners[activeBannerIdx]?.sponsor_name && (
-                <div className="yhome-banner-sponsor">{banners[activeBannerIdx].sponsor_name}</div>
-              )}
-              <div className="yhome-banner-title">{banners[activeBannerIdx]?.title}</div>
-              {banners[activeBannerIdx]?.subtitle && (
-                <div className="yhome-banner-subtitle">{banners[activeBannerIdx].subtitle}</div>
-              )}
-              {banners[activeBannerIdx]?.cta_text && banners[activeBannerIdx]?.link_type !== 'none' && (
-                <button className="yhome-banner-cta">
-                  {banners[activeBannerIdx].cta_text} →
-                </button>
-              )}
-              {banners[activeBannerIdx]?.image_url && (
-                <img src={banners[activeBannerIdx].image_url} alt="" className="yhome-banner-img" />
+            <div className="yhome-banner-wrap" onClick={() => handleBannerClick(banners[activeBannerIdx])}>
+              {banners[activeBannerIdx]?.image_url ? (
+                <img
+                  src={banners[activeBannerIdx].image_url}
+                  alt={banners[activeBannerIdx].title || 'Promo'}
+                  className="yhome-banner-img-full"
+                />
+              ) : (
+                /* Fallback : si pas d'image, ancien rendu avec gradient + texte */
+                <div
+                  className="yhome-banner-fallback"
+                  style={{
+                    background: banners[activeBannerIdx]?.bg_color || '#1F8B4C',
+                    color: banners[activeBannerIdx]?.text_color || '#FFFFFF',
+                  }}
+                >
+                  {banners[activeBannerIdx]?.sponsor_name && (
+                    <div className="yhome-banner-sponsor">{banners[activeBannerIdx].sponsor_name}</div>
+                  )}
+                  <div className="yhome-banner-title">{banners[activeBannerIdx]?.title}</div>
+                  {banners[activeBannerIdx]?.subtitle && (
+                    <div className="yhome-banner-subtitle">{banners[activeBannerIdx].subtitle}</div>
+                  )}
+                  {banners[activeBannerIdx]?.cta_text && banners[activeBannerIdx]?.link_type !== 'none' && (
+                    <button className="yhome-banner-cta">{banners[activeBannerIdx].cta_text} →</button>
+                  )}
+                </div>
               )}
             </div>
             {banners.length > 1 && (
@@ -425,7 +412,7 @@ export default function Home() {
           </section>
         )}
 
-        {/* ════════ CATÉGORIES (grille avec SVG uploadés ou fallback) ════════ */}
+        {/* ════════ CATÉGORIES ════════ */}
         {categories.length > 0 && (
           <section className="yhome-section">
             <div className="yhome-section-head">
@@ -449,11 +436,7 @@ export default function Home() {
                     }}
                   >
                     {cat.icon_url ? (
-                      <img
-                        src={cat.icon_url}
-                        alt=""
-                        onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.textContent = cat.name.charAt(0); }}
-                      />
+                      <img src={cat.icon_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.textContent = cat.name.charAt(0); }} />
                     ) : (
                       <span>{cat.name.charAt(0)}</span>
                     )}
@@ -529,7 +512,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ════════ POUR TOI ════════ */}
+        {/* ════════ POUR TOI (2 par rangée) ════════ */}
         {topMatches.length > 0 && (
           <section className="yhome-section">
             <div className="yhome-section-head">
@@ -539,17 +522,15 @@ export default function Home() {
                   {latestScan ? `Basé sur ton scan IA · peau ${(skinType || '').toLowerCase()}` : 'Fais ton scan pour des recos perso'}
                 </div>
               </div>
-              <button className="yhome-section-link" onClick={() => navigate('/search')}>
-                Tout voir →
-              </button>
+              <button className="yhome-section-link" onClick={() => navigate('/search')}>Tout voir →</button>
             </div>
-            <div className="product-grid">
+            <div className="yhome-product-grid-2">
               {topMatches.map(p => <ProductTile key={p.id} product={p} />)}
             </div>
           </section>
         )}
 
-        {/* ════════ TENDANCES ════════ */}
+        {/* ════════ TENDANCES (2 par rangée) ════════ */}
         {trending.length > 0 && (
           <section className="yhome-section">
             <div className="yhome-section-head">
@@ -559,11 +540,9 @@ export default function Home() {
                   {bestSellers.length > 0 ? 'Les plus commandés' : 'Les plus appréciés'}
                 </div>
               </div>
-              <button className="yhome-section-link" onClick={() => navigate('/search')}>
-                Tout voir →
-              </button>
+              <button className="yhome-section-link" onClick={() => navigate('/search')}>Tout voir →</button>
             </div>
-            <div className="product-grid">
+            <div className="yhome-product-grid-2">
               {trending.map(p => <ProductTile key={p.id} product={p} />)}
             </div>
           </section>
@@ -573,6 +552,14 @@ export default function Home() {
       </div>
 
       <TabBar active="home" />
+
+      {/* Scanner code-barres modal */}
+      {scannerOpen && (
+        <BarcodeScannerClient
+          onProductFound={handleProductFound}
+          onCancel={() => setScannerOpen(false)}
+        />
+      )}
     </div>
   );
 }
