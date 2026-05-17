@@ -1,39 +1,59 @@
-import { useState, createContext, useContext, useEffect, useRef } from 'react';
+import { useState, createContext, useContext, useEffect, useRef, lazy, Suspense } from 'react';
 import { supabase, getCurrentUser } from './lib/supabase';
 import { checkAndNotifyCartAbandon, notifyWelcome } from './lib/notifications';
 import SplashScreen from './components/SplashScreen';
 import Onboarding from './pages/Onboarding';
-import SkinQuiz from './pages/SkinQuiz';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Product from './pages/Product';
 import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import Payment from './pages/Payment';
-import OrderTracking from './pages/OrderTracking';
 import Orders from './pages/Orders';
 import Profile from './pages/Profile';
 import Pharmacies from './pages/Pharmacies';
 import PharmacyDetail from './pages/PharmacyDetail';
-import Scan from './pages/Scan';
-import ScanResult from './pages/ScanResult';
-import ScanHistory from './pages/ScanHistory';
 import Addresses from './pages/Addresses';
 import Favorites from './pages/Favorites';
 import Payments from './pages/Payments';
 import Evolution from './pages/Evolution';
 import Categories from './pages/Categories';
-import Admin from './pages/Admin';
-import Pharma from './pages/Pharma';
-import Livreur from './pages/Livreur';
-import ClientConfirm from './pages/ClientConfirm';
-import PiSpiTest from './pages/PiSpiTest';
 import Loyalty from './pages/Loyalty';
 import Referral from './pages/Referral';
 import NotifSettings from './pages/NotifSettings';
 import Promos from './pages/Promos';
 import InstallPrompt from './components/InstallPrompt';
 import WhatsAppButton from './components/WhatsAppButton';
+
+// ─── Lazy-load : pages lourdes / rarement visitees par le client lambda ───
+// Ces chunks ne sont telecharges qu'au moment ou la page est demandee.
+const SkinQuiz      = lazy(() => import('./pages/SkinQuiz'));
+const Checkout      = lazy(() => import('./pages/Checkout'));
+const Payment       = lazy(() => import('./pages/Payment'));
+const OrderTracking = lazy(() => import('./pages/OrderTracking'));
+const Scan          = lazy(() => import('./pages/Scan'));
+const ScanResult    = lazy(() => import('./pages/ScanResult'));
+const ScanHistory   = lazy(() => import('./pages/ScanHistory'));
+const Admin         = lazy(() => import('./pages/Admin'));
+const Pharma        = lazy(() => import('./pages/Pharma'));
+const Livreur       = lazy(() => import('./pages/Livreur'));
+const ClientConfirm = lazy(() => import('./pages/ClientConfirm'));
+const PiSpiTest     = lazy(() => import('./pages/PiSpiTest'));
+
+// Fallback leger pour Suspense (evite de re-trigger le SplashScreen plein-ecran)
+function LazyFallback() {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '60vh',
+      color: '#1F8B4C',
+      fontSize: 14,
+      fontWeight: 600,
+    }}>
+      Chargement…
+    </div>
+  );
+}
 
 const NavContext = createContext(null);
 export function useNav() { return useContext(NavContext); }
@@ -42,7 +62,7 @@ const UserContext = createContext(null);
 export function useUser() { return useContext(UserContext); }
 
 // Splash minimum display time (pour que ce soit visible meme si le auth est ultra rapide)
-const SPLASH_MIN_DURATION = 1200;
+const SPLASH_MIN_DURATION = 600;
 
 function routeToPath(route) {
   if (!route || !route.name || route.name === 'home') return '/';
@@ -92,11 +112,12 @@ function pathToRoute(pathname, search = '') {
 
 export default function App() {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-  if (params.has('admin')) return <Admin />;
-  if (params.has('pharma')) return <Pharma />;
-  if (params.has('livreur')) return <Livreur />;
-  if (params.has('confirm')) return <ClientConfirm />;
-  if (params.has('pispi')) return <PiSpiTest />;
+  // Routes top-level (non-client) : chunks separes, wrap dans Suspense
+  if (params.has('admin'))   return <Suspense fallback={<SplashScreen />}><Admin /></Suspense>;
+  if (params.has('pharma'))  return <Suspense fallback={<SplashScreen />}><Pharma /></Suspense>;
+  if (params.has('livreur')) return <Suspense fallback={<SplashScreen />}><Livreur /></Suspense>;
+  if (params.has('confirm')) return <Suspense fallback={<SplashScreen />}><ClientConfirm /></Suspense>;
+  if (params.has('pispi'))   return <Suspense fallback={<SplashScreen />}><PiSpiTest /></Suspense>;
 
   return <ClientApp />;
 }
@@ -279,7 +300,9 @@ function ClientApp() {
         <UserContext.Provider value={{ user, refreshUser }}>
           <div className="desktop-only-tag">YARAM · Aperçu mobile</div>
           <div className="app-shell">
-            <SkinQuiz onComplete={refreshUser} />
+            <Suspense fallback={<LazyFallback />}>
+              <SkinQuiz onComplete={refreshUser} />
+            </Suspense>
             <InstallPrompt />
             <WhatsAppButton />
           </div>
@@ -321,7 +344,7 @@ function ClientApp() {
       <UserContext.Provider value={{ user, refreshUser }}>
         <div className="desktop-only-tag">YARAM · Aperçu mobile</div>
         <div className="app-shell">
-          {page}
+          <Suspense fallback={<LazyFallback />}>{page}</Suspense>
           <InstallPrompt />
           <WhatsAppButton />
         </div>

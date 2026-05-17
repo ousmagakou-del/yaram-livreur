@@ -164,9 +164,13 @@ export default function Home() {
       }
 
       try {
+        // Perf : on ne scanne que les commandes livrees/expediees recentes (200 max)
+        // -> evite de retelecharger tout l'historique a chaque ouverture du Home.
         const { data: orders } = await supabase
           .from('orders').select('items')
-          .in('status', ['delivered', 'shipped', 'ready', 'preparing']);
+          .in('status', ['delivered', 'shipped'])
+          .order('created_at', { ascending: false })
+          .limit(200);
         const productSales = {};
         (orders || []).forEach(o => {
           (o.items || []).forEach(item => {
