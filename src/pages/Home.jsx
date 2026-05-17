@@ -327,6 +327,12 @@ export default function Home() {
               className="yhome-coupon-code"
               onClick={() => {
                 try { navigator.clipboard?.writeText('BIENVENUE10'); } catch {}
+                // Stocker le code pour application auto au checkout
+                try { localStorage.setItem('yaram_pending_promo', 'BIENVENUE10'); } catch {}
+                // Petit feedback visuel via vibration
+                if (navigator.vibrate) navigator.vibrate(40);
+                // Redirige vers le panier
+                navigate('/cart');
               }}
             >
               BIENVENUE10

@@ -68,6 +68,8 @@ export default function Promos() {
       await navigator.clipboard?.writeText(code);
       setCopiedCode(code);
       if (navigator.vibrate) navigator.vibrate(40);
+      // Stocker pour application auto au checkout
+      try { localStorage.setItem('yaram_pending_promo', code); } catch {}
       setTimeout(() => setCopiedCode(''), 2000);
     } catch {
       // Fallback : créer un textarea temporaire
@@ -78,6 +80,7 @@ export default function Promos() {
       try { document.execCommand('copy'); } catch {}
       document.body.removeChild(t);
       setCopiedCode(code);
+      try { localStorage.setItem('yaram_pending_promo', code); } catch {}
       setTimeout(() => setCopiedCode(''), 2000);
     }
   };
@@ -250,7 +253,10 @@ export default function Promos() {
                         </button>
                         <button
                           className="ypromos-card-cta"
-                          onClick={() => navigate('/search')}
+                          onClick={() => {
+                            try { localStorage.setItem('yaram_pending_promo', p.code); } catch {}
+                            navigate('/cart');
+                          }}
                           disabled={exhausted}
                         >
                           {exhausted ? 'Épuisée' : 'J\'achète →'}
