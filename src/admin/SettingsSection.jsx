@@ -17,7 +17,7 @@ const DEFAULTS = {
   commission: 8,
   deliveryFee: 1500,
   freeDeliveryFrom: 50000,
-  whatsapp: '+221 78 521 12 34',
+  whatsapp: '+221 77 438 87 66',
   email: 'contact@yaram.sn',
   primaryColor: '#1F8B4C',
   accentColor: '#FFD700',

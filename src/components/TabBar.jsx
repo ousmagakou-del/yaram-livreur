@@ -1,9 +1,45 @@
+import { useState, useEffect } from 'react';
 import { useNav } from '../App';
 import { haptic } from '../lib/haptic';
+import { getCartCount } from '../lib/cart';
 import './TabBar.css';
 
-export default function TabBar({ active = 'home', cartCount = 0 }) {
+export default function TabBar({ active = 'home', cartCount: overrideCount }) {
   const { navigate } = useNav();
+  // Self-managed cart badge : on lit getCartCount() au mount et on s'abonne
+  // a l'event 'yaram-cart-updated' (dispatche par lib/cart.js setCart).
+  // Le prop cartCount, s'il est passe, override (back-compat).
+  const [cartCount, setCartCount] = useState(() =>
+    typeof overrideCount === 'number' ? overrideCount : getCartCount()
+  );
+
+  useEffect(() => {
+    if (typeof overrideCount === 'number') {
+      setCartCount(overrideCount);
+      return;
+    }
+    const refresh = () => setCartCount(getCartCount());
+    refresh(); // sync immediat au mount
+    const onUpdate = (e) => {
+      if (e?.detail?.items) {
+        const total = e.detail.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+        setCartCount(total);
+      } else {
+        refresh();
+      }
+    };
+    // Multi-tab : si un autre onglet modifie le panier
+    const onStorage = (e) => {
+      if (e.key === 'yaram_cart') refresh();
+    };
+    window.addEventListener('yaram-cart-updated', onUpdate);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('yaram-cart-updated', onUpdate);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [overrideCount]);
+
   const isActive = (n) => active === n;
 
   return (

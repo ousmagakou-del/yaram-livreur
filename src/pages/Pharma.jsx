@@ -9,7 +9,8 @@ import PharmaSettings from '../pharma/PharmaSettings';
 import { useOrderAlerts } from '../lib/useOrderAlerts';
 import './Pharma.css';
 
-const ADMIN_WHATSAPP = '221777608983';
+import { YARAM_WHATSAPP } from '../lib/utils';
+const ADMIN_WHATSAPP = YARAM_WHATSAPP;
 
 // ⚠️ Securite : on ne persiste JAMAIS le PIN ni pin_set_at dans le localStorage
 // (n'importe quelle extension ou script tiers peut lire localStorage).

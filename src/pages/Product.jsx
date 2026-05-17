@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNav } from '../App';
-import { getAllProducts, getProductAvailability, isFavorite, toggleFavorite } from '../lib/supabase';
-import { scoreClass, formatPrice } from '../lib/utils';
+import { supabase, getProductAvailability, isFavorite, toggleFavorite } from '../lib/supabase';
+import { scoreClass, formatPrice, YARAM_WHATSAPP } from '../lib/utils';
 import { haptic } from '../lib/haptic';
+import { addToCart as cartAddToCart } from '../lib/cart';
 import ReviewsSection from '../components/ReviewsSection';
 import './Product.css';
 
@@ -20,21 +21,32 @@ export default function Product({ id }) {
   const [cartBounce, setCartBounce] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const all = await getAllProducts();
-      const p = all.find(x => x.id === id);
-      setProduct(p);
-      if (p) {
-        const [av, isFav] = await Promise.all([
-          getProductAvailability(p.id),
-          isFavorite(p.id),
-        ]);
-        setPharmacies(av);
-        setFav(isFav);
-        if (av.length > 0) setSelectedPh(av[0]);
+      // Fetch UN seul produit (avant on telechargeait les 800+ pour en garder 1)
+      const { data: p, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !p) {
+        setProduct(null);
+        setLoading(false);
+        return;
       }
+      setProduct(p);
+      const [av, isFav] = await Promise.all([
+        getProductAvailability(p.id),
+        isFavorite(p.id),
+      ]);
+      if (cancelled) return;
+      setPharmacies(av);
+      setFav(isFav);
+      if (av.length > 0) setSelectedPh(av[0]);
       setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [id]);
 
   const handleFav = async () => {
@@ -70,31 +82,24 @@ export default function Product({ id }) {
       alert('Sélectionne une pharmacie');
       return;
     }
-    try {
-      const cart = JSON.parse(localStorage.getItem('yaram_cart') || '[]');
-      const exists = cart.find(c => c.productId === product.id && c.pharmacyId === selectedPh.pharmacy.id);
-      if (exists) exists.qty += qty;
-      else cart.push({
-        productId: product.id,
-        pharmacyId: selectedPh.pharmacy.id,
-        pharmacyName: selectedPh.pharmacy.name,
-        name: product.name,
-        brand: product.brand,
-        img: product.img,
-        price: product.price,
-        qty: qty,
-      });
-      localStorage.setItem('yaram_cart', JSON.stringify(cart));
-      haptic('success');
-      
-      // Animation
-      setCartBounce(true);
-      setShowCartToast(true);
-      setTimeout(() => setCartBounce(false), 600);
-      setTimeout(() => setShowCartToast(false), 2500);
-    } catch (e) {
-      alert('Erreur panier');
+    // Passe par lib/cart.js : dispatch yaram-cart-updated (badge TabBar)
+    // + set le timestamp pour la notif WhatsApp "panier abandonne" (24h).
+    const result = cartAddToCart({
+      product,
+      pharmacy: selectedPh.pharmacy,
+      qty,
+    });
+    if (!result.success) {
+      alert(result.error || 'Erreur panier');
+      return;
     }
+    haptic('success');
+
+    // Animation
+    setCartBounce(true);
+    setShowCartToast(true);
+    setTimeout(() => setCartBounce(false), 600);
+    setTimeout(() => setShowCartToast(false), 2500);
   };
 
   const goToCart = () => {
@@ -115,7 +120,7 @@ export default function Product({ id }) {
 
   const sc = scoreClass(product.score);
   const hasStock = pharmacies.length > 0;
-  const waUrl = "https://wa.me/221785211234?text=" + encodeURIComponent("Bonjour, j'ai une question sur " + product.name);
+  const waUrl = `https://wa.me/${YARAM_WHATSAPP}?text=` + encodeURIComponent("Bonjour, j'ai une question sur " + product.name);
   
   // Badge si nouveau / top vente
   const isTopSeller = (product.review_count || 0) >= 500;

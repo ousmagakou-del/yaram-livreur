@@ -3,7 +3,7 @@ import { useNav, useUser } from '../App';
 import { createOrder, getMyAddresses, validatePromoCode, applyPromoCode } from '../lib/supabase';
 import { formatPrice, getShippingZone } from '../lib/utils';
 import { getPendingPromo, clearPendingPromo, getLoyaltyCredit, clearLoyaltyCredit } from '../lib/promoStorage';
-import { getCart } from '../lib/cart';
+import { getCart, clearCart } from '../lib/cart';
 import './Checkout.css';
 
 // ─── URLs des logos paiement (Supabase Storage) ───
@@ -174,8 +174,8 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
         }
         if (loyaltyDiscount > 0) clearLoyaltyCredit();
 
-        localStorage.removeItem('yaram_cart');
-        localStorage.removeItem('yaram_cart_last_added_at');
+        // Vide le panier via lib/cart -> dispatch yaram-cart-updated -> badge TabBar a jour
+        clearCart();
         clearPendingPromo();
 
         navigate({ name: 'payment', params: { orderId: order.id } });

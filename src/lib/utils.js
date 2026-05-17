@@ -1,3 +1,12 @@
+// ─── Numero WhatsApp YARAM (centralise) ───
+// Pour la suite : ces constantes doivent etre la SEULE source de verite du numero.
+// Format wa.me : 221XXXXXXXXX (sans + ni espaces)
+// Format display : '+221 77 XXX XX XX'
+// Format sendWhatsApp(): '+221XXXXXXXXX'
+export const YARAM_WHATSAPP = '221774388766';
+export const YARAM_WHATSAPP_INTL = '+221774388766';
+export const YARAM_WHATSAPP_DISPLAY = '+221 77 438 87 66';
+
 export function scoreClass(score) {
   if (score >= 85) return 'excellent';
   if (score >= 70) return 'good';

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase, signOut } from '../lib/supabase';
 import { toggleTheme, getTheme } from '../lib/theme';
+import { YARAM_WHATSAPP, YARAM_WHATSAPP_DISPLAY } from '../lib/utils';
 import TabBar from '../components/TabBar';
 import './Profile.css';
 
@@ -275,11 +276,11 @@ export default function Profile() {
 
           <div className="prof-menu-sep" />
 
-          <a className="prof-menu-row" href="https://wa.me/221785211234" target="_blank" rel="noopener noreferrer" style={{textDecoration: 'none', color: 'inherit'}}>
+          <a className="prof-menu-row" href={`https://wa.me/${YARAM_WHATSAPP}`} target="_blank" rel="noopener noreferrer" style={{textDecoration: 'none', color: 'inherit'}}>
             <div className="prof-menu-icon">💬</div>
             <div className="prof-menu-text">
               <strong>Aide & contact</strong>
-              <span>WhatsApp 78 521 12 34</span>
+              <span>WhatsApp {YARAM_WHATSAPP_DISPLAY.replace('+221 ', '')}</span>
             </div>
             <span className="prof-menu-arrow">→</span>
           </a>

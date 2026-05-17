@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNav } from '../App';
 import { supabase, updateOrderStatus } from '../lib/supabase';
+import { YARAM_WHATSAPP_DISPLAY } from '../lib/utils';
 import "./payment.css";
 export default function Payment({ orderId }) {
   const { navigate } = useNav();
@@ -41,7 +42,7 @@ export default function Payment({ orderId }) {
           {order.payment_method === 'wave' && (
             <>
               <p>1. Ouvre l'app Wave</p>
-              <p>2. Envoie à <strong>+221 78 521 12 34</strong></p>
+              <p>2. Envoie à <strong>{YARAM_WHATSAPP_DISPLAY}</strong></p>
               <p>3. Montant : <strong>{order.total.toLocaleString('fr-FR')} FCFA</strong></p>
               <p>4. Référence : <strong>{order.id}</strong></p>
             </>

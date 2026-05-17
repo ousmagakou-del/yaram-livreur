@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useUser } from '../App';
+import { YARAM_WHATSAPP, YARAM_WHATSAPP_DISPLAY } from '../lib/utils';
 import './WhatsAppButton.css';
 
-// Numéro YARAM support (modifiable)
-const YARAM_PHONE = '221777608983'; // sans le +
+// Numero YARAM support (centralise dans lib/utils.js)
+const YARAM_PHONE = YARAM_WHATSAPP;
 const YARAM_NAME = 'YARAM Support';
 
 export default function WhatsAppButton() {
@@ -88,7 +89,7 @@ export default function WhatsAppButton() {
             </div>
             
             <div className="wa-modal-footer">
-              <p>📞 Tu peux aussi appeler au <strong>+221 77 760 89 83</strong></p>
+              <p>📞 Tu peux aussi appeler au <strong>{YARAM_WHATSAPP_DISPLAY}</strong></p>
             </div>
           </div>
         </div>
