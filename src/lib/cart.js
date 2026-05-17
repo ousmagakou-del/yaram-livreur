@@ -2,6 +2,7 @@
 // Gestion centralisée du panier localStorage
 
 const KEY = 'yaram_cart';
+const LAST_ADDED_KEY = 'yaram_cart_last_added_at';
 
 export function getCart() {
   try {
@@ -14,6 +15,10 @@ export function getCart() {
 export function setCart(items) {
   try {
     localStorage.setItem(KEY, JSON.stringify(items));
+    // Si panier vide → on retire le timestamp (le user a checkout)
+    if (!items || items.length === 0) {
+      try { localStorage.removeItem(LAST_ADDED_KEY); } catch {}
+    }
     // Évenement custom pour que d'autres composants (badge panier dans TabBar) réagissent
     window.dispatchEvent(new CustomEvent('yaram-cart-updated', { detail: { items } }));
   } catch (e) {
@@ -45,5 +50,12 @@ export function addToCart({ product, pharmacy, qty = 1 }) {
     });
   }
   setCart(cart);
+  // Track le dernier ajout pour la notif cart abandoned (24h)
+  try { localStorage.setItem(LAST_ADDED_KEY, new Date().toISOString()); } catch {}
   return { success: true };
+}
+
+// Vide explicitement le panier (au checkout)
+export function clearCart() {
+  setCart([]);
 }

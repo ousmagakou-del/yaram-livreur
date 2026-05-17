@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { signUp, signIn, signInWithGoogle } from '../lib/supabase';
+import { notifyWelcome } from '../lib/notifications';
 import './Onboarding.css';
 
 const SLIDES = [
@@ -14,6 +15,7 @@ export default function Onboarding({ onComplete }) {
   const [mode, setMode] = useState('signup');
   const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,19 @@ export default function Onboarding({ onComplete }) {
     try {
       const { data, error } = await signUp(email, password, firstName);
       if (error) throw error;
-      if (data.user) setStep('done');
+      if (data.user) {
+        // ─── Envoi WhatsApp de bienvenue si le user a un phone ───
+        // Note : pour que ca marche, il faut que signUp() sauve le phone dans users_profile.
+        // Sinon ce sera envoye au prochain login via App.jsx.
+        if (phone.trim()) {
+          notifyWelcome({
+            userId: data.user.id,
+            phone: phone.trim(),
+            firstName: firstName.trim(),
+          }).catch(e => console.warn('welcome WhatsApp failed:', e.message));
+        }
+        setStep('done');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -165,6 +179,13 @@ export default function Onboarding({ onComplete }) {
               <input className="phone-input" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Aïcha" />
             </div>
           )}
+
+          {mode === 'signup' && (
+            <div className="phone-input-wrap">
+              <span className="phone-input-label">📱 WhatsApp (optionnel — recevoir tes notifs)</span>
+              <input className="phone-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+221 77 123 45 67" />
+            </div>
+          )}
           
           <div className="phone-input-wrap">
             <span className="phone-input-label">Email</span>
@@ -248,6 +269,7 @@ export default function Onboarding({ onComplete }) {
         <h2 className="done-title">Bienvenue {firstName} !</h2>
         <p className="done-desc">
           Vérifie ton email pour confirmer ton inscription. Tu peux ensuite te connecter.
+          {phone.trim() && <><br/><br/>📱 Tu vas aussi recevoir un WhatsApp de bienvenue !</>}
         </p>
         <button
           onClick={() => { setMode('login'); setStep('auth'); setPassword(''); }}

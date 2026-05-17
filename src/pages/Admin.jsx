@@ -25,6 +25,7 @@ import CommissionsSection from '../admin/CommissionsSection';
 import BannersSection from '../admin/BannersSection';
 import CategoriesSection from '../admin/CategoriesSection';
 import LoyaltySection from '../admin/LoyaltySection';
+import NotificationsSection from '../admin/NotificationsSection';
 import './Admin.css';
 
 const NAV = [
@@ -37,6 +38,7 @@ const NAV = [
   { id: 'commissions', icon: '💰', label: 'Commissions' },
   { id: 'finances',    icon: '💸', label: 'Finances' },
   { id: 'loyalty',     icon: '💚', label: 'Fidélité' },
+  { id: 'notifications', icon: '📲', label: 'Notifications WhatsApp' },
   { id: 'products',    icon: '🛍️', label: 'Produits' },
   { id: 'validation',  icon: '✨', label: 'Validation produits', badge: true },
   { id: 'brands',      icon: '🏷️', label: 'Marques' },
@@ -180,8 +182,6 @@ export default function Admin() {
   }
 
   // ────────── ADMIN ──────────
-  // ⚠️ Pas de filtrage par permissions ici : tout est affiché.
-  // La sécurité est sur le LOGIN (hash bcrypt cote serveur).
   return (
     <div className="adm-shell">
       <aside className="adm-side">
@@ -224,30 +224,31 @@ export default function Admin() {
       </aside>
 
       <main className="adm-main">
-        {section === 'dashboard'   && <DashboardSection setSection={setSection} />}
-        {section === 'orders'      && <OrdersSection />}
-        {section === 'stats'       && <StatsSection />}
-        {section === 'pharmacies'  && <PharmaciesSection />}
-        {section === 'performance' && <PerformanceSection />}
-        {section === 'skinscans'   && <SkinScansSection />}
-        {section === 'commissions' && <CommissionsSection />}
-        {section === 'finances'    && <FinancesSection />}
-        {section === 'loyalty'     && <LoyaltySection />}
-        {section === 'products'    && <ProductsSection />}
-        {section === 'validation'  && <ProductsValidationSection />}
-        {section === 'brands'      && <BrandsSection />}
-        {section === 'banners'     && <BannersSection />}
-        {section === 'categories'  && <CategoriesSection />}
-        {section === 'promos'      && <PromosSection />}
-        {section === 'marketing'   && <MarketingSection />}
-        {section === 'reviews'     && <ReviewsSection />}
-        {section === 'users'       && <UsersSection />}
-        {section === 'deliveries'  && <DeliveriesSection />}
-        {section === 'staff'       && <StaffSection />}
-        {section === 'history'     && <HistorySection />}
-        {section === 'settings'    && <SettingsSection />}
-        {section === 'adminusers'  && <AdminUsersSection />}
-        {section === 'adminlogs'   && <AdminLogsSection />}
+        {section === 'dashboard'     && <DashboardSection setSection={setSection} />}
+        {section === 'orders'        && <OrdersSection />}
+        {section === 'stats'         && <StatsSection />}
+        {section === 'pharmacies'    && <PharmaciesSection />}
+        {section === 'performance'   && <PerformanceSection />}
+        {section === 'skinscans'     && <SkinScansSection />}
+        {section === 'commissions'   && <CommissionsSection />}
+        {section === 'finances'      && <FinancesSection />}
+        {section === 'loyalty'       && <LoyaltySection />}
+        {section === 'notifications' && <NotificationsSection />}
+        {section === 'products'      && <ProductsSection />}
+        {section === 'validation'    && <ProductsValidationSection />}
+        {section === 'brands'        && <BrandsSection />}
+        {section === 'banners'       && <BannersSection />}
+        {section === 'categories'    && <CategoriesSection />}
+        {section === 'promos'        && <PromosSection />}
+        {section === 'marketing'     && <MarketingSection />}
+        {section === 'reviews'       && <ReviewsSection />}
+        {section === 'users'         && <UsersSection />}
+        {section === 'deliveries'    && <DeliveriesSection />}
+        {section === 'staff'         && <StaffSection />}
+        {section === 'history'       && <HistorySection />}
+        {section === 'settings'      && <SettingsSection />}
+        {section === 'adminusers'    && <AdminUsersSection />}
+        {section === 'adminlogs'     && <AdminLogsSection />}
       </main>
 
       {pinModal && (

@@ -1,5 +1,6 @@
 import { useState, createContext, useContext, useEffect } from 'react';
 import { supabase, getCurrentUser } from './lib/supabase';
+import { checkAndNotifyCartAbandon, notifyWelcome } from './lib/notifications';
 import Onboarding from './pages/Onboarding';
 import SkinQuiz from './pages/SkinQuiz';
 import Home from './pages/Home';
@@ -162,6 +163,35 @@ function ClientApp() {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  // ─── NOTIFICATIONS WHATSAPP : check au load apres auth ───
+  useEffect(() => {
+    if (!authChecked || !user?.id || !user?.phone) return;
+
+    // Welcome fallback : si le user vient de Google OAuth ou si le welcome n'a jamais ete envoye
+    // notifyWelcome a un cooldown 1 an + RPC has_received_whatsapp → ne renvoie jamais 2 fois
+    const welcomeTimer = setTimeout(() => {
+      notifyWelcome({
+        userId: user.id,
+        phone: user.phone,
+        firstName: user.first_name || user.name || 'toi',
+      }).catch(() => {});
+    }, 2000);
+
+    // Cart abandoned : check si panier > 24h
+    const cartTimer = setTimeout(() => {
+      checkAndNotifyCartAbandon({
+        userId: user.id,
+        phone: user.phone,
+        firstName: user.first_name || 'toi',
+      }).catch(() => {});
+    }, 4000);
+
+    return () => {
+      clearTimeout(welcomeTimer);
+      clearTimeout(cartTimer);
+    };
+  }, [authChecked, user?.id, user?.phone]);
 
   const navigate = (target) => {
     if (target === -1) { goBack(); return; }
