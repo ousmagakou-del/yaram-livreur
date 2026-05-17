@@ -3,11 +3,32 @@ import { useNav, useUser } from '../App';
 import { createOrder, getMyAddresses, validatePromoCode, applyPromoCode } from '../lib/supabase';
 import { formatPrice, getShippingZone } from '../lib/utils';
 import { getPendingPromo, clearPendingPromo, getLoyaltyCredit, clearLoyaltyCredit } from '../lib/promoStorage';
+import { getCart } from '../lib/cart';
 import './Checkout.css';
 
-export default function Checkout({ items, paymentMethod }) {
+// ─── URLs des logos paiement (Supabase Storage) ───
+// ⚠️ REMPLACE par tes vraies URLs après upload dans le bucket banner-images
+const WAVE_LOGO = 'https://qxhhnrnworwrnwmqekmb.supabase.co/storage/v1/object/public/banner-images/logo-wave.jpg';
+const OM_LOGO   = 'https://qxhhnrnworwrnwmqekmb.supabase.co/storage/v1/object/public/banner-images/logo-orange.png';
+
+export default function Checkout({ items: propsItems, paymentMethod }) {
   const { navigate } = useNav();
   const { user } = useUser();
+
+  // ─── Fallback panier : si pas d'items en props (reload F5), prend localStorage ───
+  const [items, setItems] = useState(() => {
+    if (Array.isArray(propsItems) && propsItems.length > 0) return propsItems;
+    const fromCart = getCart();
+    return Array.isArray(fromCart) ? fromCart : [];
+  });
+
+  // Si les props items changent (navigation classique), update
+  useEffect(() => {
+    if (Array.isArray(propsItems) && propsItems.length > 0) {
+      setItems(propsItems);
+    }
+  }, [propsItems]);
+
   const [addresses, setAddresses] = useState([]);
   const [selectedAddrId, setSelectedAddrId] = useState(null);
   const [payment, setPayment] = useState(paymentMethod || 'wave');
@@ -16,7 +37,7 @@ export default function Checkout({ items, paymentMethod }) {
 
   // ─── Promo code ───
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState(null); // { promo, discount }
+  const [appliedPromo, setAppliedPromo] = useState(null);
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoMsg, setPromoMsg] = useState({ text: '', kind: '' });
 
@@ -33,29 +54,40 @@ export default function Checkout({ items, paymentMethod }) {
       if (def) setSelectedAddrId(def.id);
       setLoading(false);
 
-      // Check si une promo a ete posee par le Home / page Promos
       const pending = getPendingPromo();
       if (pending) {
         setPromoInput(pending);
-        // Auto-apply dans 500ms (laisse le temps a items de se charger)
         setTimeout(() => tryApplyPromo(pending, true), 500);
       }
 
-      // Check le credit fidelite
       const credit = getLoyaltyCredit();
       if (credit > 0) {
         setLoyaltyCredit(credit);
-        setUseLoyaltyCredit(true); // active par defaut
+        setUseLoyaltyCredit(true);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ─── Panier vide ? ───
   if (!items || items.length === 0) {
     return (
-      <div style={{padding: 40, textAlign: 'center'}}>
-        <p>Panier vide</p>
-        <button className="btn-primary" onClick={() => navigate('/')} style={{marginTop: 20}}>Retour</button>
+      <div className="check-screen page-anim">
+        <div className="check-header">
+          <button className="icon-back-btn" onClick={() => navigate(-1)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <h1>Commande</h1>
+        </div>
+        <div style={{padding: 40, textAlign: 'center', flex: 1}}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div>
+          <p style={{ color: '#6B6B6B', marginBottom: 24 }}>Ton panier est vide</p>
+          <button className="btn-primary" onClick={() => navigate('/')} style={{padding: '14px 28px'}}>
+            Découvrir les produits →
+          </button>
+        </div>
       </div>
     );
   }
@@ -65,11 +97,9 @@ export default function Checkout({ items, paymentMethod }) {
   const zone = getShippingZone(selectedAddr?.city || 'Dakar');
   const shipping = subtotal >= zone.freeFrom ? 0 : zone.price;
 
-  // ─── Calculs avec promo + loyalty ───
   const promoDiscount = appliedPromo?.discount || 0;
   const loyaltyDiscount = useLoyaltyCredit ? Math.min(loyaltyCredit, subtotal + shipping - promoDiscount) : 0;
-  const totalBeforeDiscounts = subtotal + shipping;
-  const total = Math.max(0, totalBeforeDiscounts - promoDiscount - loyaltyDiscount);
+  const total = Math.max(0, subtotal + shipping - promoDiscount - loyaltyDiscount);
 
   const grouped = items.reduce((acc, it) => {
     if (!acc[it.pharmacyId]) acc[it.pharmacyId] = it.pharmacyName;
@@ -77,7 +107,7 @@ export default function Checkout({ items, paymentMethod }) {
   }, {});
   const phCount = Object.keys(grouped).length;
 
-  // ─── Apply promo code ───
+  // ─── Apply promo ───
   const tryApplyPromo = async (code, silent = false) => {
     if (!code || !code.trim()) {
       if (!silent) setPromoMsg({ text: 'Entre un code', kind: 'err' });
@@ -97,7 +127,7 @@ export default function Checkout({ items, paymentMethod }) {
           text: `✓ Code ${result.promo.code} appliqué : -${formatPrice(result.discount)} FCFA`, 
           kind: 'ok',
         });
-        clearPendingPromo(); // un fois applique, on retire
+        clearPendingPromo();
       }
     } catch (e) {
       setPromoMsg({ text: 'Erreur : ' + e.message, kind: 'err' });
@@ -113,7 +143,7 @@ export default function Checkout({ items, paymentMethod }) {
     clearPendingPromo();
   };
 
-  // ─── Submit commande ───
+  // ─── Submit ───
   const handleSubmit = async () => {
     if (!selectedAddr) {
       alert('Sélectionne une adresse de livraison');
@@ -139,15 +169,10 @@ export default function Checkout({ items, paymentMethod }) {
       });
 
       if (order) {
-        // Si une promo a ete appliquee, log dans promo_uses + increment uses_count
         if (appliedPromo?.promo?.id && user?.id) {
           await applyPromoCode(appliedPromo.promo.id, user.id, order.id, promoDiscount).catch(() => {});
         }
-
-        // Si credit loyalty utilise, le clear (deja debite en DB par redeem)
-        if (loyaltyDiscount > 0) {
-          clearLoyaltyCredit();
-        }
+        if (loyaltyDiscount > 0) clearLoyaltyCredit();
 
         localStorage.removeItem('yaram_cart');
         localStorage.removeItem('yaram_cart_last_added_at');
@@ -163,6 +188,14 @@ export default function Checkout({ items, paymentMethod }) {
       setSubmitting(false);
     }
   };
+
+  // ─── Méthodes de paiement (avec logos officiels + fallback emoji) ───
+  const PAYMENT_METHODS = [
+    { id: 'wave', name: 'Wave',                 logoUrl: WAVE_LOGO, fallbackIcon: '🌊' },
+    { id: 'om',   name: 'Orange Money',         logoUrl: OM_LOGO,   fallbackIcon: '🟠' },
+    { id: 'cod',  name: 'Cash à la livraison',  fallbackIcon: '💵' },
+    { id: 'card', name: 'Carte bancaire',       fallbackIcon: '💳' },
+  ];
 
   return (
     <div className="check-screen page-anim">
@@ -191,7 +224,7 @@ export default function Checkout({ items, paymentMethod }) {
             <h3 className="section-title">📍 Adresse de livraison</h3>
             <button
               onClick={() => navigate({ name: 'addresses', params: {} })}
-              style={{fontSize: 12, color: 'var(--primary)', fontWeight: 600}}
+              style={{fontSize: 12, color: 'var(--primary)', fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer'}}
             >
               + Gérer
             </button>
@@ -369,20 +402,48 @@ export default function Checkout({ items, paymentMethod }) {
           </div>
         )}
 
+        {/* ════════ PAIEMENT avec LOGOS ════════ */}
         <div className="check-section">
           <h3 className="section-title">💳 Paiement</h3>
-          {[
-            { id: 'wave', name: 'Wave', icon: '🌊' },
-            { id: 'om', name: 'Orange Money', icon: '🟠' },
-            { id: 'cod', name: 'Cash à la livraison', icon: '💵' },
-            { id: 'card', name: 'Carte bancaire', icon: '💳' },
-          ].map(m => (
+          {PAYMENT_METHODS.map(m => (
             <button
               key={m.id}
               className={'check-pay-btn ' + (payment === m.id ? 'active' : '')}
               onClick={() => setPayment(m.id)}
             >
-              <span className="check-pay-icon">{m.icon}</span>
+              <span className="check-pay-icon" style={{
+                width: 36,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: m.logoUrl ? 'white' : 'transparent',
+                borderRadius: 8,
+                overflow: 'hidden',
+                border: m.logoUrl ? '1px solid #EEE' : 'none',
+              }}>
+                {m.logoUrl ? (
+                  <img
+                    src={m.logoUrl}
+                    alt={m.name}
+                    style={{ width: '85%', height: '85%', objectFit: 'contain' }}
+                    onError={(e) => {
+                      // Fallback emoji si l'image foire
+                      e.target.style.display = 'none';
+                      const parent = e.target.parentNode;
+                      if (parent && !parent.querySelector('.fallback-icon')) {
+                        const span = document.createElement('span');
+                        span.className = 'fallback-icon';
+                        span.textContent = m.fallbackIcon;
+                        span.style.fontSize = '22px';
+                        parent.appendChild(span);
+                      }
+                    }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 22 }}>{m.fallbackIcon}</span>
+                )}
+              </span>
               <span>{m.name}</span>
               <div className="check-pay-radio">
                 {payment === m.id && <div className="check-pay-dot" />}
@@ -409,7 +470,7 @@ export default function Checkout({ items, paymentMethod }) {
           <div className="cart-row cart-row-total"><span>Total</span><strong>{formatPrice(total)} FCFA</strong></div>
         </div>
 
-        <div style={{height: 100}} />
+        <div style={{height: 120}} />
       </div>
 
       <div className="check-cta">
