@@ -14,8 +14,11 @@ export default function PharmacyDetail({ pharmacyId }) {
   useEffect(() => {
     if (!pharmacyId) return;
     (async () => {
+      // Securite : on selectionne explicitement les colonnes publiques pour ne pas exposer le PIN
       const { data: ph } = await supabase
-        .from('pharmacies').select('*').eq('id', pharmacyId).single();
+        .from('pharmacies')
+        .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, active, rating, review_count')
+        .eq('id', pharmacyId).single();
       setPharmacy(ph);
 
       const { data: inv } = await supabase

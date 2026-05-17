@@ -10,7 +10,7 @@ export default function CommissionsSection() {
     (async () => {
       const [oRes, pRes] = await Promise.all([
         supabase.from('orders').select('*').eq('status', 'delivered'),
-        supabase.from('pharmacies').select('*'),
+        supabase.from('pharmacies').select('id, name, commission'),
       ]);
       setOrders(oRes.data || []);
       setPharmacies(pRes.data || []);

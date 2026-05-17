@@ -97,9 +97,18 @@ export async function getProductAvailability(productId) {
 // PHARMACIES — AVEC CACHE
 // ═══════════════════════════════════════════════
 
+// Liste des colonnes safe a exposer cote client (PAS de PIN)
+// pin_set_at est conserve : c'est juste un timestamp non sensible qui permet
+// au flow de connexion pharmacie de savoir si la pharma doit creer son PIN.
+// Doit rester aligne avec le GRANT SELECT cote DB (cf Supabase Studio).
+const PHARMACY_PUBLIC_COLUMNS = 'id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, notification_email, notification_phone, hours, delivery_hours, logo, cover, description, commission, commission_rate, active, rating, review_count, pin_set_at, created_at, updated_at';
+
 export async function getAllPharmacies() {
   return cachedFetch('all_pharmacies', async () => {
-    const { data } = await supabase.from('pharmacies').select('*').eq('active', true);
+    const { data } = await supabase
+      .from('pharmacies')
+      .select(PHARMACY_PUBLIC_COLUMNS)
+      .eq('active', true);
     return data || [];
   }, { ttl: 10 * 60 * 1000 });
 }
@@ -548,10 +557,15 @@ export async function incrementBannerClick(id) {
 // ═══════════════════════════════════════════════
 
 export async function pharmacyLogin(pharmacyId, pin) {
+  // On lit le PIN pour comparaison, puis on le STRIP avant de retourner.
+  // (Idealement : RPC verify_pharmacy_pin cote DB pour que le PIN ne transite jamais.
+  //  En attendant, le PIN ne fuit que pendant CE login, plus a chaque visite.)
   const { data, error } = await supabase.from('pharmacies').select('*').eq('id', pharmacyId).single();
   if (error || !data) return { success: false, error: 'Pharmacie introuvable' };
   if (data.pin !== pin) return { success: false, error: 'PIN incorrect' };
-  return { success: true, pharmacy: data };
+  // eslint-disable-next-line no-unused-vars
+  const { pin: _pin, ...safe } = data;
+  return { success: true, pharmacy: safe };
 }
 
 export async function setPharmacyPin(pharmacyId, pin) {

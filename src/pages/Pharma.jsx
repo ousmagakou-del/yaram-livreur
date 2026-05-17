@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, pharmacyLogin, getAllPharmacies } from '../lib/supabase';
+import { supabase, pharmacyLogin, getAllPharmacies, invalidateCache } from '../lib/supabase';
 import PharmaDashboard from '../pharma/PharmaDashboard';
 import PharmaOrders from '../pharma/PharmaOrders';
 import PharmaProducts from '../pharma/PharmaProducts';
@@ -72,7 +72,9 @@ export default function Pharma() {
 
   const handleSelectPharmacy = (pharmacy) => {
     setSelectedPharmacy(pharmacy);
-    if (!pharmacy.pin) {
+    // On utilise pin_set_at (timestamp non sensible) au lieu de pin (la valeur).
+    // pharmacy.pin n'est plus expose par getAllPharmacies pour des raisons de securite.
+    if (!pharmacy.pin_set_at) {
       setPhase('setPin');
     } else {
       setPhase('login');
@@ -115,15 +117,19 @@ export default function Pharma() {
       return;
     }
 
+    const nowIso = new Date().toISOString();
     const { error } = await supabase
       .from('pharmacies')
-      .update({ pin: pinInput, pin_set_at: new Date().toISOString() })
+      .update({ pin: pinInput, pin_set_at: nowIso })
       .eq('id', selectedPharmacy.id);
     if (error) { setPinError('Erreur : ' + error.message); return; }
 
-    const updated = { ...selectedPharmacy, pin: pinInput };
+    // Important : pin_set_at est aussi mis a jour localement et le cache est invalide,
+    // sinon une deconnexion / reconnexion dans les 10 min suivantes renverrait sur "setPin".
+    const updated = { ...selectedPharmacy, pin: pinInput, pin_set_at: nowIso };
     setSelectedPharmacy(updated);
     localStorage.setItem('yaram-pharma-session', JSON.stringify(sanitizeForStorage(updated)));
+    invalidateCache('all_pharmacies');
     setPhase('dashboard');
     setPinError('');
     setPinInput('');
