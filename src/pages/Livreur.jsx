@@ -55,10 +55,13 @@ export default function Livreur() {
     
     const pharmacyIds = [...new Set((data.orders?.items || []).map(it => it.pharmacyId))];
     if (pharmacyIds.length > 0) {
-      const { data: phData } = await supabase
+      // ⚠️ Select EXPLICITE (pas de *) : la colonne `pin` est REVOKE pour anon
+      // depuis le GRANT SELECT. Faire * casserait toute la query.
+      const { data: phData, error: phErr } = await supabase
         .from('pharmacies')
-        .select('*')
+        .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, commission, active, rating, review_count, pin_set_at')
         .in('id', pharmacyIds);
+      if (phErr) console.warn('[Livreur] pharmacies fetch error:', phErr.message);
       setPharmacies(phData || []);
     }
     

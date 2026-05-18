@@ -163,12 +163,21 @@ export async function getAllBrands() {
 }
 
 export async function getProductAvailability(productId) {
-  const { data } = await supabase
+  // ⚠️ pharmacy:pharmacies(*) etait CASSE depuis qu'on a fait le GRANT SELECT
+  // (le * expand a TOUTES les colonnes pharmacies, dont `pin` qui est REVOKE
+  // pour anon -> Postgres rejette toute la query avec 400).
+  // -> on liste explicitement les colonnes safe pour la jointure.
+  const PH_COLS = 'id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, commission, active, rating, review_count, pin_set_at, created_at, updated_at, notification_email, notification_phone';
+  const { data, error } = await supabase
     .from('inventory')
-    .select('*, pharmacy:pharmacies(*)')
+    .select(`*, pharmacy:pharmacies(${PH_COLS})`)
     .eq('product_id', productId)
     .gt('stock', 0)
     .eq('active', true);
+  if (error) {
+    console.warn('[getProductAvailability] error:', error.message);
+    return [];
+  }
   return data || [];
 }
 
