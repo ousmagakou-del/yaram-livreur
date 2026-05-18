@@ -108,20 +108,24 @@ export default function PharmaSettings({ pharmacy, onUpdate }) {
   const handleChangePin = async () => {
     setPinError('');
     setPinOk('');
-    if (oldPin !== pharmacy.pin) return setPinError('Ancien PIN incorrect');
+    // Validations cote client (le serveur revalide aussi)
     if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) return setPinError('Le nouveau PIN doit faire 4 chiffres');
     if (BANNED_PINS.includes(newPin)) return setPinError('PIN trop évident, choisis-en un autre');
     if (newPin === oldPin) return setPinError('Le nouveau PIN doit être différent de l\'ancien');
     if (newPin !== confirmPin) return setPinError('Les deux PIN ne correspondent pas');
 
-    const { error } = await supabase
-      .from('pharmacies')
-      .update({ pin: newPin, pin_set_at: new Date().toISOString() })
-      .eq('id', pharmacy.id);
-    if (error) return setPinError('Erreur : ' + error.message);
+    // RPC SECURITY DEFINER : valide ancien PIN cote serveur puis update
+    // (le client n'a plus le droit d'UPDATE direct la colonne pin via REST)
+    const { data, error } = await supabase.rpc('pharma_change_pin', {
+      p_pharmacy_id: pharmacy.id,
+      p_old_pin:     oldPin,
+      p_new_pin:     newPin,
+    });
+    if (error) return setPinError('Erreur serveur : ' + error.message);
+    if (!data?.success) return setPinError(data?.error || 'Echec changement PIN');
 
     setPinOk('✓ PIN modifié avec succès');
-    const updated = { ...pharmacy, pin: newPin };
+    const updated = { ...pharmacy, pin_set_at: new Date().toISOString() };
     if (onUpdate) onUpdate(updated);
     setOldPin('');
     setNewPin('');

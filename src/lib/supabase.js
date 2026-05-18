@@ -709,9 +709,11 @@ export async function pharmacyLogin(pharmacyId, pin) {
   return { success: true, pharmacy: data };
 }
 
-export async function setPharmacyPin(pharmacyId, pin) {
-  return supabase.from('pharmacies').update({ pin, pin_set_at: new Date().toISOString() }).eq('id', pharmacyId);
-}
+// setPharmacyPin retiree : la colonne pin n'est plus updatable directement par anon.
+// Utiliser :
+//   - public.pharma_change_pin(pharmacy_id, old_pin, new_pin) cote pharma
+//   - public.admin_set_pharmacy_pin(admin_id, pharmacy_id, new_pin) cote admin
+// (les deux sont SECURITY DEFINER et valident l'identite avant d'updater)
 
 export async function getPharmacyOrders(pharmacyId, status = null) {
   let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
