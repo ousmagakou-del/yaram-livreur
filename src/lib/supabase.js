@@ -418,8 +418,10 @@ export function generateConfirmToken() {
 }
 
 export async function getOrderByConfirmToken(token) {
-  const { data, error } = await supabase
-    .from('orders').select('*').eq('confirmation_token', token).single();
+  // Vague 11 RLS : SELECT direct par confirmation_token bloque pour anon
+  // depuis le drop de "Anyone can read by confirmation token". On passe par
+  // la RPC SECURITY DEFINER qui valide le token cote serveur.
+  const { data, error } = await supabase.rpc('client_get_order_by_token', { p_token: token });
   if (error) return null;
   return data;
 }

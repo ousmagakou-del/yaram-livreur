@@ -10,7 +10,8 @@ export default function Payment({ orderId }) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('orders').select('*').eq('id', orderId).single();
+      // Vague 11 RLS : SELECT direct bloque pour anon. On passe par RPC.
+      const { data } = await supabase.rpc('client_get_order_by_id', { p_order_id: orderId });
       setOrder(data);
     })();
   }, [orderId]);

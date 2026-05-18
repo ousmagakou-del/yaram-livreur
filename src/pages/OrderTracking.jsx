@@ -35,7 +35,8 @@ export default function OrderTracking({ orderId }) {
   }, [orderId]);
 
   const refresh = async () => {
-    const { data: orderData } = await supabase.from('orders').select('*').eq('id', orderId).single();
+    // Vague 11 RLS : on passe par RPC client_get_order_by_id (verifie auth.uid)
+    const { data: orderData } = await supabase.rpc('client_get_order_by_id', { p_order_id: orderId });
     setOrder(orderData);
     const { data: trackingData } = await supabase.from('delivery_tracking').select('*').eq('order_id', orderId).maybeSingle();
     if (trackingData) setTracking(trackingData);
