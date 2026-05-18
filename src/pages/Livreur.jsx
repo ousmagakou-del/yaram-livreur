@@ -40,35 +40,24 @@ export default function Livreur() {
   }, []);
 
   const loadTracking = async (t) => {
-    const { data, error } = await supabase
-      .from('delivery_tracking')
-      .select('*, orders(*)')
-      .eq('delivery_token', t)
-      .single();
+    // Vague 10 : passe par RPC livreur_load_delivery (SECURITY DEFINER).
+    // Plus de SELECT direct sur orders => "Anyone can read all orders" pourra etre droppe.
+    const { data, error } = await supabase.rpc('livreur_load_delivery', { p_token: t });
     if (error || !data) {
-      setError('Lien invalide ou expiré');
+      setError(error?.message?.includes('tracking_not_found') ? 'Lien invalide ou expiré' : 'Erreur de chargement');
       setLoading(false);
       return;
     }
-    setTracking(data);
-    setOrder(data.orders);
-    
-    const pharmacyIds = [...new Set((data.orders?.items || []).map(it => it.pharmacyId))];
-    if (pharmacyIds.length > 0) {
-      // ⚠️ Select EXPLICITE (pas de *) : la colonne `pin` est REVOKE pour anon
-      // depuis le GRANT SELECT. Faire * casserait toute la query.
-      const { data: phData, error: phErr } = await supabase
-        .from('pharmacies')
-        .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, commission, active, rating, review_count, pin_set_at')
-        .in('id', pharmacyIds);
-      if (phErr) console.warn('[Livreur] pharmacies fetch error:', phErr.message);
-      setPharmacies(phData || []);
-    }
-    
-    if (data.delivery_photo_url) setProofMethod('photo');
-    else if (data.delivery_signature) setProofMethod('signature');
-    else if (data.delivery_pin) setProofMethod('pin');
-    
+
+    const tr = data.tracking || null;
+    setTracking(tr);
+    setOrder(data.order || null);
+    setPharmacies(Array.isArray(data.pharmacies) ? data.pharmacies : []);
+
+    if (tr?.delivery_photo_url) setProofMethod('photo');
+    else if (tr?.delivery_signature) setProofMethod('signature');
+    else if (tr?.delivery_pin) setProofMethod('pin');
+
     setLoading(false);
   };
 
@@ -80,10 +69,10 @@ export default function Livreur() {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setCurrentPos({ lat, lng });
-        await supabase.from('delivery_tracking').update({
-          current_lat: lat, current_lng: lng,
-          last_update: new Date().toISOString(),
-        }).eq('delivery_token', token);
+        await supabase.rpc('livreur_update_tracking', {
+          p_token: token,
+          p_patch: { current_lat: lat, current_lng: lng, last_update: new Date().toISOString() },
+        });
       },
       (err) => { toast.error('Erreur GPS : ' + err.message); setSharingGPS(false); },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
@@ -99,19 +88,14 @@ export default function Livreur() {
   };
 
   const updateStatus = async (newStatus, extraFields = {}) => {
-    const timestampField = {
-      picking: 'pickup_at', picked: 'picked_at',
-      in_route: 'in_route_at', arrived: 'arrived_at',
-      delivered: 'delivered_at',
-    }[newStatus];
-    
+    // Note : la whitelist livreur_update_tracking n'inclut pas les timestamps de step
+    // (pickup_at, picked_at, etc.) — ils restent gerables uniquement via SQL direct si
+    // besoin. Pour le moment seuls les champs principaux sont synchronises.
     const updates = { status: newStatus, last_update: new Date().toISOString(), ...extraFields };
-    if (timestampField) updates[timestampField] = new Date().toISOString();
-    
-    await supabase.from('delivery_tracking').update(updates).eq('delivery_token', token);
-    
+    await supabase.rpc('livreur_update_tracking', { p_token: token, p_patch: updates });
+
     if (newStatus === 'in_route' && order) {
-      await supabase.from('orders').update({ status: 'shipped' }).eq('id', order.id);
+      await supabase.rpc('livreur_update_order', { p_token: token, p_patch: { status: 'shipped' } });
     }
     loadTracking(token);
   };
@@ -149,8 +133,10 @@ export default function Livreur() {
       delivery: 'delivery_photo_url',
     };
     const fieldName = fieldMap[type] || `${type}_photo_url`;
-    await supabase.from('delivery_tracking')
-      .update({ [fieldName]: url }).eq('delivery_token', token);
+    await supabase.rpc('livreur_update_tracking', {
+      p_token: token,
+      p_patch: { [fieldName]: url },
+    });
     setShowPhotoCapture(null);
     if (type === 'delivery') {
       setProofMethod('photo');
@@ -169,20 +155,22 @@ export default function Livreur() {
       scanned_at: new Date().toISOString(),
     }];
     
-    await supabase.from('delivery_tracking')
-      .update({ scanned_barcodes: newScanned })
-      .eq('delivery_token', token);
-    
+    await supabase.rpc('livreur_update_tracking', {
+      p_token: token,
+      p_patch: { scanned_barcodes: newScanned },
+    });
+
     loadTracking(token);
-    
+
     if (navigator.vibrate) navigator.vibrate(100);
     setShowBarcodeScanner(false);
   };
 
   const handleSignatureSubmit = async (signatureData) => {
-    await supabase.from('delivery_tracking')
-      .update({ delivery_signature: signatureData })
-      .eq('delivery_token', token);
+    await supabase.rpc('livreur_update_tracking', {
+      p_token: token,
+      p_patch: { delivery_signature: signatureData },
+    });
     setShowSignature(false);
     setProofMethod('signature');
     loadTracking(token);
@@ -190,8 +178,10 @@ export default function Livreur() {
   };
 
   const handlePinSubmit = async (pin) => {
-    await supabase.from('delivery_tracking')
-      .update({ delivery_pin: pin }).eq('delivery_token', token);
+    await supabase.rpc('livreur_update_tracking', {
+      p_token: token,
+      p_patch: { delivery_pin: pin },
+    });
     setShowPinEntry(false);
     setProofMethod('pin');
     loadTracking(token);
@@ -199,10 +189,10 @@ export default function Livreur() {
   };
 
   const markCashReceived = async () => {
-    await supabase.from('orders').update({
-      cash_received: true,
-      cash_received_at: new Date().toISOString(),
-    }).eq('id', order.id);
+    await supabase.rpc('livreur_update_order', {
+      p_token: token,
+      p_patch: { cash_received: true, cash_received_at: new Date().toISOString() },
+    });
     await updateStatus('cash_collected');
     toast.success('Cash de ' + (order.total || 0).toLocaleString('fr-FR') + ' FCFA confirmé reçu.');
     setOrder({ ...order, cash_received: true });
@@ -224,15 +214,16 @@ export default function Livreur() {
     let confirmToken = order.confirmation_token;
     if (!confirmToken) {
       confirmToken = generateConfirmToken();
-      await supabase.from('orders').update({
-        confirmation_token: confirmToken,
-      }).eq('id', order.id);
+      await supabase.rpc('livreur_update_order', {
+        p_token: token,
+        p_patch: { confirmation_token: confirmToken },
+      });
     }
-    
-    await supabase.from('orders').update({
-      status: 'awaiting_confirm',
-      awaiting_confirm_at: new Date().toISOString(),
-    }).eq('id', order.id);
+
+    await supabase.rpc('livreur_update_order', {
+      p_token: token,
+      p_patch: { status: 'awaiting_confirm', awaiting_confirm_at: new Date().toISOString() },
+    });
     
     await updateStatus('proof_uploaded');
     
@@ -539,9 +530,10 @@ export default function Livreur() {
                       className="liv-mini-btn"
                       onClick={async () => {
                         if (await confirmDialog('Pas de code-barres sur certains produits ? On skip le scan ?')) {
-                          await supabase.from('delivery_tracking')
-                            .update({ scanned_barcodes: [{ code: 'SKIPPED', scanned_at: new Date().toISOString() }] })
-                            .eq('delivery_token', token);
+                          await supabase.rpc('livreur_update_tracking', {
+                            p_token: token,
+                            p_patch: { scanned_barcodes: [{ code: 'SKIPPED', scanned_at: new Date().toISOString() }] },
+                          });
                           loadTracking(token);
                         }
                       }}
