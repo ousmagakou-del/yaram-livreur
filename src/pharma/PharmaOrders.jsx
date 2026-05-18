@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPharmacyOrders, acceptOrder, refuseOrder, markOrderReady, sendWhatsApp } from '../lib/supabase';
+import { getPharmacyOrders, acceptOrder, refuseOrder, markOrderReady, sendWhatsApp, getCachedSetting } from '../lib/supabase';
 import { YARAM_WHATSAPP_INTL } from '../lib/utils';
 import { toast, confirmDialog } from '../lib/toast';
 
@@ -185,8 +185,8 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
                     <strong>{myRevenue.toLocaleString('fr-FR')} FCFA</strong>
                   </div>
                   <div className="phar-order-row phar-order-commission">
-                    <span>Net après commission 8%</span>
-                    <strong>{(myRevenue - Math.round(myRevenue * 0.08)).toLocaleString('fr-FR')} FCFA</strong>
+                    <span>Net après commission {getCachedSetting('commission', 8)}%</span>
+                    <strong>{(myRevenue - Math.round(myRevenue * (getCachedSetting('commission', 8) / 100))).toLocaleString('fr-FR')} FCFA</strong>
                   </div>
                 </div>
 

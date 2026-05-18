@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCachedSetting } from '../lib/supabase';
 import { exportCSV, openInvoicePrintWindow, fmtDate, fmtDateTime, fmtFCFA } from '../lib/exports';
 
-const COMMISSION_RATE = 0.08;
+// Taux lu dynamiquement depuis les site_settings (fallback 8%).
+// Wrapped en fonction pour relire la valeur la plus recente sans re-render piege.
+const getRate = () => getCachedSetting('commission', 8) / 100;
 // CA "encaissé" = commandes effectivement livrees et confirmees par la cliente.
 // CA "en cours" = commandes payees / en preparation / en route, pas encore livrees.
 // On separe les deux pour ne pas afficher du revenu fantome (commandes pouvant etre annulees).
@@ -84,7 +86,7 @@ export default function FinancesSection() {
     const inProgressRevenue = inProgressOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
     const totalRevenue = fulfilledRevenue + inProgressRevenue;
     // Commission calculee SEULEMENT sur l'encaisse (on ne facture pas les commandes potentiellement annulees)
-    const fulfilledCommission = Math.round(fulfilledRevenue * COMMISSION_RATE);
+    const fulfilledCommission = Math.round(fulfilledRevenue * getRate());
     const netPharmacies = fulfilledRevenue - fulfilledCommission;
     const orderCount = filteredOrders.length;
     const avgBasket = fulfilledOrders.length > 0 ? Math.round(fulfilledRevenue / fulfilledOrders.length) : 0;
@@ -150,7 +152,7 @@ export default function FinancesSection() {
     return Object.entries(map)
       .map(([id, revenue]) => {
         const ph = pharmacies.find(p => p.id === id);
-        return { id, name: ph?.name || '—', revenue, commission: Math.round(revenue * COMMISSION_RATE) };
+        return { id, name: ph?.name || '—', revenue, commission: Math.round(revenue * getRate()) };
       })
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
@@ -174,7 +176,7 @@ export default function FinancesSection() {
     const rows = filteredOrders.map(o => {
       const ph = pharmacies.find(p => p.id === getPharmacyId(o));
       const total = Number(o.total) || 0;
-      const commission = Math.round(total * COMMISSION_RATE);
+      const commission = Math.round(total * getRate());
       const net = total - commission;
       const items = Array.isArray(o.items) ? o.items : [];
       return {
@@ -436,7 +438,7 @@ export default function FinancesSection() {
                   ) : filteredOrders.slice(0, 100).map(o => {
                     const ph = pharmacies.find(p => p.id === getPharmacyId(o));
                     const total = Number(o.total) || 0;
-                    const commission = Math.round(total * COMMISSION_RATE);
+                    const commission = Math.round(total * getRate());
                     return (
                       <tr key={o.id}>
                         <td style={S.td}>{fmtDateTime(o.created_at)}</td>

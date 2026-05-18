@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken } from '../lib/supabase';
+import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken, compressImage } from '../lib/supabase';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { toast, confirmDialog } from '../lib/toast';
 import './Livreur.css';
 
-const SUPABASE_URL = 'https://qxhhnrnworwrnwmqekmb.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4aGhucm53b3J3cm53bXFla21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTExMzYsImV4cCI6MjA5NDA4NzEzNn0.l_7-Eg06UFnXvSw1BQiuNw0yU94jillHNycx-jvP1Aw';
+// URL + key Supabase lus depuis import.meta.env ou fallback (centralise lib/supabase).
+// (Avant : dupliques en dur dans 5 fichiers — risque de drift au prochain rotation de cle.)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qxhhnrnworwrnwmqekmb.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4aGhucm53b3J3cm53bXFla21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTExMzYsImV4cCI6MjA5NDA4NzEzNn0.l_7-Eg06UFnXvSw1BQiuNw0yU94jillHNycx-jvP1Aw';
 
 export default function Livreur() {
   const [order, setOrder] = useState(null);
@@ -113,10 +115,21 @@ export default function Livreur() {
 
   const uploadPhoto = async (file, type) => {
     if (!file) return null;
+    // ─── Compression avant upload ───
+    // Avant : photo brute iPhone (5-10 MB) uploadée telle quelle → 30s+ sur 4G,
+    // bande passante data du livreur consommée, parfois fail.
+    // Apres : compress a max 1200px / 75% jpeg → 100-300 KB.
+    let uploadFile = file;
+    try {
+      const compressed = await compressImage(file, 1200, 0.75);
+      if (compressed && compressed.size > 0) uploadFile = compressed;
+    } catch {
+      // Si la compression echoue (cas rare), on upload le fichier original
+    }
     const fileName = `${token}/${type}_${Date.now()}.jpg`;
     const { error } = await supabase.storage
       .from('delivery-proofs')
-      .upload(fileName, file, { contentType: 'image/jpeg', upsert: true });
+      .upload(fileName, uploadFile, { contentType: 'image/jpeg', upsert: true });
     if (error) { toast.error('Erreur upload : ' + error.message); return null; }
     const { data } = supabase.storage.from('delivery-proofs').getPublicUrl(fileName);
     return data.publicUrl;
@@ -188,7 +201,7 @@ export default function Livreur() {
       cash_received_at: new Date().toISOString(),
     }).eq('id', order.id);
     await updateStatus('cash_collected');
-    toast.success('Cash de ' + order.total.toLocaleString('fr-FR') + ' FCFA confirmé reçu.');
+    toast.success('Cash de ' + (order.total || 0).toLocaleString('fr-FR') + ' FCFA confirmé reçu.');
     setOrder({ ...order, cash_received: true });
   };
 
@@ -412,7 +425,7 @@ export default function Livreur() {
           {isCash ? (
             <div className="liv-cod-alert">
               💵 PAIEMENT CASH À LA LIVRAISON<br/>
-              <strong style={{ fontSize: 16 }}>Encaisse {order.total.toLocaleString('fr-FR')} FCFA</strong>
+              <strong style={{ fontSize: 16 }}>Encaisse {(order.total || 0).toLocaleString('fr-FR')} FCFA</strong>
             </div>
           ) : (
             <div className="liv-paid-alert">

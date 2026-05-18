@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, updateOrderStatus } from '../lib/supabase';
+import { supabase, updateOrderStatus, getCachedSetting } from '../lib/supabase';
 import { confirmDialog } from '../lib/toast';
 
 // Flow lineaire des statuts "normaux" d'une commande. Une commande peut sortir
@@ -218,6 +218,8 @@ function OrderDetail({ order, onAdvance, onCancel }) {
   // Sinon (refused, cancelled, disputed, etc.), le bouton "Avancer" est cache.
   const canAdvance = flowIdx >= 0 && flowIdx < STATUS_FLOW.length - 1;
   const nextStatus = canAdvance ? STATUS_LABELS[STATUS_FLOW[flowIdx + 1]] : null;
+  // Taux commission dynamique depuis settings (fallback 8%)
+  const rate = getCachedSetting('commission', 8) / 100;
   const waUrl = order.address?.phone ? 'https://wa.me/' + order.address.phone.replace(/\D/g, '') : null;
 
   return (
@@ -265,7 +267,7 @@ function OrderDetail({ order, onAdvance, onCancel }) {
         <div className="adm-row"><span>Livraison</span><strong>{order.shipping?.toLocaleString('fr-FR')} FCFA</strong></div>
         <div className="adm-row"><span>Paiement</span><strong>{order.payment_method}</strong></div>
         <div className="adm-row total"><span>Total</span><strong>{order.total?.toLocaleString('fr-FR')} FCFA</strong></div>
-        <div className="adm-row commission"><span>Commission YARAM (8%)</span><strong>{Math.round(order.total * 0.08).toLocaleString('fr-FR')} FCFA</strong></div>
+        <div className="adm-row commission"><span>Commission YARAM ({rate * 100}%)</span><strong>{Math.round(order.total * rate).toLocaleString('fr-FR')} FCFA</strong></div>
       </div>
 
       <div className="adm-detail-actions">

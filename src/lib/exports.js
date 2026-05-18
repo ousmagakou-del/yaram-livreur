@@ -1,5 +1,6 @@
 // src/lib/exports.js
 // Utilitaires d'export pour l'admin Finances : CSV (2 formats) + PDF facture
+import { getCachedSetting } from './supabase';
 
 // ─── Téléchargement générique d'un Blob ───
 function downloadBlob(blob, filename) {
@@ -80,7 +81,8 @@ export function openInvoicePrintWindow(order, pharmacy) {
   const items = Array.isArray(order.items) ? order.items : [];
   const subtotal = items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0);
   const total = Number(order.total) || subtotal;
-  const commission = Math.round(total * 0.08);
+  const commissionRate = getCachedSetting('commission', 8) / 100;
+  const commission = Math.round(total * commissionRate);
   const netPharmacy = total - commission;
   const shortId = (order.id || '').slice(0, 8).toUpperCase();
   const today = new Date().toLocaleDateString('fr-FR');
@@ -183,7 +185,7 @@ export function openInvoicePrintWindow(order, pharmacy) {
 
 <div class="commission-block">
   <h4>Détail commission YARAM</h4>
-  <div class="row"><span>Commission YARAM (8%)</span><strong>${commission.toLocaleString('fr-FR')} FCFA</strong></div>
+  <div class="row"><span>Commission YARAM (${(commissionRate * 100).toFixed(commissionRate * 100 % 1 === 0 ? 0 : 1)}%)</span><strong>${commission.toLocaleString('fr-FR')} FCFA</strong></div>
   <div class="row"><span>Net pour la pharmacie</span><strong>${netPharmacy.toLocaleString('fr-FR')} FCFA</strong></div>
 </div>
 

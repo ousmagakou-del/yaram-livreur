@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCachedSetting } from '../lib/supabase';
 
 export default function DashboardSection({ setSection }) {
   const [stats, setStats] = useState({
@@ -34,7 +34,7 @@ export default function DashboardSection({ setSection }) {
       setStats({
         orders: orders.length,
         revenue,
-        commission: Math.round(revenue * 0.08),
+        commission: Math.round(revenue * (getCachedSetting('commission', 8) / 100)),
         users: usersRes.count || 0,
         pharmacies: pharmaciesRes.count || 0,
         products: productsRes.count || 0,

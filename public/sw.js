@@ -7,9 +7,9 @@
 // - Ignore mutations Supabase (POST/PUT/DELETE)
 // ════════════════════════════════════════════════
 
-const SW_VERSION = 'v6-2026-05-17-perf';
-const CACHE_STATIC = 'yaram-static-v6';
-const CACHE_SUPABASE = 'yaram-supabase-v6';
+const SW_VERSION = 'v7-2026-05-17-admin-fix';
+const CACHE_STATIC = 'yaram-static-v7';
+const CACHE_SUPABASE = 'yaram-supabase-v7';
 
 const ESSENTIAL = [
   '/',

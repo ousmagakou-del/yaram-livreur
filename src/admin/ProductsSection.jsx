@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { toast, confirmDialog } from '../lib/toast';
+import { toast, confirmDialog, promptDialog } from '../lib/toast';
 
 const CATEGORIES = ['serum', 'solaire', 'nettoyant', 'hydratant', 'masque', 'corps', 'levres', 'maquillage', 'cheveux', 'huile'];
 const COMMON_BADGES = ['Made in Sénégal', 'Bio', 'Vegan', 'Sans parfum', 'Sans alcool', 'Recommandé dermato', 'Pharmacie'];
@@ -95,7 +95,15 @@ export default function ProductsSection() {
   // ─── Hard delete : suppression définitive avec gestion des FK ───
   const handleHardDelete = async (p) => {
     const phrase = 'SUPPRIMER';
-    const typed = prompt(`⚠️ SUPPRESSION DÉFINITIVE de "${p.name}"\n\nÇa supprime aussi :\n- Les lignes inventory (stock pharmacies)\n- Les favoris des clientes\n\nPour confirmer, tape : ${phrase}`);
+    const typed = await promptDialog(
+      `⚠️ SUPPRESSION DÉFINITIVE de "${p.name}"\n\nÇa supprime aussi :\n• Les lignes inventory (stock pharmacies)\n• Les favoris des clientes`,
+      {
+        requiredText: phrase,
+        placeholder: phrase,
+        confirmLabel: 'Supprimer définitivement',
+        danger: true,
+      }
+    );
     if (typed !== phrase) {
       flash('Annulé');
       return;

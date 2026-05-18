@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, adminSetPharmacyPin } from '../lib/supabase';
+import { getAdminSession } from '../lib/adminAuth';
 import { toast, confirmDialog } from '../lib/toast';
 
 export default function PharmaciesSection() {
@@ -25,8 +26,8 @@ export default function PharmaciesSection() {
 
   const handleSave = async (p) => {
     if (p.id) {
-      // Update : on N'INCLUT PAS `pin` (sauf si on l'a explicitement remis a jour
-      // via le champ "Reset PIN" -> dans ce cas p._resetPin contient le nouveau pin).
+      // Update : champs non-PIN via UPDATE direct (OK car write n'est pas restreinte
+      // par notre GRANT — qui ne touche que SELECT).
       const payload = {
         name: p.name, owner_name: p.owner_name, address: p.address,
         city: p.city, neighborhood: p.neighborhood, phone: p.phone,
@@ -35,22 +36,32 @@ export default function PharmaciesSection() {
         hours: p.hours, commission: parseFloat(p.commission || 8),
         active: p.active, logo: p.logo, cover: p.cover, tagline: p.tagline,
       };
+      const { error } = await supabase.from('pharmacies').update(payload).eq('id', p.id);
+      if (error) { toast.error('Erreur update : ' + error.message); return; }
+
+      // Si l'admin a tape un nouveau PIN, on passe par la RPC securisee qui
+      // verifie le role caller (admin ou super_admin uniquement).
       if (p._resetPin && p._resetPin.trim()) {
-        payload.pin = p._resetPin.trim();
-        payload.pin_set_at = new Date().toISOString();
+        const session = getAdminSession();
+        const result = await adminSetPharmacyPin(session?.id, p.id, p._resetPin.trim());
+        if (!result.success) {
+          toast.error('Erreur reset PIN : ' + (result.error || 'inconnue'));
+          return;
+        }
+        toast.success(`PIN réinitialisé pour ${p.name}`);
       }
-      await supabase.from('pharmacies').update(payload).eq('id', p.id);
     } else {
       // Insert : on garde le pin (0000 par defaut) pour la 1ere connexion staff.
       // pin_set_at reste null tant que la pharmacie n'a pas choisi son propre PIN.
       // eslint-disable-next-line no-unused-vars
       const { _resetPin, ...rest } = p;
-      await supabase.from('pharmacies').insert({
+      const { error } = await supabase.from('pharmacies').insert({
         ...rest,
         lat: p.lat ? parseFloat(p.lat) : null,
         lng: p.lng ? parseFloat(p.lng) : null,
         commission: parseFloat(p.commission || 8),
       });
+      if (error) { toast.error('Erreur création : ' + error.message); return; }
     }
     setEditing(null);
     refresh();

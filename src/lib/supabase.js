@@ -22,6 +22,43 @@ export { invalidateCache };
 // SITE SETTINGS (admin) — table site_settings (key, value JSONB, updated_at)
 // ═══════════════════════════════════════════════
 
+// Cache module-level : settings charges au boot, exposes sync via getCachedSetting().
+// Fallback hardcode garanti si DB indisponible ou cle non set.
+const SETTINGS_FALLBACK = {
+  siteName: 'YARAM',
+  commission: 8,            // pourcentage
+  deliveryFee: 1500,        // FCFA (Dakar)
+  freeDeliveryFrom: 30000,  // FCFA (Dakar — au-dessus livraison gratuite)
+  whatsapp: '+221 77 438 87 66',
+  email: 'contact@yaram.sn',
+  primaryColor: '#1F8B4C',
+  accentColor: '#FFD700',
+};
+let settingsCache = { ...SETTINGS_FALLBACK };
+const settingsListeners = new Set();
+
+export function getCachedSetting(key, fallback) {
+  if (settingsCache && key in settingsCache && settingsCache[key] != null) {
+    return settingsCache[key];
+  }
+  if (fallback !== undefined) return fallback;
+  return SETTINGS_FALLBACK[key];
+}
+
+export function subscribeSettings(listener) {
+  settingsListeners.add(listener);
+  listener(settingsCache);
+  return () => settingsListeners.delete(listener);
+}
+
+// Charge les settings depuis la DB et update le cache. A appeler au boot de l'app.
+export async function loadSiteSettings() {
+  const remote = await getSiteSettings();
+  settingsCache = { ...SETTINGS_FALLBACK, ...remote };
+  for (const l of settingsListeners) l(settingsCache);
+  return settingsCache;
+}
+
 export async function getSiteSettings() {
   // Lit toutes les rows et merge en { key: value }
   const { data, error } = await supabase
@@ -54,6 +91,8 @@ export async function updateSiteSettings(updates) {
     console.error('[settings] write error:', error.message);
     return { success: false, error: error.message };
   }
+  // Refresh le cache + notify les listeners (CSS variables, etc.)
+  await loadSiteSettings();
   return { success: true };
 }
 
@@ -596,6 +635,24 @@ export async function incrementBannerClick(id) {
 // PHARMACIE
 // ═══════════════════════════════════════════════
 
+// Reset le PIN d'une pharmacie via RPC server-side qui verifie que le caller
+// est un admin actif (super_admin ou admin).
+// Cf migration SQL : create function admin_set_pharmacy_pin(p_admin_id uuid, p_pharmacy_id text, p_new_pin text)
+export async function adminSetPharmacyPin(adminId, pharmacyId, newPin) {
+  if (!adminId) return { success: false, error: 'Session admin invalide' };
+  if (!newPin || newPin.length < 4) return { success: false, error: 'PIN trop court (4 chiffres min)' };
+  const { data, error } = await supabase.rpc('admin_set_pharmacy_pin', {
+    p_admin_id: adminId,
+    p_pharmacy_id: String(pharmacyId),
+    p_new_pin: String(newPin),
+  });
+  if (error) {
+    console.error('[adminSetPharmacyPin] RPC error:', error.message);
+    return { success: false, error: error.message };
+  }
+  return data || { success: false, error: 'Reponse vide' };
+}
+
 export async function pharmacyLogin(pharmacyId, pin) {
   // Verification du PIN cote serveur via RPC SECURITY DEFINER.
   // Le PIN ne transite que dans un sens (client -> serveur), jamais retour.
@@ -655,8 +712,8 @@ export async function getPharmacyCommissions(pharmacyId) {
   const pharmacyOrders = (orders || []).filter(o =>
     Array.isArray(o.items) && o.items.some(it => it.pharmacyId === pharmacyId)
   );
-  // ⚠️ Taux unique 8% : doit rester aligne avec PharmaOrders.jsx et le label de PharmaCommission.jsx
-  const COMMISSION_RATE = 0.08;
+  // Taux lu depuis site_settings (fallback 8% si DB indisponible).
+  const COMMISSION_RATE = getCachedSetting('commission', 8) / 100;
   const enrichedOrders = pharmacyOrders.map(o => {
     const items = o.items.filter(it => it.pharmacyId === pharmacyId);
     const revenue = items.reduce((sum, it) => sum + (it.price || 0) * (it.qty || 1), 0);

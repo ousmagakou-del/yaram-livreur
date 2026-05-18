@@ -15,7 +15,7 @@
 
 let id = 0;
 const listeners = new Set();
-let state = { toasts: [], confirm: null };
+let state = { toasts: [], confirm: null, prompt: null };
 
 function publish() {
   for (const l of listeners) l(state);
@@ -83,6 +83,41 @@ export function resolveConfirm(value) {
   if (!state.confirm) return;
   const r = state.confirm.resolve;
   state = { ...state, confirm: null };
+  publish();
+  r(value);
+}
+
+// ─── PROMPT DIALOG (Promise<string|null>) ──────────────────────────────────
+// usage: const r = await promptDialog('Motif du rejet ?', { multiline: true });
+//        if (r === null) { /* cancelled */ } else { /* r est la string */ }
+export function promptDialog(message, opts = {}) {
+  if (state.prompt) state.prompt.resolve(null);
+  return new Promise((resolve) => {
+    state = {
+      ...state,
+      prompt: {
+        message: String(message ?? ''),
+        placeholder: opts.placeholder || '',
+        initialValue: opts.initialValue || '',
+        multiline: !!opts.multiline,
+        confirmLabel: opts.confirmLabel || 'Valider',
+        cancelLabel: opts.cancelLabel || 'Annuler',
+        // Validation : si fournie, doit retourner true pour pouvoir valider
+        validate: opts.validate || null,
+        // requiredText : si non-null, l'utilisateur doit taper exactement ce texte
+        requiredText: opts.requiredText || null,
+        danger: !!opts.danger,
+        resolve,
+      },
+    };
+    publish();
+  });
+}
+
+export function resolvePrompt(value) {
+  if (!state.prompt) return;
+  const r = state.prompt.resolve;
+  state = { ...state, prompt: null };
   publish();
   r(value);
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { promptDialog } from '../lib/toast';
 
 export default function ProductsValidationSection() {
   const [products, setProducts] = useState([]);
@@ -26,7 +27,12 @@ export default function ProductsValidationSection() {
   };
 
   const reject = async (product) => {
-    const reason = prompt('Motif du rejet (sera envoyé à la pharmacie) :');
+    const reason = await promptDialog('Motif du rejet (sera envoyé à la pharmacie) :', {
+      multiline: true,
+      placeholder: 'Ex: photo floue, prix incorrect, INCI manquant...',
+      confirmLabel: 'Rejeter',
+      danger: true,
+    });
     if (!reason) return;
     await supabase.from('products').update({ status: 'rejected', rejection_reason: reason }).eq('id', product.id);
     refresh();
