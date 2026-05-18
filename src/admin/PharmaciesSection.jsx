@@ -51,15 +51,21 @@ export default function PharmaciesSection() {
         toast.success(`PIN réinitialisé pour ${p.name}`);
       }
     } else {
-      // Insert : on garde le pin (0000 par defaut) pour la 1ere connexion staff.
-      // pin_set_at reste null tant que la pharmacie n'a pas choisi son propre PIN.
+      // Vague 7 RLS : INSERT direct bloque pour anon, on passe par RPC admin_create_pharmacy.
       // eslint-disable-next-line no-unused-vars
       const { _resetPin, ...rest } = p;
-      const { error } = await supabase.from('pharmacies').insert({
+      const token = getAdminSession()?.token;
+      if (!token) { toast.error('Session admin expirée'); return; }
+      // La RPC attend les champs en text dans le jsonb (cast cote DB)
+      const payload = {
         ...rest,
-        lat: p.lat ? parseFloat(p.lat) : null,
-        lng: p.lng ? parseFloat(p.lng) : null,
-        commission: parseFloat(p.commission || 8),
+        lat: p.lat ? String(parseFloat(p.lat)) : '',
+        lng: p.lng ? String(parseFloat(p.lng)) : '',
+        commission: String(parseFloat(p.commission || 8)),
+      };
+      const { error } = await supabase.rpc('admin_create_pharmacy', {
+        p_token: token,
+        p_payload: payload,
       });
       if (error) { toast.error('Erreur création : ' + error.message); return; }
     }
@@ -69,7 +75,13 @@ export default function PharmaciesSection() {
 
   const handleDelete = async (id) => {
     if (!await confirmDialog('Supprimer cette pharmacie ?')) return;
-    await supabase.from('pharmacies').delete().eq('id', id);
+    const token = getAdminSession()?.token;
+    if (!token) { toast.error('Session admin expirée'); return; }
+    const { error } = await supabase.rpc('admin_delete_pharmacy', {
+      p_token: token,
+      p_id: id,
+    });
+    if (error) { toast.error('Erreur suppression : ' + error.message); return; }
     refresh();
   };
 
