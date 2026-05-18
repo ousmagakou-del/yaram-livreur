@@ -11,6 +11,7 @@ import { getUserPosition, sortByDistance, formatDistance, getPermissionState } f
 import ProductTile from '../components/ProductTile';
 import TabBar from '../components/TabBar';
 import BarcodeScannerClient from '../components/BarcodeScannerClient';
+import { usePageSEO } from '../lib/seo';
 import '../components/BarcodeScannerClient.css';
 import './Home.css';
 
@@ -34,6 +35,12 @@ const homeDataCache = {
 export default function Home() {
   const { navigate, route } = useNav();
   const { user } = useUser();
+
+  usePageSEO({
+    title: 'YARAM · Beauté pour ta peau africaine',
+    description: 'Marketplace beauté Sénégal · Diagnostic IA peau gratuit · 800+ produits adaptés à la peau africaine · Livraison 24h Dakar',
+    canonical: 'https://yaram.app/',
+  });
 
   // ─── Hydrate depuis le cache module-level si dispo (instantane) ───
   const [products, setProducts] = useState(homeDataCache.products || []);

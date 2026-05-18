@@ -5,6 +5,7 @@ import { scoreClass, formatPrice, YARAM_WHATSAPP } from '../lib/utils';
 import { haptic } from '../lib/haptic';
 import { addToCart as cartAddToCart } from '../lib/cart';
 import { toast } from '../lib/toast';
+import { usePageSEO, useJsonLd } from '../lib/seo';
 import ReviewsSection from '../components/ReviewsSection';
 import './Product.css';
 
@@ -58,6 +59,40 @@ export default function Product({ id }) {
   const [qty, setQty] = useState(1);
   const [showCartToast, setShowCartToast] = useState(false);
   const [cartBounce, setCartBounce] = useState(false);
+
+  // SEO : titre + meta description + canonical
+  usePageSEO({
+    title: product ? `${product.brand} — ${product.name} · YARAM` : 'Produit · YARAM',
+    description: product
+      ? `${product.short_desc || product.name} · Score YARAM ${product.score}/100 · ${(product.price || 0).toLocaleString('fr-FR')} FCFA · Livraison Dakar`
+      : undefined,
+    canonical: `https://yaram.app/product/${id}`,
+  });
+
+  // Schema.org Product → rich snippets Google (prix, rating, dispo)
+  useJsonLd(product ? {
+    '@context': 'https://schema.org/',
+    '@type': 'Product',
+    name: product.name,
+    image: product.img,
+    description: product.short_desc || product.long_desc,
+    brand: { '@type': 'Brand', name: product.brand },
+    sku: product.id,
+    aggregateRating: (product.rating > 0 && product.review_count > 0) ? {
+      '@type': 'AggregateRating',
+      ratingValue: product.rating,
+      reviewCount: product.review_count,
+    } : undefined,
+    offers: {
+      '@type': 'Offer',
+      url: `https://yaram.app/product/${id}`,
+      priceCurrency: 'XOF',
+      price: product.price,
+      availability: pharmacies.length > 0
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/OutOfStock',
+    },
+  } : null, `product-${id}`);
 
   useEffect(() => {
     let cancelled = false;

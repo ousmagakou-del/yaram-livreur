@@ -36,18 +36,62 @@
     <!-- Description (Google search) -->
     <meta name="description" content="YARAM · Marketplace beauté avec IA dermatologique pour la peau africaine. Diagnostic peau gratuit, produits adaptés, livraison rapide à Dakar." />
 
+    <!-- Canonical -->
+    <link rel="canonical" href="https://yaram.app/" />
+
     <!-- Open Graph (partage WhatsApp, Facebook, etc.) -->
+    <meta property="og:site_name" content="YARAM" />
     <meta property="og:title" content="YARAM · Beauté pour ta peau africaine" />
-    <meta property="og:description" content="Scan IA peau gratuit · Produits adaptés · Livraison rapide" />
-    <meta property="og:image" content="/icon-512.png" />
-    <meta property="og:url" content="https://diaara-brg.pages.dev" />
+    <meta property="og:description" content="Scan IA peau gratuit · Produits adaptés · Livraison rapide à Dakar" />
+    <meta property="og:image" content="https://yaram.app/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:url" content="https://yaram.app/" />
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_SN" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="YARAM" />
-    <meta name="twitter:description" content="Marketplace beauté avec IA pour la peau africaine" />
-    <meta name="twitter:image" content="/icon-512.png" />
+    <meta name="twitter:title" content="YARAM · Beauté pour ta peau africaine" />
+    <meta name="twitter:description" content="Scan IA peau gratuit · Produits adaptés · Livraison rapide à Dakar" />
+    <meta name="twitter:image" content="https://yaram.app/icon-512.png" />
+
+    <!-- Schema.org Organization + WebSite (rich snippets Google) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://yaram.app/#org",
+          "name": "YARAM",
+          "url": "https://yaram.app/",
+          "logo": "https://yaram.app/icon-512.png",
+          "description": "Marketplace beauté avec IA dermatologique pour la peau africaine. Diagnostic peau gratuit, produits adaptés, livraison rapide à Dakar.",
+          "areaServed": { "@type": "Country", "name": "Sénégal" },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+221774388766",
+            "contactType": "customer support",
+            "availableLanguage": ["French"]
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://yaram.app/#website",
+          "url": "https://yaram.app/",
+          "name": "YARAM",
+          "publisher": { "@id": "https://yaram.app/#org" },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://yaram.app/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          },
+          "inLanguage": "fr-SN"
+        }
+      ]
+    }
+    </script>
 
     <!-- ════════════ SPLASH INLINE ════════════
          Visible des le 1er byte HTML (avant que React charge / parse / monte).

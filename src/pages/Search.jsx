@@ -3,6 +3,7 @@ import { useNav } from '../App';
 import { getAllProducts, getAllBrands } from '../lib/supabase';
 import ProductTile from '../components/ProductTile';
 import TabBar from '../components/TabBar';
+import { usePageSEO } from '../lib/seo';
 import './Search.css';
 
 const RECENT = ['niacinamide', 'spf peau noire', 'karité', 'sérum vitamine c'];
@@ -49,6 +50,19 @@ function catLabel(cat) {
 
 export default function Search({ initialCategory, initialBrand }) {
   const { navigate } = useNav();
+
+  // Title/desc dynamique selon le filtre actif (utile pour SEO et partages)
+  const seoTitle = initialBrand
+    ? `${initialBrand} — Produits beauté · YARAM`
+    : initialCategory
+      ? `${catLabel(initialCategory)} — Produits beauté · YARAM`
+      : 'Recherche · YARAM';
+  const seoDesc = initialBrand
+    ? `Tous les produits ${initialBrand} adaptés à la peau africaine, validés par YARAM`
+    : initialCategory
+      ? `${catLabel(initialCategory)} pour ta peau africaine · 800+ références validées par dermato · Livraison Dakar`
+      : 'Recherche produits beauté validés par YARAM · Filtres par marque, prix, score, badges';
+  usePageSEO({ title: seoTitle, description: seoDesc });
   const [q, setQ] = useState('');
   const [category, setCategory] = useState(initialCategory || null);
   const [products, setProducts] = useState([]);
