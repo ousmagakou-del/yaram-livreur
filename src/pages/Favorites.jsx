@@ -10,10 +10,19 @@ export default function Favorites() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      setFavorites(await getMyFavorites());
-      setLoading(false);
+      try {
+        const data = await getMyFavorites();
+        if (!cancelled) setFavorites(data || []);
+      } catch (e) {
+        console.warn('[Favorites] load failed:', e?.message);
+        if (!cancelled) setFavorites([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   return (

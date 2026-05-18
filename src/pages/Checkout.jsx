@@ -48,25 +48,39 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
 
   // ─── Load addresses + pending promo + loyalty credit ───
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const addrs = await getMyAddresses();
-      setAddresses(addrs);
-      const def = addrs.find(a => a.is_default) || addrs[0];
-      if (def) setSelectedAddrId(def.id);
-      setLoading(false);
-
-      const pending = getPendingPromo();
-      if (pending) {
-        setPromoInput(pending);
-        setTimeout(() => tryApplyPromo(pending, true), 500);
+      try {
+        const addrs = await getMyAddresses();
+        if (cancelled) return;
+        const list = addrs || [];
+        setAddresses(list);
+        const def = list.find(a => a.is_default) || list[0];
+        if (def) setSelectedAddrId(def.id);
+      } catch (e) {
+        // Reseau/RLS qui casse : on ne laisse pas "Chargement..." infini
+        console.warn('[Checkout] addresses load failed:', e?.message);
+        if (!cancelled) setAddresses([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
 
-      const credit = getLoyaltyCredit();
-      if (credit > 0) {
-        setLoyaltyCredit(credit);
-        setUseLoyaltyCredit(true);
+      try {
+        const pending = getPendingPromo();
+        if (pending && !cancelled) {
+          setPromoInput(pending);
+          setTimeout(() => { if (!cancelled) tryApplyPromo(pending, true); }, 500);
+        }
+        const credit = getLoyaltyCredit();
+        if (credit > 0 && !cancelled) {
+          setLoyaltyCredit(credit);
+          setUseLoyaltyCredit(true);
+        }
+      } catch (e) {
+        console.warn('[Checkout] promo/loyalty load failed:', e?.message);
       }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

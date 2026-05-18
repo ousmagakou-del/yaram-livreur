@@ -24,9 +24,16 @@ export default function Addresses() {
 
   const refresh = async () => {
     setLoading(true);
-    const list = await getMyAddresses();
-    setAddresses(list);
-    setLoading(false);
+    try {
+      const list = await getMyAddresses();
+      setAddresses(list || []);
+    } catch (e) {
+      // Si la query echoue (reseau, RLS, etc.) on n'affiche pas un Chargement infini
+      console.warn('[Addresses] refresh failed:', e?.message);
+      setAddresses([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleNew = () => {

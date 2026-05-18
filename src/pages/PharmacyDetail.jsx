@@ -13,25 +13,35 @@ export default function PharmacyDetail({ pharmacyId }) {
 
   useEffect(() => {
     if (!pharmacyId) return;
+    let cancelled = false;
+    setLoading(true);
     (async () => {
-      // Securite : on selectionne explicitement les colonnes publiques pour ne pas exposer le PIN
-      const { data: ph } = await supabase
-        .from('pharmacies')
-        .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, active, rating, review_count')
-        .eq('id', pharmacyId).single();
-      setPharmacy(ph);
+      try {
+        // Securite : on selectionne explicitement les colonnes publiques pour ne pas exposer le PIN
+        const { data: ph } = await supabase
+          .from('pharmacies')
+          .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, active, rating, review_count')
+          .eq('id', pharmacyId).single();
+        if (cancelled) return;
+        setPharmacy(ph);
 
-      const { data: inv } = await supabase
-        .from('inventory').select('product_id, stock, products(*)')
-        .eq('pharmacy_id', pharmacyId).gt('stock', 0).eq('active', true);
-      
-      const list = [];
-      (inv || []).forEach(i => {
-        if (i.products && i.products.id) list.push({ ...i.products, stock: i.stock });
-      });
-      setProducts(list);
-      setLoading(false);
+        const { data: inv } = await supabase
+          .from('inventory').select('product_id, stock, products(*)')
+          .eq('pharmacy_id', pharmacyId).gt('stock', 0).eq('active', true);
+        if (cancelled) return;
+
+        const list = [];
+        (inv || []).forEach(i => {
+          if (i.products && i.products.id) list.push({ ...i.products, stock: i.stock });
+        });
+        setProducts(list);
+      } catch (e) {
+        console.warn('[PharmacyDetail] load failed:', e?.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, [pharmacyId]);
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Chargement…</div>;

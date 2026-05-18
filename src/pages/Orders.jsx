@@ -10,10 +10,19 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      setOrders(await getMyOrders());
-      setLoading(false);
+      try {
+        const data = await getMyOrders();
+        if (!cancelled) setOrders(data || []);
+      } catch (e) {
+        console.warn('[Orders] load failed:', e?.message);
+        if (!cancelled) setOrders([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   return (

@@ -11,11 +11,19 @@ export default function Pharmacies() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const all = await getAllPharmacies();
-      setPharmacies(all);
-      setLoading(false);
+      try {
+        const all = await getAllPharmacies();
+        if (!cancelled) setPharmacies(all || []);
+      } catch (e) {
+        console.warn('[Pharmacies] load failed:', e?.message);
+        if (!cancelled) setPharmacies([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const cities = ['all', ...Array.from(new Set(pharmacies.map(p => p.city)))];

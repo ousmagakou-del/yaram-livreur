@@ -61,31 +61,52 @@ export default function Product({ id }) {
 
   useEffect(() => {
     let cancelled = false;
+    // Reset l'etat a chaque navigation vers un nouveau produit
+    setLoading(true);
+    setProduct(null);
+    setPharmacies([]);
+    setSelectedPh(null);
+
     (async () => {
-      // Fetch UN seul produit (avant on telechargeait les 800+ pour en garder 1)
-      const { data: p, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error || !p) {
-        setProduct(null);
-        setLoading(false);
-        return;
+      try {
+        // Fetch UN seul produit (avant on telechargeait les 800+ pour en garder 1)
+        const { data: p, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error || !p) {
+          setProduct(null);
+          return;
+        }
+        setProduct(p);
+        const [av, isFav] = await Promise.all([
+          getProductAvailability(p.id).catch(() => []),
+          isFavorite(p.id).catch(() => false),
+        ]);
+        if (cancelled) return;
+        setPharmacies(av || []);
+        setFav(isFav);
+        if (av && av.length > 0) setSelectedPh(av[0]);
+      } catch (e) {
+        console.warn('[Product] load failed:', e?.message);
+      } finally {
+        // setLoading(false) TOUJOURS, meme si erreur, pour ne pas rester sur le skeleton
+        if (!cancelled) setLoading(false);
       }
-      setProduct(p);
-      const [av, isFav] = await Promise.all([
-        getProductAvailability(p.id),
-        isFavorite(p.id),
-      ]);
-      if (cancelled) return;
-      setPharmacies(av);
-      setFav(isFav);
-      if (av.length > 0) setSelectedPh(av[0]);
-      setLoading(false);
     })();
-    return () => { cancelled = true; };
+
+    // Filet de securite : si le useEffect entier rame > 15s (ex: connexion morte),
+    // on debloque le skeleton pour que l'user puisse au moins voir l'erreur / revenir.
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(safety);
+    };
   }, [id]);
 
   const handleFav = async () => {
