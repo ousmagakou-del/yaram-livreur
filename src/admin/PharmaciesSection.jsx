@@ -283,18 +283,18 @@ function InventoryEditor({ pharmacy, onClose }) {
   };
 
   const handleSave = async () => {
+    // Vague 14 RLS : passe par admin_upsert_inventory (token requis)
+    const token = getAdminSession()?.token;
+    if (!token) { toast.error('Session admin expirée'); return; }
     for (const productId of Object.keys(inventory)) {
       const inv = inventory[productId];
-      if (inv.id) {
-        await supabase.from('inventory').update({
-          stock: inv.stock, active: inv.active,
-        }).eq('id', inv.id);
-      } else if (inv.stock > 0 || inv.active) {
-        await supabase.from('inventory').insert({
-          pharmacy_id: pharmacy.id,
-          product_id: productId,
-          stock: inv.stock,
-          active: inv.active,
+      if (inv.id || inv.stock > 0 || inv.active) {
+        await supabase.rpc('admin_upsert_inventory', {
+          p_token: token,
+          p_pharmacy_id: pharmacy.id,
+          p_product_id: productId,
+          p_stock: inv.stock || 0,
+          p_active: !!inv.active,
         });
       }
     }

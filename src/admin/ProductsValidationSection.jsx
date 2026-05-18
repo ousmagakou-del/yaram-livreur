@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getAdminToken } from '../lib/adminAuth';
 import { promptDialog } from '../lib/toast';
 
 export default function ProductsValidationSection() {
@@ -22,10 +23,13 @@ export default function ProductsValidationSection() {
   };
 
   const approve = async (product) => {
-    await supabase.from('products').update({ status: 'approved', active: true }).eq('id', product.id);
+    const token = getAdminToken();
+    if (!token) return;
+    await supabase.rpc('admin_validate_product', {
+      p_token: token, p_id: product.id, p_action: 'approve',
+    });
     refresh();
     // Notifie les moteurs de recherche que le sitemap a change (fire-and-forget).
-    // L'utilisateur n'a pas besoin d'attendre la reponse.
     fetch('/ping-sitemap', { method: 'POST' }).catch(() => { /* ignore */ });
   };
 
@@ -37,7 +41,11 @@ export default function ProductsValidationSection() {
       danger: true,
     });
     if (!reason) return;
-    await supabase.from('products').update({ status: 'rejected', rejection_reason: reason }).eq('id', product.id);
+    const token = getAdminToken();
+    if (!token) return;
+    await supabase.rpc('admin_validate_product', {
+      p_token: token, p_id: product.id, p_action: 'reject', p_reason: reason,
+    });
     refresh();
   };
 

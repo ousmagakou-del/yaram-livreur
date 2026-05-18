@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getPharmaToken } from '../lib/supabase';
 
 export default function PharmaInventory({ pharmacyId }) {
   const [products, setProducts] = useState([]);
@@ -42,41 +42,41 @@ export default function PharmaInventory({ pharmacyId }) {
   const toggleAvailable = async (productId) => {
     const current = inventory[productId] || { stock: 0, available: false };
     const newAvailable = !current.available;
-    
+
     // Update local
     setInventory(prev => ({
       ...prev,
       [productId]: { ...current, available: newAvailable },
     }));
-    
-    // Update DB
-    await supabase
-      .from('inventory')
-      .upsert({
-        pharmacy_id: pharmacyId,
-        product_id: productId,
-        available: newAvailable,
-        stock: current.stock,
-      }, { onConflict: 'pharmacy_id,product_id' });
+
+    // Vague 14 RLS : passe par pharma_upsert_inventory (token requis)
+    const token = getPharmaToken();
+    if (!token) return;
+    await supabase.rpc('pharma_upsert_inventory', {
+      p_token: token,
+      p_product_id: productId,
+      p_stock: current.stock,
+      p_active: newAvailable,
+    });
   };
 
   const updateStock = async (productId, stock) => {
     const current = inventory[productId] || { stock: 0, available: true };
     const newStock = Math.max(0, parseInt(stock) || 0);
-    
+
     setInventory(prev => ({
       ...prev,
       [productId]: { ...current, stock: newStock, available: newStock > 0 },
     }));
-    
-    await supabase
-      .from('inventory')
-      .upsert({
-        pharmacy_id: pharmacyId,
-        product_id: productId,
-        stock: newStock,
-        available: newStock > 0,
-      }, { onConflict: 'pharmacy_id,product_id' });
+
+    const token = getPharmaToken();
+    if (!token) return;
+    await supabase.rpc('pharma_upsert_inventory', {
+      p_token: token,
+      p_product_id: productId,
+      p_stock: newStock,
+      p_active: newStock > 0,
+    });
   };
 
   const filtered = products.filter(p => {

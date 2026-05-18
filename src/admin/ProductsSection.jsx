@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getAdminToken } from '../lib/adminAuth';
 import { toast, confirmDialog, promptDialog } from '../lib/toast';
 
 const CATEGORIES = ['serum', 'solaire', 'nettoyant', 'hydratant', 'masque', 'corps', 'levres', 'maquillage', 'cheveux', 'huile'];
@@ -35,23 +36,23 @@ export default function ProductsSection() {
   };
 
   const handleSave = async (p) => {
+    const token = getAdminToken();
+    if (!token) { flash('Session admin expirée', true); return; }
     const payload = {
       name: p.name, brand: p.brand, category: p.category,
       price: parseInt(p.price), score: parseInt(p.score),
-      rating: parseFloat(p.rating || 0),
-      review_count: parseInt(p.review_count || 0),
       img: p.img, short_desc: p.short_desc, long_desc: p.long_desc,
-      inci: p.inci, reason: p.reason, badges: p.badges || [],
+      inci: p.inci, reason: p.reason,
+      badges: p.badges || [],
       active: p.active,
     };
-    let result;
-    if (p.id) {
-      result = await supabase.from('products').update(payload).eq('id', p.id);
-    } else {
-      result = await supabase.from('products').insert(payload);
-    }
-    if (result.error) {
-      flash(`Erreur sauvegarde : ${result.error.message}`, true);
+    const { error } = await supabase.rpc('admin_upsert_product', {
+      p_token: token,
+      p_id: p.id || null,
+      p_payload: payload,
+    });
+    if (error) {
+      flash(`Erreur sauvegarde : ${error.message}`, true);
       return;
     }
     setEditing(null);
@@ -62,11 +63,12 @@ export default function ProductsSection() {
   // ─── Soft delete : juste désactiver ───
   const handleSoftDelete = async (p) => {
     if (!await confirmDialog(`Désactiver "${p.name}" ?\n\nLe produit ne sera plus visible côté client mais l'historique des commandes reste intact.`)) return;
+    const token = getAdminToken();
+    if (!token) { flash('Session admin expirée', true); return; }
     setBusyId(p.id);
-    const { error } = await supabase
-      .from('products')
-      .update({ active: false })
-      .eq('id', p.id);
+    const { error } = await supabase.rpc('admin_upsert_product', {
+      p_token: token, p_id: p.id, p_payload: { active: false },
+    });
     setBusyId(null);
     if (error) {
       flash(`Erreur : ${error.message}`, true);
@@ -78,11 +80,12 @@ export default function ProductsSection() {
 
   // ─── Réactiver ───
   const handleReactivate = async (p) => {
+    const token = getAdminToken();
+    if (!token) { flash('Session admin expirée', true); return; }
     setBusyId(p.id);
-    const { error } = await supabase
-      .from('products')
-      .update({ active: true })
-      .eq('id', p.id);
+    const { error } = await supabase.rpc('admin_upsert_product', {
+      p_token: token, p_id: p.id, p_payload: { active: true },
+    });
     setBusyId(null);
     if (error) {
       flash(`Erreur : ${error.message}`, true);
@@ -92,7 +95,8 @@ export default function ProductsSection() {
     refresh();
   };
 
-  // ─── Hard delete : suppression définitive avec gestion des FK ───
+  // ─── Hard delete : suppression définitive ───
+  // La RPC admin_delete_product cascade automatiquement sur inventory.
   const handleHardDelete = async (p) => {
     const phrase = 'SUPPRIMER';
     const typed = await promptDialog(
@@ -108,23 +112,17 @@ export default function ProductsSection() {
       flash('Annulé');
       return;
     }
+    const token = getAdminToken();
+    if (!token) { flash('Session admin expirée', true); return; }
     setBusyId(p.id);
 
-    // 1. Nettoie inventory
-    const { error: invErr } = await supabase
-      .from('inventory').delete().eq('product_id', p.id);
-    if (invErr) {
-      setBusyId(null);
-      flash(`Erreur inventory : ${invErr.message}`, true);
-      return;
-    }
-
-    // 2. Nettoie favorites (si la table existe)
+    // 1. Nettoie favorites (table publique, peut etre toujours en .from)
     await supabase.from('favorites').delete().eq('product_id', p.id);
-    // (on ignore l'erreur si la table n'existe pas)
 
-    // 3. Supprime le produit
-    const { error } = await supabase.from('products').delete().eq('id', p.id);
+    // 2. Supprime le produit + inventory (cascade serveur)
+    const { error } = await supabase.rpc('admin_delete_product', {
+      p_token: token, p_id: p.id,
+    });
     setBusyId(null);
     if (error) {
       flash(`Erreur : ${error.message}`, true);

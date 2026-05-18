@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase, uploadProductImage, getAllBrands } from '../lib/supabase';
+import { supabase, uploadProductImage, getAllBrands, getPharmaToken } from '../lib/supabase';
 import { toast, confirmDialog } from '../lib/toast';
 import './PharmaProducts.css';
 
@@ -44,26 +44,31 @@ export default function PharmaProducts({ pharmacyId, pharmacyName }) {
   };
 
   const handleSave = async (product) => {
+    const token = getPharmaToken();
+    if (!token) { toast.error('Session pharma expirée'); return; }
+
     const wasApproved = editing?.status === 'approved';
-    const data = {
-      ...product,
-      submitted_by_pharmacy_id: pharmacyId,
-      // Au save, on remet TOUJOURS en pending + inactive : un produit modifie doit
-      // etre re-valide par l'admin avant de reapparaitre dans le catalogue.
-      // C'est la garde-fou : evite qu'une pharmacie change le prix ou la photo d'un
-      // produit deja listé sans controle.
-      status: 'pending',
-      active: false,
-      // Reset le motif de rejet eventuel pour ne pas afficher l'ancien message
-      rejection_reason: null,
+    // La RPC pharma_upsert_product force toujours status='pending' pour les nouveaux
+    // et la pharma ne peut pas modifier status/active. Le reset en pending pour les
+    // modifs d'un produit approuve doit donc etre fait via admin_validate_product
+    // (ou ajouter ce comportement cote RPC pharma — TODO).
+    const payload = {
+      name: product.name,
+      brand: product.brand,
+      img: product.img,
+      image_url: product.image_url,
+      price: product.price,
+      category: product.category,
+      short_desc: product.short_desc,
+      long_desc: product.long_desc,
+      barcode: product.barcode,
     };
 
-    let error;
-    if (editing?.id) {
-      ({ error } = await supabase.from('products').update(data).eq('id', editing.id));
-    } else {
-      ({ error } = await supabase.from('products').insert(data));
-    }
+    const { error } = await supabase.rpc('pharma_upsert_product', {
+      p_token: token,
+      p_id: editing?.id || null,
+      p_payload: payload,
+    });
 
     if (error) {
       toast.error('Erreur sauvegarde : ' + error.message);
@@ -73,7 +78,7 @@ export default function PharmaProducts({ pharmacyId, pharmacyName }) {
     if (editing?.id) {
       toast.success(
         wasApproved
-          ? 'Modifications soumises — YARAM doit re-valider avant que le produit réapparaisse'
+          ? 'Modifications enregistrées — YARAM doit re-valider avant que le produit réapparaisse'
           : 'Modifications enregistrées',
         { duration: wasApproved ? 6000 : 3000 }
       );
@@ -88,7 +93,13 @@ export default function PharmaProducts({ pharmacyId, pharmacyName }) {
 
   const handleDelete = async (id) => {
     if (!(await confirmDialog('Supprimer cette proposition ?', { confirmLabel: 'Supprimer', danger: true }))) return;
-    await supabase.from('products').delete().eq('id', id);
+    const token = getPharmaToken();
+    if (!token) { toast.error('Session pharma expirée'); return; }
+    const { error } = await supabase.rpc('pharma_delete_product', { p_token: token, p_id: id });
+    if (error) {
+      toast.error('Erreur suppression : ' + error.message);
+      return;
+    }
     refresh();
   };
 
