@@ -19,56 +19,42 @@ export async function adminLogin(email, pin) {
     return { success: false, error: 'Email et PIN requis' };
   }
 
-  const { data, error } = await supabase.rpc('verify_admin_pin', {
+  // Phase 2 RLS : on appelle admin_start_session qui (a) verifie le PIN
+  // via verify_admin_pin et (b) emet un token de session signe cote serveur.
+  // Le token est ce qui authentifiera ensuite chaque RPC admin_xxx.
+  const { data, error } = await supabase.rpc('admin_start_session', {
     p_email: email.trim().toLowerCase(),
     p_pin: pin,
+    p_user_agent: (typeof navigator !== 'undefined' ? navigator.userAgent : null),
   });
 
-  // Debug visible
-  console.log('[adminLogin] RPC result:', { data, error });
-
   if (error) {
+    if (String(error.message).includes('invalid_credentials')) {
+      return { success: false, error: 'Email ou PIN incorrect' };
+    }
     return { success: false, error: 'Erreur : ' + error.message };
   }
 
-  if (!data || data.length === 0) {
-    return { success: false, error: 'Email ou PIN incorrect' };
-  }
-
-  const row = data[0];
-
-  // Lecture defensive : essaie plusieurs noms possibles
-  const id = pickField(row, 'result_id', 'out_id', 'id', 'admin_id');
-  const emailOut = pickField(row, 'result_email', 'out_email', 'email', 'admin_email');
-  const name = pickField(row, 'result_name', 'out_name', 'name', 'admin_name');
-  const role = pickField(row, 'result_role', 'out_role', 'role', 'admin_role');
-  const perms = pickField(row, 'result_permissions', 'out_permissions', 'permissions', 'admin_permissions');
-
-  // Si on n'a pas reussi a recuperer l'essentiel, c'est cass
-  if (!id || !role) {
-    console.error('[adminLogin] Champs manquants dans la reponse RPC. Row:', row);
-    return {
-      success: false,
-      error: 'Reponse serveur invalide (champs manquants). Contacte le support.'
-    };
+  if (!data || !data.token) {
+    return { success: false, error: 'Reponse serveur invalide' };
   }
 
   const session = {
-    id,
-    email: emailOut || email,
-    name: name || email,
-    role,
-    permissions: Array.isArray(perms) ? perms : (perms || []),
-    expires_at: Date.now() + SESSION_TTL_MS,
+    token: data.token,
+    id: data.admin_id,
+    email: data.admin_email || email,
+    name: data.admin_name || email,
+    role: data.admin_role,
+    permissions: Array.isArray(data.permissions) ? data.permissions : (data.permissions || []),
+    expires_at: Date.parse(data.expires_at) || (Date.now() + SESSION_TTL_MS),
   };
-
-  console.log('[adminLogin] Session creee:', session);
 
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } catch (e) { /* ignore */ }
 
-  // Log connexion (non bloquant)
+  // Log connexion (non bloquant) — gardera sa policy "Anyone insert audit_log"
+  // jusqu'a la migration audit_log vers RPC
   try {
     await supabase.from('admin_logs').insert({
       admin_id: session.id,
@@ -84,6 +70,11 @@ export async function adminLogin(email, pin) {
 export async function adminLogout() {
   const s = getAdminSession();
   if (s) {
+    // Cote serveur : on invalide le token
+    try {
+      await supabase.rpc('admin_end_session', { p_token: s.token });
+    } catch (e) {}
+    // Log
     try {
       await supabase.from('admin_logs').insert({
         admin_id: s.id,
@@ -95,12 +86,24 @@ export async function adminLogout() {
   try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
 }
 
+// Helper expose pour que tous les wrappers RPC puissent recuperer le token courant
+export function getAdminToken() {
+  const s = getAdminSession();
+  return s ? s.token : null;
+}
+
 export function getAdminSession() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s.expires_at || s.expires_at < Date.now()) {
+      sessionStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    // Migration : si la session a ete creee avant le passage a admin_start_session,
+    // elle n'a pas de token. On la force a se reconnecter pour obtenir un token serveur.
+    if (!s.token) {
       sessionStorage.removeItem(SESSION_KEY);
       return null;
     }

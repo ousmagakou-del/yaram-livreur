@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase, updateOrderStatus, getCachedSetting } from '../lib/supabase';
-import { confirmDialog } from '../lib/toast';
+import { getCachedSetting } from '../lib/supabase';
+import { adminListOrders, adminUpdateOrder } from '../lib/adminApi';
+import { confirmDialog, toast } from '../lib/toast';
 
 // Flow lineaire des statuts "normaux" d'une commande. Une commande peut sortir
 // de ce flow (refused, cancelled, disputed...) et ne plus etre "avancable".
@@ -36,28 +37,41 @@ export default function OrdersSection() {
 
   const refresh = async () => {
     setLoading(true);
-    // ─── Server-side pagination + filtrage par statut ───
-    // (Avant : on chargeait TOUTES les commandes a chaque fois — pas tenable a 10k+.)
-    let q = supabase
-      .from('orders')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+    try {
+      // Phase 2 RLS : on passe par la RPC admin_list_orders (token requis,
+      // SECURITY DEFINER cote DB). Le filtre 'active' est applique cote client
+      // pour rester sur le seul parametre p_status que la RPC accepte.
+      const status = (filter === 'all' || filter === 'active') ? null : filter;
+      const { data, count, error } = await adminListOrders({
+        limit:  PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        status,
+      });
 
-    if (filter === 'active') {
-      q = q.not('status', 'in', '(delivered,cancelled,refused,disputed)');
-    } else if (filter !== 'all') {
-      q = q.eq('status', filter);
-    }
+      if (error) {
+        if (error.message === 'admin_session_expired') {
+          toast.error('Session admin expirée — reconnexion requise');
+        }
+        setOrders([]);
+        setTotalCount(0);
+        return;
+      }
 
-    const { data, count } = await q;
-    setOrders(data || []);
-    setTotalCount(count || 0);
-    if (selected) {
-      const upd = (data || []).find(o => o.id === selected.id);
-      if (upd) setSelected(upd);
+      let rows = data || [];
+      if (filter === 'active') {
+        const closed = new Set(['delivered', 'cancelled', 'refused', 'disputed']);
+        rows = rows.filter(o => !closed.has(o.status));
+      }
+
+      setOrders(rows);
+      setTotalCount(count || 0);
+      if (selected) {
+        const upd = rows.find(o => o.id === selected.id);
+        if (upd) setSelected(upd);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // Reset page a 0 quand on change de filtre (via setFilter helper)
@@ -67,17 +81,17 @@ export default function OrdersSection() {
 
   const advance = async (order) => {
     const idx = STATUS_FLOW.indexOf(order.status);
-    // Safe guard : si le statut n'est pas dans le flow (refused, cancelled, disputed,
-    // awaiting_cash, etc.), on ne fait rien plutot que de retrograder a pending_payment.
     if (idx === -1 || idx >= STATUS_FLOW.length - 1) return;
     const next = STATUS_FLOW[idx + 1];
-    await updateOrderStatus(order.id, next);
+    const { error } = await adminUpdateOrder(order.id, { status: next });
+    if (error) toast.error('Échec mise à jour : ' + (error.message || ''));
     refresh();
   };
 
   const cancel = async (order) => {
     if (!await confirmDialog('Annuler cette commande ?')) return;
-    await updateOrderStatus(order.id, 'cancelled');
+    const { error } = await adminUpdateOrder(order.id, { status: 'cancelled' });
+    if (error) toast.error('Échec annulation : ' + (error.message || ''));
     refresh();
   };
 
