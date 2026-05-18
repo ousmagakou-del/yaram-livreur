@@ -705,21 +705,47 @@ export async function adminSetPharmacyPin(adminId, pharmacyId, newPin) {
 }
 
 export async function pharmacyLogin(pharmacyId, pin) {
-  // Verification du PIN cote serveur via RPC SECURITY DEFINER.
-  // Le PIN ne transite que dans un sens (client -> serveur), jamais retour.
-  // L'RPC retourne la pharmacie complete SANS le pin si match, NULL sinon.
-  const { data, error } = await supabase.rpc('verify_pharmacy_pin', {
-    p_id: String(pharmacyId),
+  // Vague 9 RLS : on appelle pharma_start_session qui (a) valide le PIN via
+  // verify_pharmacy_pin et (b) emet un token signe cote serveur. Le token
+  // est stocke ici en sessionStorage et utilise par les futures RPCs pharma_*.
+  const { data, error } = await supabase.rpc('pharma_start_session', {
+    p_pharmacy_id: String(pharmacyId),
     p_pin: pin,
+    p_user_agent: (typeof navigator !== 'undefined' ? navigator.userAgent : null),
   });
+
   if (error) {
+    if (String(error.message).includes('invalid_credentials')) {
+      return { success: false, error: 'PIN incorrect ou pharmacie inactive' };
+    }
     console.error('[pharmacyLogin] RPC error:', error.message);
     return { success: false, error: 'Erreur serveur (RPC indisponible ?)' };
   }
-  if (!data) {
+  if (!data || !data.token) {
     return { success: false, error: 'PIN incorrect ou pharmacie inactive' };
   }
-  return { success: true, pharmacy: data };
+
+  // Stocke le token en sessionStorage pour que les wrappers pharmaApi.js le retrouvent
+  try {
+    sessionStorage.setItem('yaram-pharma-token', data.token);
+  } catch { /* ignore */ }
+
+  // Compat : on garde le shape { success, pharmacy } pour ne pas casser l'existant
+  return { success: true, pharmacy: data.pharmacy, token: data.token };
+}
+
+export function getPharmaToken() {
+  try {
+    return sessionStorage.getItem('yaram-pharma-token') || null;
+  } catch { return null; }
+}
+
+export async function pharmacyLogout() {
+  const token = getPharmaToken();
+  if (token) {
+    try { await supabase.rpc('pharma_end_session', { p_token: token }); } catch { /* ignore */ }
+    try { sessionStorage.removeItem('yaram-pharma-token'); } catch { /* ignore */ }
+  }
 }
 
 // setPharmacyPin retiree : la colonne pin n'est plus updatable directement par anon.
@@ -729,17 +755,25 @@ export async function pharmacyLogin(pharmacyId, pin) {
 // (les deux sont SECURITY DEFINER et valident l'identite avant d'updater)
 
 export async function getPharmacyOrders(pharmacyId, status = null) {
-  let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
-  if (status) {
-    if (Array.isArray(status)) query = query.in('status', status);
-    else query = query.eq('status', status);
+  // Vague 9 RLS : on passe par pharma_list_orders (SECURITY DEFINER, requiert token).
+  // La RPC fait le filtrage cote serveur (assigned_pharmacy_id OU items contient pharmacyId).
+  const token = getPharmaToken();
+  if (!token) {
+    console.warn('[getPharmacyOrders] pas de token pharma — session expiree ?');
+    return [];
   }
-  const { data } = await query;
-  return (data || []).filter(o => {
-    if (o.assigned_pharmacy_id === pharmacyId) return true;
-    if (Array.isArray(o.items)) return o.items.some(it => it.pharmacyId === pharmacyId);
-    return false;
+  // Si status est un array, on appelle 1 fois sans filter (limite cote RPC = 500)
+  // puis on filtre cote client. C'est rare (utilise dans Pharma.jsx pour ['paid','preparing']).
+  if (Array.isArray(status)) {
+    const { data } = await supabase.rpc('pharma_list_orders', { p_token: token, p_status: null });
+    return (data || []).filter(o => status.includes(o.status));
+  }
+  const { data } = await supabase.rpc('pharma_list_orders', {
+    p_token: token,
+    p_status: status || null,
   });
+  // pharmacyId param ignore : la RPC connait deja le pharmacyId via le token.
+  return data || [];
 }
 
 export async function acceptOrder(orderId, pharmacyId) {
