@@ -141,7 +141,7 @@ export async function getProductAvailability(productId) {
 // pin_set_at est conserve : c'est juste un timestamp non sensible qui permet
 // au flow de connexion pharmacie de savoir si la pharma doit creer son PIN.
 // Doit rester aligne avec le GRANT SELECT cote DB (cf Supabase Studio).
-const PHARMACY_PUBLIC_COLUMNS = 'id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, notification_email, notification_phone, hours, delivery_hours, logo, cover, description, commission, commission_rate, active, rating, review_count, pin_set_at, created_at, updated_at';
+const PHARMACY_PUBLIC_COLUMNS = 'id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, notification_email, notification_phone, hours, delivery_hours, logo, cover, description, commission, active, rating, review_count, pin_set_at, created_at, updated_at';
 
 export async function getAllPharmacies() {
   return cachedFetch('all_pharmacies', async () => {

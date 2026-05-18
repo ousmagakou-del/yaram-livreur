@@ -16,7 +16,7 @@ export default function PharmaciesSection() {
     // refuse toute la query car * demande la permission sur toutes les colonnes.
     const { data, error } = await supabase
       .from('pharmacies')
-      .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, commission, commission_rate, active, rating, review_count, pin_set_at, created_at, updated_at, notification_email, notification_phone')
+      .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, commission, active, rating, review_count, pin_set_at, created_at, updated_at, notification_email, notification_phone')
       .order('created_at', { ascending: false });
     if (error) console.warn('[PharmaciesSection] fetch error:', error.message);
     setPharmacies(data || []);
