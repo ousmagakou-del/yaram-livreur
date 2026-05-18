@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
-import { supabase, signOut } from '../lib/supabase';
+import { supabase, signOut, updateProfile } from '../lib/supabase';
 import { toggleTheme, getTheme } from '../lib/theme';
 import { YARAM_WHATSAPP, YARAM_WHATSAPP_DISPLAY } from '../lib/utils';
-import { toast, confirmDialog } from '../lib/toast';
+import { toast, confirmDialog, promptDialog } from '../lib/toast';
 import TabBar from '../components/TabBar';
 import './Profile.css';
 
@@ -68,6 +68,64 @@ export default function Profile() {
     const code = 'AICHA-YARAM';
     const msg = `Salut ! J'utilise YARAM, l'app beauté validée pour notre peau africaine. Avec mon code ${code} tu as 3000 FCFA offerts sur ta 1ère commande 💚 https://yaram.pages.dev`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const handleEditPhone = async () => {
+    const current = user?.phone || '';
+    const value = await promptDialog(
+      'Numéro WhatsApp pour recevoir tes notifications de commande',
+      {
+        placeholder: '+221 77 123 45 67',
+        initialValue: current,
+        confirmLabel: 'Enregistrer',
+        validate: (v) => {
+          const t = (v || '').trim();
+          if (!t) return false;
+          // Accepte +221xxxxxxxxx OU 7xxxxxxxx (9 chiffres, commence par 7)
+          const cleaned = t.replace(/[\s.-]/g, '');
+          return /^(\+?221)?7\d{8}$/.test(cleaned);
+        },
+      }
+    );
+    if (value == null) return;
+    const cleaned = value.replace(/[\s.-]/g, '');
+    // Normalise toujours en format international
+    const intl = cleaned.startsWith('+221')
+      ? cleaned
+      : cleaned.startsWith('221') ? `+${cleaned}` : `+221${cleaned}`;
+    try {
+      const { error } = await updateProfile({ phone: intl });
+      if (error) {
+        toast.error('Erreur : ' + (error.message || 'sauvegarde impossible'));
+        return;
+      }
+      toast.success('Numéro enregistré ✓');
+      await refreshUser();
+    } catch (e) {
+      toast.error('Erreur : ' + (e?.message || 'sauvegarde impossible'));
+    }
+  };
+
+  const handleEditFirstName = async () => {
+    const current = user?.first_name || '';
+    const value = await promptDialog(
+      'Ton prénom',
+      { initialValue: current, confirmLabel: 'Enregistrer' }
+    );
+    if (value == null) return;
+    const t = value.trim();
+    if (!t) return;
+    try {
+      const { error } = await updateProfile({ first_name: t });
+      if (error) {
+        toast.error('Erreur : ' + (error.message || 'sauvegarde impossible'));
+        return;
+      }
+      toast.success('Prénom enregistré ✓');
+      await refreshUser();
+    } catch (e) {
+      toast.error('Erreur : ' + (e?.message || 'sauvegarde impossible'));
+    }
   };
 
   const firstName = user?.first_name || 'Toi';
@@ -194,6 +252,28 @@ export default function Profile() {
             <div className="prof-menu-text">
               <strong>Mes favoris</strong>
               <span>{stats.favoritesCount > 0 ? `${stats.favoritesCount} produit${stats.favoritesCount > 1 ? 's' : ''}` : 'Tes coups de cœur'}</span>
+            </div>
+            <span className="prof-menu-arrow">→</span>
+          </button>
+
+          <div className="prof-menu-sep" />
+
+          <button className="prof-menu-row" onClick={handleEditFirstName}>
+            <div className="prof-menu-icon">👤</div>
+            <div className="prof-menu-text">
+              <strong>Mon prénom</strong>
+              <span>{user?.first_name || 'À renseigner'}</span>
+            </div>
+            <span className="prof-menu-arrow">→</span>
+          </button>
+
+          <div className="prof-menu-sep" />
+
+          <button className="prof-menu-row" onClick={handleEditPhone}>
+            <div className="prof-menu-icon">📱</div>
+            <div className="prof-menu-text">
+              <strong>Mon WhatsApp</strong>
+              <span>{user?.phone || 'À renseigner — requis pour les notifs commande'}</span>
             </div>
             <span className="prof-menu-arrow">→</span>
           </button>

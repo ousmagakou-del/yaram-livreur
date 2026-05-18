@@ -151,10 +151,20 @@ export async function getCurrentUser() {
 
 export async function updateProfile(updates) {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
+  if (!session?.user) return { error: { message: 'Pas de session active' } };
   // Invalide les caches liés à l'utilisateur
   invalidateCache(`my_loyalty_${session.user.id}`);
-  return supabase.from('users_profile').update(updates).eq('id', session.user.id).select().single();
+  // UPSERT pour les cas où le users_profile n'existe pas encore (signup Google
+  // sans trigger DB, ou signup email qui a saute l'etape upsert).
+  // Bloque par les policies : seul l'utilisateur authentifie peut upsert sa propre ligne.
+  return supabase
+    .from('users_profile')
+    .upsert(
+      { id: session.user.id, email: session.user.email, ...updates },
+      { onConflict: 'id' }
+    )
+    .select()
+    .single();
 }
 
 // ═══════════════════════════════════════════════
