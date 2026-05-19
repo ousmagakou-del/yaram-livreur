@@ -76,8 +76,16 @@ export default function Admin() {
 
   useEffect(() => {
     if (!session) return;
-    // Vague 12 RLS : realtime sur orders ne marche plus (policy SELECT restreinte).
-    // Polling 20s du dernier created_at via RPC admin_list_orders.
+    // Vague E : broadcast realtime (instant) + polling 60s comme fallback
+    const channel = supabase
+      .channel('yaram-new-orders')
+      .on('broadcast', { event: 'new_order' }, () => {
+        // Admin voit TOUTES les commandes, donc on incremente sans filtrer
+        setNewOrdersCount(c => c + 1);
+      })
+      .subscribe();
+
+    // Polling 60s comme filet (au cas ou un broadcast a ete rate)
     let lastSeen = null;
     let cancelled = false;
     const tick = async () => {
@@ -93,8 +101,12 @@ export default function Admin() {
       } catch { /* silencieux */ }
     };
     tick();
-    const id = setInterval(tick, 20000);
-    return () => { cancelled = true; clearInterval(id); };
+    const id = setInterval(tick, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      supabase.removeChannel(channel);
+    };
   }, [session]);
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, getOrderByConfirmToken, clientConfirmDelivery, clientReportDispute, sendWhatsApp, WhatsAppTemplates } from '../lib/supabase';
+import { sendOrderEmail } from '../lib/emails';
 import { toast } from '../lib/toast';
 import './ClientConfirm.css';
 
@@ -48,6 +49,8 @@ export default function ClientConfirm() {
     setSubmitting(true);
     // Vague 13 : la RPC attend le token (pas l'id), il vient de l'URL/order
     await clientConfirmDelivery(order.confirmation_token);
+    // Email "merci pour ta commande, note ton experience" (non-bloquant)
+    sendOrderEmail(order.id, 'orderDelivered').catch(e => console.warn('delivered email failed:', e?.message));
     
     // Notif WhatsApp à la cliente
     if (order.address?.phone) {

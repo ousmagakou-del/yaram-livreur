@@ -4,7 +4,7 @@
 // navigateur tant qu'il y a des commandes en attente non traitees.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { getPharmacyOrders } from './supabase';
+import { supabase, getPharmacyOrders } from './supabase';
 
 const PENDING_STATUSES = ['paid', 'awaiting_confirm', 'awaiting_cash', 'pending'];
 
@@ -93,9 +93,10 @@ export function useOrderAlerts(pharmacyId) {
     }
   }, [pharmacyId]);
 
-  // Polling 10s (vague 12 RLS : le realtime sur orders ne fonctionne plus
-  // car la policy SELECT a ete restreinte. On detecte les nouvelles commandes
-  // via diff entre le snapshot precedent et le nouveau snapshot).
+  // Vague E : polling 30s (fallback) + broadcast realtime instant
+  // Le checkout emet un broadcast 'new_order' sur le channel yaram-new-orders
+  // quand une commande arrive. On l'ecoute pour refresh instant si la pharma
+  // est dans pharmacy_ids. Polling 30s comme filet de securite.
   useEffect(() => {
     if (!pharmacyId) return;
 
@@ -105,7 +106,6 @@ export function useOrderAlerts(pharmacyId) {
       try {
         const orders = await getPharmacyOrders(pharmacyId, PENDING_STATUSES);
         const newIds = new Set((orders || []).map(o => o.id));
-        // Detecter nouveaux ids non vus avant
         let appeared = 0;
         newIds.forEach(id => { if (!knownIdsRef.current.has(id)) appeared++; });
         knownIdsRef.current = newIds;
@@ -117,8 +117,24 @@ export function useOrderAlerts(pharmacyId) {
       } catch { /* silencieux */ }
     };
 
-    const poll = setInterval(tick, 10000);
-    return () => clearInterval(poll);
+    // Listen broadcast (instant)
+    const channel = supabase
+      .channel('yaram-new-orders')
+      .on('broadcast', { event: 'new_order' }, ({ payload }) => {
+        const ids = Array.isArray(payload?.pharmacy_ids) ? payload.pharmacy_ids : [];
+        if (ids.includes(pharmacyId)) {
+          // C'est pour nous : refresh immediat
+          tick();
+        }
+      })
+      .subscribe();
+
+    // Polling backup 30s (si broadcast rate ou channel down)
+    const poll = setInterval(tick, 30000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
   }, [pharmacyId, refresh]);
 
   // Ding decroissant tant qu'il y a des commandes en attente et non mute.

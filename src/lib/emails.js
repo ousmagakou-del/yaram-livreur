@@ -247,3 +247,25 @@ export async function sendEmail({ to, template, params = {}, replyTo = null }) {
     return { success: false, error: e?.message || String(e) };
   }
 }
+
+/**
+ * Envoie un email lie a une commande. L'edge function resout l'email
+ * destinataire cote serveur (cliente via users_profile, ou pharmas via
+ * notification_email). Plus simple que de passer l'email depuis le client.
+ *
+ * Templates : orderConfirmed | orderShipped | orderDelivered | pharmacyNewOrder
+ */
+export async function sendOrderEmail(orderId, template, extraParams = {}) {
+  if (!orderId || !template) return { success: false, error: 'orderId + template requis' };
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { order_id: orderId, template, params: extraParams },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    return { success: true, data };
+  } catch (e) {
+    console.warn('[orderEmail] exception:', e?.message);
+    return { success: false, error: e?.message || String(e) };
+  }
+}

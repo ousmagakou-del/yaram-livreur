@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken, compressImage } from '../lib/supabase';
+import { sendOrderEmail } from '../lib/emails';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { toast, confirmDialog } from '../lib/toast';
 import './Livreur.css';
@@ -96,6 +97,8 @@ export default function Livreur() {
 
     if (newStatus === 'in_route' && order) {
       await supabase.rpc('livreur_update_order', { p_token: token, p_patch: { status: 'shipped' } });
+      // Email cliente : "ton livreur est en route"
+      sendOrderEmail(order.id, 'orderShipped').catch(e => console.warn('shipped email failed:', e?.message));
     }
     loadTracking(token);
   };

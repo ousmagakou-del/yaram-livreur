@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
 import { createOrder, getMyAddresses, validatePromoCode, applyPromoCode } from '../lib/supabase';
-import { sendEmail } from '../lib/emails';
+import { sendEmail, sendOrderEmail } from '../lib/emails';
 import { formatPrice, getShippingZone } from '../lib/utils';
 import { getPendingPromo, clearPendingPromo, getLoyaltyCredit, clearLoyaltyCredit } from '../lib/promoStorage';
 import { getCart, clearCart } from '../lib/cart';
@@ -200,6 +200,27 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
               order,
             },
           }).catch(e => console.warn('order email failed:', e?.message));
+        }
+        // Notif email a CHAQUE pharmacie de l'order (resolu serveur-side)
+        sendOrderEmail(order.id, 'pharmacyNewOrder')
+          .catch(e => console.warn('pharma email failed:', e?.message));
+
+        // Vague E — Realtime broadcast : ping admin + pharmas concernees pour
+        // declencher leur refresh instant (au lieu d'attendre le polling 10-20s).
+        try {
+          const pharmaIds = [...new Set((items || []).map(it => it.pharmacyId).filter(Boolean))];
+          await supabase.channel('yaram-new-orders').send({
+            type: 'broadcast',
+            event: 'new_order',
+            payload: {
+              order_id: order.id,
+              total: order.total,
+              pharmacy_ids: pharmaIds,
+              created_at: order.created_at,
+            },
+          });
+        } catch (e) {
+          console.warn('broadcast new_order failed:', e?.message);
         }
 
         // Vide le panier via lib/cart -> dispatch yaram-cart-updated -> badge TabBar a jour
