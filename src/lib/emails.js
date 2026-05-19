@@ -188,6 +188,40 @@ export const EmailTemplates = {
 // ENVOI VIA EDGE FUNCTION
 // ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Envoie le welcome email si l'utilisateur ne l'a pas encore reçu.
+ * À appeler à chaque hydratation de la session (couvre signup email/password,
+ * Google OAuth, magic link — tous les flows convergent ici).
+ * Marque welcomed_at en DB pour éviter de re-envoyer.
+ */
+export async function maybeSendWelcomeEmail(user) {
+  if (!user?.id || !user?.email) return;
+  if (user.welcomed_at) return; // deja envoye
+  const firstName = (user.first_name || (user.email.split('@')[0])).trim();
+
+  const res = await sendEmail({
+    to: user.email,
+    template: 'welcome',
+    params: { firstName },
+  });
+  if (!res.success) {
+    // Si Resend KO, on ne marque pas → re-tentera au prochain login
+    console.warn('[welcome] envoi echec, retry au prochain login:', res.error);
+    return;
+  }
+  // Marque welcomed_at (UPSERT au cas où la row n'existe pas)
+  try {
+    await supabase
+      .from('users_profile')
+      .upsert(
+        { id: user.id, email: user.email, welcomed_at: new Date().toISOString() },
+        { onConflict: 'id' }
+      );
+  } catch (e) {
+    console.warn('[welcome] update welcomed_at failed:', e?.message);
+  }
+}
+
 export async function sendEmail({ to, template, params = {}, replyTo = null }) {
   if (!to || !template) return { success: false, error: 'to + template requis' };
   const builder = EmailTemplates[template];

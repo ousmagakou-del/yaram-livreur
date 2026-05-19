@@ -1,5 +1,6 @@
 import { useState, createContext, useContext, useEffect, useRef, lazy, Suspense } from 'react';
 import { supabase, getCurrentUser } from './lib/supabase';
+import { maybeSendWelcomeEmail } from './lib/emails';
 import { checkAndNotifyCartAbandon, notifyWelcome } from './lib/notifications';
 import SplashScreen from './components/SplashScreen';
 import Onboarding from './pages/Onboarding';
@@ -160,8 +161,11 @@ function ClientApp() {
       if (session?.user) {
         getCurrentUser().then(u => {
           if (!cancelled) {
-            setUser(u || { id: session.user.id, email: session.user.email });
+            const userObj = u || { id: session.user.id, email: session.user.email };
+            setUser(userObj);
             setAuthChecked(true);
+            // Welcome email si jamais envoye (Google OAuth, magic link, etc.)
+            maybeSendWelcomeEmail(userObj).catch(() => { /* non-bloquant */ });
           }
         }).catch(() => {
           if (!cancelled) {
@@ -191,7 +195,12 @@ function ClientApp() {
       if (session?.user) {
         try {
           const u = await getCurrentUser();
-          if (!cancelled) setUser(u || { id: session.user.id, email: session.user.email });
+          if (!cancelled) {
+            const userObj = u || { id: session.user.id, email: session.user.email };
+            setUser(userObj);
+            // Welcome email si jamais envoye (couvre Google OAuth + signup email/password)
+            maybeSendWelcomeEmail(userObj).catch(() => { /* non-bloquant */ });
+          }
         } catch (e) {
           if (!cancelled) setUser({ id: session.user.id, email: session.user.email });
         }
