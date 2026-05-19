@@ -21,10 +21,11 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      name: 'mobile-safari',
-      use: { ...devices['iPhone 14'] },
-    },
+    // Pour activer mobile : `npx playwright install webkit` puis decommenter
+    // {
+    //   name: 'mobile-safari',
+    //   use: { ...devices['iPhone 14'] },
+    // },
   ],
   // Si pas de BASE_URL prod fourni, lance le serveur dev local
   webServer: process.env.BASE_URL ? undefined : {
