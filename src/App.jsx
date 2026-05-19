@@ -40,6 +40,9 @@ const Pharma        = lazy(() => import('./pages/Pharma'));
 const Livreur       = lazy(() => import('./pages/Livreur'));
 const ClientConfirm = lazy(() => import('./pages/ClientConfirm'));
 const PiSpiTest     = lazy(() => import('./pages/PiSpiTest'));
+const Privacy       = lazy(() => import('./pages/Privacy'));
+const Terms         = lazy(() => import('./pages/Terms'));
+const DeleteAccount = lazy(() => import('./pages/DeleteAccount'));
 
 // Fallback leger pour Suspense (evite de re-trigger le SplashScreen plein-ecran)
 function LazyFallback() {
@@ -98,7 +101,7 @@ function pathToRoute(pathname, search = '') {
   if (parts[0] === 'scan' && parts[1] === 'result' && parts[2]) return { name: 'scan_result', params: { scanId: parts[2] } };
   if (parts[0] === 'payment' && parts[1]) return { name: 'payment', params: { orderId: parts[1] } };
   
-  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'promos'];
+  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'promos', 'privacy', 'terms', 'delete_account'];
   if (simpleRoutes.includes(parts[0])) {
     const params = {};
     if (parts[0] === 'search') {
@@ -356,6 +359,9 @@ function ClientApp() {
     case 'referral': page = <Referral />; break;
     case 'notifications': page = <NotifSettings />; break;
     case 'promos': page = <Promos />; break;
+    case 'privacy': page = <Suspense fallback={<LazyFallback />}><Privacy /></Suspense>; break;
+    case 'terms': page = <Suspense fallback={<LazyFallback />}><Terms /></Suspense>; break;
+    case 'delete_account': page = <Suspense fallback={<LazyFallback />}><DeleteAccount /></Suspense>; break;
     default: page = <Home />;
   }
 

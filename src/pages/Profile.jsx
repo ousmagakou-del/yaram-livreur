@@ -111,6 +111,31 @@ export default function Profile() {
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) { toast.error('Reconnecte-toi'); return; }
+      toast.info('Préparation de ton export…');
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://qxhhnrnworwrnwmqekmb.supabase.co'}/functions/v1/export-my-data`,
+        { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      if (!resp.ok) { toast.error('Erreur export'); return; }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `yaram-mes-donnees-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Téléchargement lancé ✓');
+    } catch (e) {
+      toast.error('Erreur : ' + (e?.message || ''));
+    }
+  };
+
   const handleEditFirstName = async () => {
     const current = user?.first_name || '';
     const value = await promptDialog(
@@ -370,6 +395,50 @@ export default function Profile() {
             </div>
             <span className="prof-menu-arrow">→</span>
           </a>
+
+          <div className="prof-menu-sep" />
+
+          <button className="prof-menu-row" onClick={handleExportData}>
+            <div className="prof-menu-icon">📥</div>
+            <div className="prof-menu-text">
+              <strong>Télécharger mes données</strong>
+              <span>Export RGPD (JSON)</span>
+            </div>
+            <span className="prof-menu-arrow">→</span>
+          </button>
+
+          <div className="prof-menu-sep" />
+
+          <button className="prof-menu-row" onClick={() => navigate({ name: 'privacy', params: {} })}>
+            <div className="prof-menu-icon">🔒</div>
+            <div className="prof-menu-text">
+              <strong>Confidentialité</strong>
+              <span>Comment on protège tes données</span>
+            </div>
+            <span className="prof-menu-arrow">→</span>
+          </button>
+
+          <div className="prof-menu-sep" />
+
+          <button className="prof-menu-row" onClick={() => navigate({ name: 'terms', params: {} })}>
+            <div className="prof-menu-icon">📄</div>
+            <div className="prof-menu-text">
+              <strong>Conditions générales</strong>
+              <span>CGU YARAM</span>
+            </div>
+            <span className="prof-menu-arrow">→</span>
+          </button>
+
+          <div className="prof-menu-sep" />
+
+          <button className="prof-menu-row" onClick={() => navigate({ name: 'delete_account', params: {} })} style={{ color: '#D9342B' }}>
+            <div className="prof-menu-icon">🗑️</div>
+            <div className="prof-menu-text">
+              <strong style={{ color: '#D9342B' }}>Supprimer mon compte</strong>
+              <span>Action irréversible</span>
+            </div>
+            <span className="prof-menu-arrow">→</span>
+          </button>
         </div>
 
         <button className="prof-logout" onClick={handleLogout}>
