@@ -1,20 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { adminListUsersFull } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
-import { sendWhatsAppBulk, sendWhatsAppViaWaMe, personalizeMessage } from '../lib/whatsapp';
+import {
+  sendWhatsAppBulk,
+  sendWhatsAppViaWaMe,
+  personalizeMessage,
+  uploadMarketingImage,
+} from '../lib/whatsapp';
 
 const TEMPLATES = [
-  { id: 'welcome', label: '🎁 Bienvenue', text: 'Salut {name} 👋 Bienvenue chez YARAM ! Avec le code BIENVENUE tu as -10% sur ta 1ère commande. https://yaram.app' },
-  { id: 'promo', label: '🔥 Promo flash', text: 'Hey {name} ✨ Flash promo : -15% sur tout avec le code YARAM15. Profite vite : https://yaram.app' },
-  { id: 'abandoned', label: '🛒 Panier abandonné', text: 'Coucou {name} 💚 On a remarqué que tu as laissé des produits dans ton panier. Ils t\'attendent ! https://yaram.app' },
-  { id: 'new_product', label: '🆕 Nouveau produit', text: 'Hey {name} ! On vient d\'ajouter de nouveaux produits validés pour ta peau {skinType}. Découvre-les : https://yaram.app' },
-  { id: 'reactivation', label: '💌 Re-engagement', text: 'Salut {name}, ça fait un moment ! Profite de -20% avec le code COMEBACK20. https://yaram.app' },
+  { id: 'welcome', label: '🎁 Bienvenue', text: 'Salut {name} 👋 Bienvenue chez YARAM ! Avec le code BIENVENUE tu as -10% sur ta 1ère commande.\n\n👉 https://yaram.app' },
+  { id: 'promo', label: '🔥 Promo flash', text: 'Hey {name} ✨\n\nFlash promo : -15% sur tout le maquillage avec le code YARAM15\n\n👉 https://yaram.app/search?category=maquillage' },
+  { id: 'abandoned', label: '🛒 Panier abandonné', text: 'Coucou {name} 💚\n\nOn a remarqué que tu as laissé des produits dans ton panier. Ils t\'attendent !\n\n👉 https://yaram.app/cart' },
+  { id: 'new_product', label: '🆕 Nouveau produit', text: 'Hey {name} ! ✨\n\nNouveau produit validé pour ta peau {skinType} — fonce le découvrir.\n\n👉 https://yaram.app' },
+  { id: 'reactivation', label: '💌 Re-engagement', text: 'Salut {name},\n\nÇa fait un moment ! Profite de -20% avec le code COMEBACK20.\n\n👉 https://yaram.app' },
 ];
 
-// Méthode d'envoi : bulk (WaSender) ou manuel (wa.me onglets)
 const SEND_MODES = [
-  { id: 'wasender', label: '⚡ WaSender (bulk auto)', desc: 'Envoi automatique en arrière-plan, ~3s par message (anti-ban WhatsApp)' },
-  { id: 'wame',     label: '📱 wa.me (onglets)',      desc: 'Ouvre WhatsApp Web pour chaque cliente, tu cliques Envoyer manuellement' },
+  { id: 'wasender', label: '⚡ WaSender (bulk auto)', desc: 'Envoi automatique, ~3s par message (anti-ban WhatsApp). Supporte les images.' },
+  { id: 'wame',     label: '📱 wa.me (onglets)',      desc: 'Ouvre WhatsApp Web pour chaque cliente. Pas d\'image.' },
 ];
 
 export default function MarketingSection() {
@@ -27,10 +31,15 @@ export default function MarketingSection() {
   const [sendMode, setSendMode] = useState('wasender');
   const [campaignName, setCampaignName] = useState('');
 
-  // Envoi en cours
+  // Image upload
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Envoi
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const [lastResult, setLastResult] = useState(null); // { sent, failed, total, details }
+  const [lastResult, setLastResult] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -57,7 +66,27 @@ export default function MarketingSection() {
     setSelectedUsers(filtered.map(u => u.id));
   };
 
-  // ─── Envoi individuel (bouton 💬 sur une ligne) → toujours wa.me ───
+  // ─── Upload image ───────────────────────────────────────
+  const handleImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    const { url, error } = await uploadMarketingImage(file);
+    setUploadingImage(false);
+    if (error) {
+      toast.error('Upload échoué : ' + error);
+      return;
+    }
+    setImageUrl(url);
+    toast.success('Image uploadée ✓');
+  };
+
+  const clearImage = () => {
+    setImageUrl('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // ─── Envoi individuel ───────────────────────────────────
   const sendOne = (u) => {
     const personalizedMsg = personalizeMessage(message, u);
     const phone = (u.phone || '').replace(/\D/g, '');
@@ -68,20 +97,18 @@ export default function MarketingSection() {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(personalizedMsg)}`, '_blank');
   };
 
-  // ─── Envoi en masse selon le mode choisi ───
+  // ─── Envoi bulk ────────────────────────────────────────
   const sendAll = async () => {
     const targets = filtered.filter(u => selectedUsers.includes(u.id));
     if (targets.length === 0) return toast.info('Sélectionne au moins une cliente');
 
-    // Construit les recipients personnalisés
     const recipients = targets
       .map(u => ({
         phone: u.phone,
         text: personalizeMessage(message, u),
         userId: u.id,
-        userName: u.first_name || u.email,
       }))
-      .filter(r => r.phone); // ignore les users sans téléphone
+      .filter(r => r.phone);
 
     if (recipients.length === 0) {
       return toast.error('Aucune cliente sélectionnée n\'a de numéro');
@@ -90,12 +117,14 @@ export default function MarketingSection() {
       toast.info(`${targets.length - recipients.length} cliente(s) sans téléphone ignorée(s)`);
     }
 
-    // ─── Mode wa.me : ouvre les onglets ───
+    // Mode wa.me : pas d'image possible
     if (sendMode === 'wame') {
+      if (imageUrl) {
+        toast.info('Note : l\'image n\'est pas envoyée en mode wa.me (limitation WhatsApp Web)');
+      }
       const ok = await confirmDialog(
         `Ouvrir ${recipients.length} onglets WhatsApp ?\n\n` +
-        `Tu devras cliquer "Envoyer" dans chaque fenêtre.\n` +
-        `(Astuce : utilise plutôt WaSender pour un vrai bulk auto.)`
+        `Tu devras cliquer "Envoyer" dans chaque fenêtre.`
       );
       if (!ok) return;
       sendWhatsAppViaWaMe(recipients);
@@ -103,11 +132,12 @@ export default function MarketingSection() {
       return;
     }
 
-    // ─── Mode WaSender : appel à l'edge function ───
+    // Mode WaSender
     const estimatedSec = Math.ceil(recipients.length * 2.5);
+    const withImage = imageUrl ? ' avec image' : '';
     const ok = await confirmDialog(
-      `Envoyer ${recipients.length} messages WhatsApp via WaSender ?\n\n` +
-      `Durée estimée : ~${estimatedSec}s (~2.5s par message pour ne pas se faire ban).\n` +
+      `Envoyer ${recipients.length} messages WhatsApp${withImage} via WaSender ?\n\n` +
+      `Durée estimée : ~${estimatedSec}s (~2.5s par message anti-ban).\n` +
       `Tu peux fermer cet écran, l'envoi continue côté serveur.`
     );
     if (!ok) return;
@@ -116,8 +146,6 @@ export default function MarketingSection() {
     setProgress({ current: 0, total: recipients.length });
     setLastResult(null);
 
-    // Optimistic progress UI : on simule l'avancée (l'edge function ne stream pas)
-    // mais on a une bonne estimation : 2.5s par message
     let elapsed = 0;
     const tick = setInterval(() => {
       elapsed += 1;
@@ -131,6 +159,7 @@ export default function MarketingSection() {
     try {
       const result = await sendWhatsAppBulk({
         campaignName: campaignName || `${template?.label || 'Campagne'} — ${new Date().toLocaleString('fr-SN')}`,
+        imageUrl: imageUrl || null,
         recipients: recipients.map(r => ({ phone: r.phone, text: r.text })),
       });
       clearInterval(tick);
@@ -152,16 +181,20 @@ export default function MarketingSection() {
     }
   };
 
+  // ─── Preview WhatsApp-style ────────────────────────────
+  const previewUser = filtered.find(u => selectedUsers.includes(u.id)) || filtered[0] || { first_name: 'Aïssa', skin_type: 'mixte' };
+  const previewText = personalizeMessage(message, previewUser);
+
   return (
     <div className="adm-section">
       <header className="adm-header">
         <div>
           <h1>Marketing</h1>
-          <p>Campagnes WhatsApp ciblées</p>
+          <p>Campagnes WhatsApp ciblées (texte ou image+caption)</p>
         </div>
       </header>
 
-      {/* Progress bar pendant l'envoi WaSender */}
+      {/* Progress bar */}
       {sending && (
         <div className="adm-recent-card" style={{ marginBottom: 16, background: '#FFF7E6', borderLeft: '4px solid #FFB020' }}>
           <h3 style={{ margin: 0 }}>⏳ Envoi en cours…</h3>
@@ -182,11 +215,12 @@ export default function MarketingSection() {
         </div>
       )}
 
-      {/* Résultat de la dernière campagne */}
+      {/* Résultat */}
       {lastResult && !sending && (
         <div className="adm-recent-card" style={{ marginBottom: 16, background: lastResult.failed > 0 ? '#FFF0F0' : '#F0FFF4', borderLeft: `4px solid ${lastResult.failed > 0 ? '#E14' : '#1F8B4C'}` }}>
           <h3 style={{ margin: 0 }}>
             {lastResult.failed > 0 ? '⚠️' : '✅'} Campagne terminée
+            {lastResult.image_used && ' 🖼️'}
           </h3>
           <p style={{ fontSize: 14, marginTop: 4 }}>
             <strong>{lastResult.sent}</strong> envoyés · <strong>{lastResult.failed}</strong> échecs sur {lastResult.total} cibles
@@ -210,8 +244,10 @@ export default function MarketingSection() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* ─── Bloc Message ─── */}
         <div className="adm-recent-card">
           <h3>📝 Message</h3>
+
           <label style={{ display: 'block', marginBottom: 12 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#6B6B6B' }}>Template</span>
             <select
@@ -225,18 +261,46 @@ export default function MarketingSection() {
           </label>
 
           <label>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#6B6B6B' }}>Texte (personnalisable)</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#6B6B6B' }}>Texte (caption si image, sinon message)</span>
             <textarea
               value={message}
               onChange={e => setCustomMessage(e.target.value)}
-              rows={6}
+              rows={5}
               style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #DDD', fontSize: 13, marginTop: 4 }}
               disabled={sending}
             />
           </label>
           <p style={{ fontSize: 11, color: '#6B6B6B', marginTop: 6 }}>
-            Variables : <code>{`{name}`}</code> = prénom · <code>{`{skinType}`}</code> = type peau
+            Variables : <code>{`{name}`}</code> · <code>{`{skinType}`}</code>
           </p>
+
+          {/* Upload image */}
+          <div style={{ marginTop: 16, padding: 12, background: '#F7F7F5', borderRadius: 8 }}>
+            <strong style={{ fontSize: 13 }}>🖼️ Image (optionnel)</strong>
+            <p style={{ fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+              JPG/PNG/WebP, max 10 MB. Recommandé : 1080×1080 px (carré).
+            </p>
+            {!imageUrl ? (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  disabled={sending || uploadingImage}
+                  style={{ marginTop: 8, fontSize: 12 }}
+                />
+                {uploadingImage && <p style={{ fontSize: 12, color: '#1F8B4C', marginTop: 4 }}>⏳ Upload en cours…</p>}
+              </>
+            ) : (
+              <div style={{ marginTop: 8 }}>
+                <img src={imageUrl} alt="" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, border: '1px solid #DDD' }} />
+                <button className="adm-btn-sec" style={{ marginTop: 8, fontSize: 12 }} onClick={clearImage} disabled={sending}>
+                  ✕ Retirer l'image
+                </button>
+              </div>
+            )}
+          </div>
 
           <label style={{ display: 'block', marginTop: 12 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#6B6B6B' }}>Nom de campagne (optionnel)</span>
@@ -250,6 +314,7 @@ export default function MarketingSection() {
           </label>
         </div>
 
+        {/* ─── Bloc Cible ─── */}
         <div className="adm-recent-card">
           <h3>🎯 Cible</h3>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -283,13 +348,61 @@ export default function MarketingSection() {
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
             <button className="adm-btn-sec" onClick={selectAll} disabled={sending}>Tout sélectionner</button>
             <button className="adm-btn-sec" onClick={() => setSelectedUsers([])} disabled={sending}>Désélectionner</button>
-            <button className="adm-btn-pri" onClick={sendAll} disabled={sending || selectedUsers.length === 0}>
+            <button className="adm-btn-pri" onClick={sendAll} disabled={sending || selectedUsers.length === 0 || uploadingImage}>
               {sending ? '⏳ Envoi...' : `💬 Envoyer aux ${selectedUsers.length}`}
             </button>
+          </div>
+
+          {/* ─── Preview WhatsApp ─── */}
+          <div style={{ marginTop: 16 }}>
+            <strong style={{ fontSize: 12, color: '#6B6B6B' }}>👁️ Aperçu (style WhatsApp)</strong>
+            <div style={{
+              marginTop: 8,
+              background: '#E5DDD5',
+              padding: 12,
+              borderRadius: 8,
+              backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) 1px, transparent 1px, transparent 11px)',
+            }}>
+              <div style={{
+                background: '#FFF',
+                padding: imageUrl ? 4 : 10,
+                borderRadius: 8,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                maxWidth: 280,
+              }}>
+                {imageUrl && (
+                  <img
+                    src={imageUrl}
+                    alt=""
+                    style={{ width: '100%', borderRadius: 6, display: 'block', marginBottom: previewText ? 6 : 0 }}
+                  />
+                )}
+                {previewText && (
+                  <div style={{
+                    padding: imageUrl ? '4px 6px 6px 6px' : 0,
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                    whiteSpace: 'pre-wrap',
+                    color: '#111',
+                  }}>
+                    {previewText}
+                  </div>
+                )}
+                <div style={{ textAlign: 'right', fontSize: 10, color: '#999', marginTop: 4, padding: imageUrl ? '0 6px 4px 0' : 0 }}>
+                  {new Date().toLocaleTimeString('fr-SN', { hour: '2-digit', minute: '2-digit' })} ✓✓
+                </div>
+              </div>
+            </div>
+            {previewUser && (
+              <p style={{ fontSize: 11, color: '#6B6B6B', marginTop: 6 }}>
+                Aperçu pour : <strong>{previewUser.first_name || 'Aïssa'}</strong>
+              </p>
+            )}
           </div>
         </div>
       </div>
 
+      {/* ─── Liste clientes ─── */}
       <div className="adm-recent-card" style={{ marginTop: 16 }}>
         <h3>👥 Liste des clientes</h3>
         <table className="adm-table">

@@ -1,9 +1,9 @@
 // ════════════════════════════════════════════════════════
-// YARAM Edge Function : send-whatsapp-bulk (v1)
+// YARAM Edge Function : send-whatsapp-bulk (v2 — avec image)
 // ════════════════════════════════════════════════════════
 //
-// Envoie un message WhatsApp à un lot de destinataires via WaSenderAPI
-// (ou compatible). Conçue pour la section Marketing du back-office admin.
+// Envoie un message WhatsApp (texte OU image+caption) à un lot de
+// destinataires via WaSenderAPI. Conçue pour la section Marketing.
 //
 // SECRETS Supabase requis (Dashboard → Edge Functions → Secrets) :
 //   - WASENDER_API_KEY    : ta clé API depuis wasenderapi.com
@@ -12,30 +12,19 @@
 //   - WASENDER_RATE_MS    : (optionnel) délai entre 2 envois en ms,
 //                           par défaut 2500 (anti-ban WhatsApp)
 //
-// SÉCURITÉ : on vérifie le token admin (admin_sessions) avant d'envoyer.
-// Sans token valide → 401.
-//
 // REQUEST BODY (JSON) :
 //   {
 //     token: "admin-session-token",
 //     campaign_name: "Promo flash mai 2026",
+//     image_url: "https://...jpg" | null,       // optionnel : commun à tous
 //     recipients: [
 //       { phone: "221774388766", text: "Salut Aïssa 👋 ..." },
 //       { phone: "221773456789", text: "Salut Fatou 👋 ..." }
 //     ]
 //   }
 //
-// RESPONSE (JSON) :
-//   {
-//     success: true,
-//     campaign_id: "abc-123",
-//     sent: 2,
-//     failed: 0,
-//     details: [
-//       { phone: "221774388766", status: "sent", message_id: "..." },
-//       { phone: "221773456789", status: "sent", message_id: "..." }
-//     ]
-//   }
+// Si image_url est fourni → c'est envoyé en image+caption pour TOUS.
+// Sinon → message texte simple.
 // ════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -58,14 +47,19 @@ serve(async (req) => {
   if (req.method !== "POST") return json({ success: false, error: "method_not_allowed" }, 405);
 
   // ─── 1. Parse body ───────────────────────────────────────
-  let body: { token?: string; campaign_name?: string; recipients?: { phone: string; text: string }[] };
+  let body: {
+    token?: string;
+    campaign_name?: string;
+    image_url?: string | null;
+    recipients?: { phone: string; text: string }[];
+  };
   try {
     body = await req.json();
   } catch {
     return json({ success: false, error: "invalid_json" }, 400);
   }
 
-  const { token, campaign_name, recipients } = body || {};
+  const { token, campaign_name, image_url, recipients } = body || {};
   if (!token) return json({ success: false, error: "token_required" }, 401);
   if (!Array.isArray(recipients) || recipients.length === 0) {
     return json({ success: false, error: "recipients_required" }, 400);
@@ -102,7 +96,6 @@ serve(async (req) => {
     .select()
     .single();
 
-  // Si la table n'existe pas encore on continue quand même (log soft)
   const campaignId = campaign?.id || null;
   if (campErr) console.warn("[whatsapp] campaign insert failed:", campErr.message);
 
@@ -119,15 +112,23 @@ serve(async (req) => {
   let sent = 0;
   let failed = 0;
 
+  const cleanImageUrl = (image_url && typeof image_url === "string" && image_url.trim()) ? image_url.trim() : null;
+
   for (let i = 0; i < recipients.length; i++) {
     const r = recipients[i];
-    // Normalise le téléphone : que des chiffres, avec indicatif pays
     const phone = (r.phone || "").replace(/\D/g, "");
-    if (!phone || !r.text) {
+    if (!phone || (!r.text && !cleanImageUrl)) {
       details.push({ phone: r.phone, status: "skipped", error: "phone_or_text_empty" });
       failed++;
       continue;
     }
+
+    // ─── Construction du payload WaSenderAPI ───
+    // Format texte simple : { to, text }
+    // Format image + caption : { to, text, imageUrl }
+    // (WaSenderAPI utilise le même endpoint, on ajoute imageUrl si présent.)
+    const payload: Record<string, unknown> = { to: phone, text: r.text || "" };
+    if (cleanImageUrl) payload.imageUrl = cleanImageUrl;
 
     try {
       const res = await fetch(WASENDER_URL, {
@@ -136,10 +137,7 @@ serve(async (req) => {
           "Authorization": `Bearer ${WASENDER_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          to: phone,
-          text: r.text,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => null);
@@ -161,7 +159,7 @@ serve(async (req) => {
       }
     } catch (e) {
       failed++;
-      details.push({ phone, status: "failed", error: e?.message || String(e) });
+      details.push({ phone, status: "failed", error: (e as Error)?.message || String(e) });
     }
 
     // Délai anti-ban entre 2 envois (sauf le dernier)
@@ -190,6 +188,7 @@ serve(async (req) => {
     sent,
     failed,
     total: recipients.length,
+    image_used: !!cleanImageUrl,
     details,
   });
 });
