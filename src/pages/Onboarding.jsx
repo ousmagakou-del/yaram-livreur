@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { signUp, signIn, signInWithGoogle, supabase } from '../lib/supabase';
 import { notifyWelcome } from '../lib/notifications';
+import { sendEmail } from '../lib/emails';
 import './Onboarding.css';
 
 // ─── URLs des photos onboarding (Supabase Storage) ───
@@ -103,6 +104,15 @@ export default function Onboarding({ onComplete }) {
             phone: phone.trim(),
             firstName: firstName.trim(),
           }).catch(e => console.warn('welcome WhatsApp failed:', e.message));
+        }
+        // Welcome email (non-bloquant). Si Resend n'est pas configure cote serveur,
+        // l'edge function renvoie un fail silencieux.
+        if (email.trim()) {
+          sendEmail({
+            to: email.trim(),
+            template: 'welcome',
+            params: { firstName: firstName.trim() },
+          }).catch(e => console.warn('welcome email failed:', e.message));
         }
         setStep('done');
       }

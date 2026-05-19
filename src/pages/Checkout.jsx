@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
 import { createOrder, getMyAddresses, validatePromoCode, applyPromoCode } from '../lib/supabase';
+import { sendEmail } from '../lib/emails';
 import { formatPrice, getShippingZone } from '../lib/utils';
 import { getPendingPromo, clearPendingPromo, getLoyaltyCredit, clearLoyaltyCredit } from '../lib/promoStorage';
 import { getCart, clearCart } from '../lib/cart';
@@ -188,6 +189,18 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
           await applyPromoCode(appliedPromo.promo.id, user.id, order.id, promoDiscount).catch(() => {});
         }
         if (loyaltyDiscount > 0) clearLoyaltyCredit();
+
+        // Email confirmation commande (non-bloquant)
+        if (user?.email) {
+          sendEmail({
+            to: user.email,
+            template: 'orderConfirmed',
+            params: {
+              firstName: user.first_name || selectedAddr.name?.split(' ')[0] || 'Toi',
+              order,
+            },
+          }).catch(e => console.warn('order email failed:', e?.message));
+        }
 
         // Vide le panier via lib/cart -> dispatch yaram-cart-updated -> badge TabBar a jour
         clearCart();
