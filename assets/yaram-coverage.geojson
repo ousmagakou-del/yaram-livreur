@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "YARAM Dakar"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-17.55, 14.80],
+            [-17.55, 14.62],
+            [-17.10, 14.62],
+            [-17.10, 14.80],
+            [-17.55, 14.80]
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -13,6 +13,9 @@
     "test:e2e:prod": "BASE_URL=https://yaram.app playwright test"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
     "@sentry/browser": "^8.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "@zxing/browser": "^0.2.0",
@@ -20,6 +23,7 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.50.0",
     "@types/react": "^19.2.14",

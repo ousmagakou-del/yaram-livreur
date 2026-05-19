@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CAPACITOR_DEBUG</key>
+	<string>$(CAPACITOR_DEBUG)</string>
+	<!-- Exemption chiffrement : YARAM n'utilise que HTTPS standard (pas de crypto propriétaire).
+	     Évite à Apple de te demander des documents de chiffrement à chaque upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+        <string>YARAM</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>3</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+
+	<!-- ═══ PERMISSIONS YARAM ═══
+	     Affichées dans l'alerte iOS quand on demande l'accès.
+	     Apple REJETTE l'app si une permission est utilisée sans description. -->
+
+	<key>NSCameraUsageDescription</key>
+	<string>YARAM utilise la caméra pour analyser ta peau avec notre scan IA et pour scanner les codes-barres de produits.</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>YARAM accède à tes photos pour téléverser une photo de profil ou pour le scan IA peau si tu préfères une photo existante.</string>
+
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>YARAM enregistre les résultats de ton scan peau dans ta galerie si tu le demandes.</string>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>YARAM utilise ta position pour te montrer les pharmacies les plus proches et permettre la livraison à ton adresse.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>YARAM peut accéder au micro pour les futures fonctionnalités vidéo (non utilisé actuellement).</string>
+
+	<!-- Permet d'ouvrir des URLs externes (WhatsApp, Wave, etc.) -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>wave</string>
+	</array>
+
+	<!-- App Transport Security : autorise les API HTTPS YARAM -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
+</dict>
+</plist>

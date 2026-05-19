@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "YARAM Senegal"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-17.60, 16.70],
+            [-17.60, 12.30],
+            [-11.35, 12.30],
+            [-11.35, 16.70],
+            [-17.60, 16.70]
+          ]
+        ]
+      }
+    }
+  ]
+}

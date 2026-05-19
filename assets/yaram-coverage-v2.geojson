@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "YARAM Service Area"
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [-17.55, 14.80],
+              [-17.55, 14.62],
+              [-17.10, 14.62],
+              [-17.10, 14.80],
+              [-17.55, 14.80]
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

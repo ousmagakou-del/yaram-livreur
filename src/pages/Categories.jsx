@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNav } from '../App';
-import { supabase, getAllProducts } from '../lib/supabase';
+import { supabase, getProductCategorySlugs } from '../lib/supabase';
 import TabBar from '../components/TabBar';
 import './Categories.css';
 
@@ -17,38 +17,41 @@ export default function Categories() {
   useEffect(() => {
     (async () => {
       try {
-        const [catRes, prods] = await Promise.all([
+        // PERF : on ne charge plus le catalogue entier — juste les slugs categorie
+        // (1 colonne au lieu de 15). Sur 4G Senegal, gain de 2-4 sec.
+        const [catRes, slugs] = await Promise.all([
           supabase.from('categories').select('*').eq('active', true).order('display_order', { ascending: true }),
-          getAllProducts(),
+          getProductCategorySlugs(),
         ]);
 
         const catData = catRes?.data || [];
 
         // Compter les produits par slug
         const counts = {};
-        (prods || []).forEach(p => {
-          if (p.category) counts[p.category] = (counts[p.category] || 0) + 1;
+        (slugs || []).forEach(row => {
+          if (row.category) counts[row.category] = (counts[row.category] || 0) + 1;
         });
 
         if (catData.length > 0) {
           setCategories(catData.map(c => ({ ...c, product_count: counts[c.slug] || 0 })));
         } else {
-          // Fallback : depuis products
+          // Fallback : depuis les slugs produits si la table categories est vide
           const catMap = {};
-          (prods || []).forEach(prod => {
-            if (!prod.category) return;
-            if (!catMap[prod.category]) {
-              catMap[prod.category] = {
-                id: prod.category,
-                slug: prod.category,
-                name: prod.category.charAt(0).toUpperCase() + prod.category.slice(1),
+          (slugs || []).forEach(row => {
+            const cat = row.category;
+            if (!cat) return;
+            if (!catMap[cat]) {
+              catMap[cat] = {
+                id: cat,
+                slug: cat,
+                name: cat.charAt(0).toUpperCase() + cat.slice(1),
                 bg_color: DEFAULT_PRESET.bg_color,
                 text_color: DEFAULT_PRESET.text_color,
                 icon_url: null,
                 product_count: 0,
               };
             }
-            catMap[prod.category].product_count++;
+            catMap[cat].product_count++;
           });
           setCategories(Object.values(catMap).sort((a, b) => b.product_count - a.product_count));
         }

@@ -15,12 +15,13 @@
 
 // ⚠️ INCRÉMENTER ce numéro à chaque deploy qui change le format des données
 // Ça force la purge du cache localStorage côté client → fini les vieilles données
-const CACHE_VERSION = 'v6';
+// v7 : purge les caches vides crees par le bug PRODUCT_LIST_COLUMNS de la 1.0(2)
+const CACHE_VERSION = 'v7';
 
 const memCache = new Map(); // { key: { data, time } }
 
 const LS_PREFIX = `yaram_cache_${CACHE_VERSION}_`;
-const OLD_PREFIXES = ['yaram_cache_', 'yaram_cache_v5_']; // À nettoyer
+const OLD_PREFIXES = ['yaram_cache_', 'yaram_cache_v5_', 'yaram_cache_v6_']; // À nettoyer
 
 // Default TTL = 5 minutes
 const DEFAULT_TTL = 5 * 60 * 1000;

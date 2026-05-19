@@ -176,11 +176,35 @@ export async function updateProfile(updates) {
 // PRODUITS & MARQUES — AVEC CACHE
 // ═══════════════════════════════════════════════
 
+// PERF : colonnes minimales utilisees par les listes (Home, Search, ProductTile).
+// La fiche produit (Product.jsx) fetch deja un seul produit avec select('*')
+// donc elle aura toutes les infos. Cette liste ne sert qu'aux LISTES.
+// Avant : select('*') = ~3-4KB par produit (long_desc, inci, usage, reason...).
+// Apres : ~400 octets par produit = ~7x moins de bande passante.
+// ⚠️ Toutes ces colonnes ONT ETE verifiees comme existantes (cf Product.jsx +
+// admin upsert). Si on rajoute une colonne ici, la verifier d'abord dans la DB.
+const PRODUCT_LIST_COLUMNS = 'id, name, brand, category, score, price, review_count, rating, badges, img, active, created_at';
+
 export async function getAllProducts() {
   return cachedFetch('all_products', async () => {
-    const { data } = await supabase.from('products').select('*').eq('active', true);
+    const { data } = await supabase
+      .from('products')
+      .select(PRODUCT_LIST_COLUMNS)
+      .eq('active', true);
     return data || [];
   }, { ttl: 5 * 60 * 1000 }); // 5 min
+}
+
+// PERF : ne renvoie que les slugs (1 colonne) pour faire un comptage par categorie.
+// Utilise par Categories.jsx — bien plus leger que getAllProducts().
+export async function getProductCategorySlugs() {
+  return cachedFetch('product_category_slugs', async () => {
+    const { data } = await supabase
+      .from('products')
+      .select('category')
+      .eq('active', true);
+    return data || [];
+  }, { ttl: 5 * 60 * 1000 });
 }
 
 export async function getAllBrands() {

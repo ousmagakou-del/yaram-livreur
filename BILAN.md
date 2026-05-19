@@ -1,412 +1,283 @@
-# Bilan YARAM — session de refacto/audit
+# YARAM — Bilan & handoff
 
-> Document de référence après la grosse session de durcissement
-> (perf, sécurité, UX, SEO).
-> À garder dans le repo, à partager avec toute personne (humaine ou IA) qui
-> reprendra le code.
+Marketplace beauté pour la peau africaine, lancement Sénégal.
+État du projet au **19 mai 2026**.
 
 ---
 
 ## 1. Vue d'ensemble
 
-**Stack** : React 19, Vite 8 (Rolldown), Supabase, Cloudflare Pages.
-**Domaine** : `yaram.app` (ex-`diaara-brg.pages.dev`).
-**Numéro WhatsApp ops centralisé** : `+221 77 438 87 66` (dans `src/lib/utils.js`).
-**Commission marketplace** : 8 % (lue dynamiquement depuis `site_settings.commission`).
+**Domaine** : `yaram.app` (hébergé Cloudflare Pages, DB Supabase, déploiement auto via GitHub Actions)
 
-Le code est passé d'un MVP qui marche à un produit prêt pour un lancement
-plus large, en gardant 0 régression fonctionnelle (lint global à 132 → 135,
-chiffres similaires malgré des centaines de modifications).
+**Stack** :
+- Frontend : React 19 + Vite 8 (Rolldown) + PWA
+- Backend : Supabase (Postgres 17 + Auth + Storage + Edge Functions Deno)
+- CDN : Cloudflare Pages + Pages Functions (edge compute pour SEO/sitemap dynamiques)
+- Auth client : Supabase Auth (email/password + Google OAuth + magic link)
+- Auth admin : système maison à token signé (admin_sessions table)
+- Auth pharma : système maison à token signé (pharma_sessions table)
+- Auth livreur : delivery_token par livraison
+- Emails : Resend (5 templates transactionnels + 4 templates Supabase Auth brandés)
+- Notifications : WhatsApp via Twilio + Push browser
+- Monitoring : Sentry (frontend errors)
+- Backup : edge function `backup-db` quotidienne via GitHub Actions cron
+- Tests : Playwright (28+ tests E2E sur prod à chaque push)
 
----
-
-## 2. Architecture des dossiers (post-refacto)
-
-```
-diaara/
-├── src/
-│   ├── App.jsx                ← Routes + lazy loading + Toaster + NetworkStatus
-│   ├── main.jsx               ← Boot : load site_settings + couleurs CSS + retire splash inline
-│   ├── lib/
-│   │   ├── supabase.js        ← Client + helpers (auth, products, pharmacies, settings, RPCs)
-│   │   ├── cart.js            ← SOURCE UNIQUE de vérité pour le panier (dispatch event)
-│   │   ├── toast.js           ← Système toast / confirmDialog / promptDialog
-│   │   ├── seo.js             ← Hooks useDocumentTitle / useJsonLd / usePageSEO
-│   │   ├── utils.js           ← Constantes (YARAM_WHATSAPP*, shipping zones, scoring)
-│   │   ├── dataCache.js       ← Cache stale-while-revalidate (3 niveaux : mem + LS + SW)
-│   │   ├── notifications.js   ← Templates WhatsApp + cooldown anti-doublon
-│   │   ├── useOrderAlerts.js  ← Hook realtime + ding pour pharmacies
-│   │   └── ...
-│   ├── components/
-│   │   ├── Toaster.jsx        ← Stack toasts + ConfirmModal + PromptModal
-│   │   ├── NetworkStatus.jsx  ← Banner offline / connexion lente
-│   │   ├── TabBar.jsx         ← Self-managed cart badge (event-driven)
-│   │   ├── ProductTile.jsx    ← Lazy images + alt SEO
-│   │   └── ...
-│   ├── pages/                 ← Pages client (Home, Search, Product, Cart, Checkout, …)
-│   ├── pharma/                ← Dashboard pharmacie
-│   └── admin/                 ← Dashboard admin (26 sections)
-├── functions/                 ← Cloudflare Pages Functions (edge)
-│   ├── _lib.js                ← Helpers : sbFetch, isBotUA, escapeHtml, injectMetaTags
-│   ├── sitemap-products.xml.js     ← Sitemap dyn produits
-│   ├── sitemap-pharmacies.xml.js   ← Sitemap dyn pharmacies
-│   ├── product/[id].js        ← og: + JSON-LD Product (bots only)
-│   ├── pharmacy/[id].js       ← og: + JSON-LD Pharmacy (bots only)
-│   ├── ping-sitemap.js        ← Ping Bing/IndexNow après publication
-│   └── README.md              ← Doc functions + env vars
-├── public/
-│   ├── _redirects             ← `/* /index.html 200` (SPA fallback)
-│   ├── sitemap.xml            ← Sitemap INDEX (référence les 3 enfants)
-│   ├── sitemap-static.xml     ← URLs principales fixes
-│   ├── robots.txt
-│   └── sw.js                  ← Service worker (v8)
-├── index.html                 ← Splash inline + meta og: + JSON-LD Organization
-├── vite.config.js             ← chunks manualChunks (react/supabase/zxing)
-└── BILAN.md                   ← Ce fichier
-```
+**Acteurs** :
+1. **Cliente** : achète des produits beauté, scan IA peau, suivi livraison
+2. **Pharmacie** : valide commandes, gère son inventaire, soumet ses produits
+3. **Livreur** : reçoit lien WhatsApp par livraison, GPS sharing, preuve de remise
+4. **Admin** : full CRUD, validation produits, finances, modération
 
 ---
 
-## 3. SQL migrations à avoir lancées (à vérifier sur ta Supabase)
+## 2. Architecture sécurité — les 14 verrous RLS
 
-Si tu reprends ce projet et que certaines features ne marchent pas, vérifie
-que toutes les migrations ci-dessous ont été appliquées dans Supabase Studio.
+### Tables verrouillées (anon ne peut PAS lire/écrire directement)
 
-### 3.1 Sécurité PIN pharmacies (CRITIQUE)
+| Table / Opération | Verrou |
+|---|---|
+| `users_profile` SELECT/INSERT | auth.uid()=id only |
+| `audit_log` SELECT/INSERT | bloqué, admin via RPC |
+| `push_subscriptions` SELECT | bloqué, admin via RPC |
+| `staff` manage/read | bloqué, admin via RPC |
+| `pharmacies.pin` UPDATE | column-level GRANT exclu |
+| `pharmacies` INSERT/DELETE | bloqué, admin via RPC |
+| `deliveries` (full) | bloqué, table inutilisée |
+| `site_settings` write | bloqué, admin via RPC |
+| `promo_codes` manage | bloqué, admin via RPC |
+| `commission_payments` (full) | bloqué, RPC pharma/admin |
+| `orders` SELECT | own user ou via RPC |
+| `orders` UPDATE | bloqué, 4 RPCs client/pharma/livreur/admin |
+| `products` INSERT/UPDATE/DELETE | bloqué, admin+pharma via RPC |
+| `inventory` manage | bloqué, admin+pharma via RPC |
 
-```sql
--- Bloque le SELECT direct du pin par les clients (anon)
-REVOKE SELECT ON pharmacies FROM anon, authenticated;
-GRANT SELECT (
-  id, name, tagline, owner_name, manager_name,
-  city, neighborhood, address, lat, lng,
-  phone, whatsapp, notification_email, notification_phone,
-  hours, delivery_hours,
-  logo, cover, description,
-  commission,
-  active, rating, review_count,
-  pin_set_at, created_at, updated_at
-) ON pharmacies TO anon, authenticated;
--- ⚠️ Adapte la liste si ta DB a d'autres colonnes (ex: instagram_url, etc.)
--- Si tu ajoutes une colonne plus tard : penser à l'ajouter au GRANT ICI
--- + dans PHARMACY_PUBLIC_COLUMNS (src/lib/supabase.js) + dans les selects explicites
-```
+### Architecture : tout passe par RPCs SECURITY DEFINER
 
-### 3.2 RPC verify_pharmacy_pin (CRITIQUE)
+**Admin** : login crée un `admin_sessions.token`, stocké en sessionStorage, passé à chaque RPC.
+**Pharma** : `pharma_sessions.token` (12h), même pattern.
+**Livreur** : delivery_token unique par livraison, présent dans l'URL `/?livreur=TOKEN`.
 
-```sql
-CREATE OR REPLACE FUNCTION verify_pharmacy_pin(p_id text, p_pin text)
-RETURNS jsonb
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT to_jsonb(p) - 'pin'
-  FROM pharmacies p
-  WHERE p.id::text = p_id
-    AND p.pin = p_pin
-    AND p.active = true;
-$$;
-GRANT EXECUTE ON FUNCTION verify_pharmacy_pin(text, text) TO anon, authenticated;
-```
+### RPCs principales (~35 fonctions)
 
-### 3.3 RPC admin_set_pharmacy_pin (reset PIN sécurisé)
+**Admin** : `admin_start_session`, `admin_end_session`, `_check_admin_session`, `admin_list_orders`, `admin_list_orders_full`, `admin_update_order`, `admin_list_users`, `admin_list_users_full`, `admin_list_loyalty_users`, `admin_list_user_orders`, `admin_users_stats`, `admin_dashboard_counts`, `admin_list_commissions`, `admin_list_audit_log`, `admin_list_push_subscriptions`, `admin_list_staff`, `admin_upsert_staff`, `admin_delete_staff`, `admin_list_promos`, `admin_upsert_promo`, `admin_delete_promo`, `admin_update_site_settings`, `admin_create_pharmacy`, `admin_delete_pharmacy`, `admin_set_pharmacy_pin`, `admin_upsert_product`, `admin_delete_product`, `admin_validate_product`, `admin_upsert_inventory`
 
-```sql
-CREATE OR REPLACE FUNCTION admin_set_pharmacy_pin(
-  p_admin_id uuid, p_pharmacy_id text, p_new_pin text
-) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public AS $$
-DECLARE v_role text;
-BEGIN
-  SELECT role INTO v_role FROM admin_users WHERE id = p_admin_id AND active = true;
-  IF v_role IS NULL OR v_role NOT IN ('super_admin', 'admin') THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Non autorise');
-  END IF;
-  IF p_new_pin IS NULL OR length(p_new_pin) < 4 THEN
-    RETURN jsonb_build_object('success', false, 'error', 'PIN trop court');
-  END IF;
-  UPDATE pharmacies SET pin = p_new_pin, pin_set_at = now() WHERE id::text = p_pharmacy_id;
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Pharmacie introuvable');
-  END IF;
-  RETURN jsonb_build_object('success', true);
-END; $$;
-GRANT EXECUTE ON FUNCTION admin_set_pharmacy_pin(uuid, text, text) TO anon, authenticated;
-```
+**Pharma** : `pharma_start_session`, `pharma_end_session`, `_check_pharma_session`, `pharma_list_orders`, `pharma_update_order`, `pharma_get_stats`, `pharma_get_commissions`, `pharma_change_pin`, `pharma_upsert_product`, `pharma_delete_product`, `pharma_upsert_inventory`
 
-### 3.4 Table site_settings (admin paramètres en DB)
+**Livreur** : `livreur_load_delivery`, `livreur_update_tracking`, `livreur_update_order`
 
-```sql
-CREATE TABLE IF NOT EXISTS public.site_settings (
-  key         text PRIMARY KEY,
-  value       jsonb NOT NULL,
-  updated_at  timestamptz DEFAULT now()
-);
-ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "settings_read_all" ON public.site_settings FOR SELECT USING (true);
--- ⚠️ Write policy permissive pour MVP. Durcir en prod via RPC SECURITY DEFINER.
-CREATE POLICY "settings_write_temp" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
-```
-
-### 3.5 RLS users_profile (pour que le signup persiste phone/first_name)
-
-```sql
-ALTER TABLE users_profile ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "users_profile_own_select" ON users_profile FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "users_profile_own_insert" ON users_profile FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "users_profile_own_update" ON users_profile FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
-```
-
-### 3.6 Storage buckets + policies (pour upload banners/produits)
-
-Bucket `banner-images` doit exister + être public + avoir cette policy :
-
-```sql
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('banner-images', 'banner-images', true)
-ON CONFLICT (id) DO UPDATE SET public = true;
-
-CREATE POLICY "banner_images_public_read" ON storage.objects
-  FOR SELECT TO anon, authenticated USING (bucket_id = 'banner-images');
-CREATE POLICY "banner_images_upload" ON storage.objects
-  FOR INSERT TO anon, authenticated WITH CHECK (bucket_id = 'banner-images');
-CREATE POLICY "banner_images_update" ON storage.objects
-  FOR UPDATE TO anon, authenticated
-  USING (bucket_id = 'banner-images') WITH CHECK (bucket_id = 'banner-images');
-CREATE POLICY "banner_images_delete" ON storage.objects
-  FOR DELETE TO anon, authenticated USING (bucket_id = 'banner-images');
-```
-
-Idem pour `product-images`, `brand-logos`, `category-icons`, `skin-scans`,
-`review-photos`, `delivery-proofs` — appliquer le même pattern.
+**Client** : `client_get_order_by_id`, `client_get_order_by_token`, `client_mark_order_paid`, `client_confirm_delivery`, `client_dispute_delivery`, `client_rate_order`, `resolve_referral_code`, `my_referrals`, `verify_pharmacy_pin`, `increment_promo_uses`, `public_best_sellers`
 
 ---
 
-## 4. Variables d'environnement Cloudflare Pages
+## 3. Edge Functions
 
-Dans **Pages → diaara → Settings → Environment variables**, ajouter pour
-Production ET Preview :
+| Function | Rôle |
+|---|---|
+| `send-whatsapp` | Wrapper Twilio WhatsApp |
+| `analyze-skin` | Scan IA peau (Gemini Vision) |
+| `order-notify` | Notif commande (WhatsApp) |
+| `pi-spi-gateway` | Test paiement Pi-Spi |
+| `verify-barcode` | Lookup code-barre |
+| `ping-sitemap` | Notifie Bing IndexNow après publication |
+| `send-email` | Wrapper Resend (2 modes : direct ou par order_id) |
+| `backup-db` | Dump JSON des 26 tables → bucket `db-backups` |
+| `delete-my-account` | Suppression compte RGPD (anonymise orders + delete auth user) |
+| `export-my-data` | Export RGPD (JSON download de 7 tables) |
 
-| Variable | Valeur |
-|----------|--------|
-| `SUPABASE_URL` | `https://qxhhnrnworwrnwmqekmb.supabase.co` |
-| `SUPABASE_ANON_KEY` | (clé anon publique) |
+### Secrets requis (Supabase Project Settings → Edge Functions → Secrets)
 
-Sans ça, les Edge Functions utilisent un fallback hardcodé (cf
-`functions/_lib.js`). Pour pouvoir roter la clé sans redéployer, configure-les.
-
----
-
-## 5. Ce qui a été fait (≥ 95 chantiers en 1 session)
-
-### ⚡ Performance
-- Lazy-load 12 pages lourdes (Admin, Pharma, Livreur, Scan, ScanResult,
-  ScanHistory, SkinQuiz, Checkout, Payment, OrderTracking, ClientConfirm,
-  PiSpiTest) → bundle initial ~150 KB gzippé au lieu de 540 KB
-- `vite.config.js` : `manualChunks` (vendor-react, vendor-supabase, vendor-zxing)
-- `SPLASH_MIN_DURATION` 1200 → 600 ms
-- `Home.jsx` best-sellers query limitée à 200 + `.order('created_at', desc)`
-- `Product.jsx` : `select().eq(id).single()` au lieu de `getAllProducts().find()` (5× plus rapide)
-- `Livreur.jsx` upload photo : compression `compressImage(1200, 0.75)` (5-10 MB → 100-300 KB)
-- Splash **inline dans `index.html`** → visible en 50 ms (au lieu d'attendre React)
-- Skeleton screens sur Product + Search
-- Crossfade splash → app au mount (`main.jsx`)
-- Service Worker v8 (cache 3 niveaux + SW skipWaiting)
-
-### 🔒 Sécurité
-- Porte dérobée `gakououssou@gmail.com` retirée d'`AdminUsersSection`
-- PIN pharmacies : strip de localStorage, GRANT SELECT explicite,
-  RPC `verify_pharmacy_pin` SECURITY DEFINER, RPC `admin_set_pharmacy_pin`
-- Numéro WhatsApp unifié et centralisé dans `lib/utils`
-- `console.log` debug retirés (notamment Scan.jsx)
-- 5 `select('*')` sur `pharmacies` remplacés par listes explicites
-- `getProductAvailability` jointure `pharmacies(*)` réparée
-- `pharmacyLogin` via RPC (PIN ne transite plus en retour)
-- Upload banner : remontée du vrai message d'erreur Storage (au lieu de "Erreur upload" générique)
-
-### 💼 Logique métier
-- `useOrderAlerts.js` : filtre fantôme `pharmacy_id` corrigé (utilise
-  `getPharmacyOrders` avec la vraie logique `assigned_pharmacy_id` +
-  `items[].pharmacyId`). Realtime fonctionne enfin pour les pharmacies.
-- Ding sonore : exponentiel (8s → 30s → 60s → 120s → 240s, stop après 5)
-- Commission 8 % dynamique depuis `site_settings` partout (12 fichiers)
-- Frais livraison Dakar + freeFrom branchés sur settings
-- `OrdersSection` `STATUS_FLOW` étendu (7 statuts) + safe guard sur
-  `advance()` (plus de rétrogradation accidentelle)
-- `PromosSection` admin aligné sur table `promo_codes` (était sur `promos`
-  fantôme — codes promos jamais utilisés au checkout)
-- `SettingsSection` admin persisté en DB
-- Dashboard KPI "EN ATTENTE" : vraie somme des commandes en cours
-- Finances split CA encaissé vs en cours
-- Pagination server-side sur Orders, Users, AdminLogs
-- `PharmaProducts` : modif autorisée pour produits approuvés (avec
-  re-validation admin obligatoire)
-- `mismatch owner` vs `owner_name` corrigé
-
-### 🛒 Funnel achat
-- Système panier unifié via `lib/cart.js`
-- Badge TabBar enfin fonctionnel (event `yaram-cart-updated` + listener
-  multi-onglet via `storage`)
-- Cart shipping = `getShippingZone(addressCity)` (était 1500 FCFA en dur)
-- Cart : bouton **🗑 supprimer** ajouté
-- Checkout utilise `clearCart()` (dispatch event → badge vidé)
-- Notif WhatsApp "panier abandonné" fonctionne enfin après ajout via Product
-
-### 📱 UX
-- Système **toast** complet (success/error/info)
-- **confirmDialog** Promise-based (remplace `confirm()` natif)
-- **promptDialog** avec input/textarea/`requiredText` (remplace `prompt()`)
-- 59 `alert()` + 20 `confirm()` + 2 `prompt()` migrés vers toast
-- Banner **NetworkStatus** : "Hors ligne" + "Connexion lente"
-- 7 pages patchées avec `try/finally + cancelled flag` (loading bloqué)
-- Onboarding : `phone` + `first_name` désormais persistés dans `users_profile`
-- Onboarding : messages d'erreur Supabase Auth mappés en français
-- SkinQuiz `Skip` sauvegarde des valeurs par défaut (plus de loop)
-- SkinQuiz `try/finally` (plus de bouton bloqué "Enregistrement…")
-- Scan IA : cleanup interval + timeout Gemini 60 s + bouton "Annuler"
-
-### 🌐 SEO
-- `robots.txt` (Allow public, Disallow privé) + `sitemap.xml` index
-- Hook `useDocumentTitle`/`useMetaDescription`/`useCanonical`/`useJsonLd`
-- Titres dynamiques sur Home, Search (par catégorie/marque), Product
-- JSON-LD Organization + WebSite SearchAction (`index.html`)
-- JSON-LD Product dynamique (prix, dispo, rating)
-- JSON-LD BreadcrumbList + breadcrumb visuel sur Product
-- JSON-LD ItemList sur Search (top 20)
-- Section "Produits similaires" (4 même catégorie) avec ItemList
-- `loading="lazy" decoding="async"` + alt tags descriptifs sur images
-- og:url corrigé sur `yaram.app` + og:locale `fr_SN` + canonical
-- **Cloudflare Functions** :
-  - `/sitemap-products.xml` (dynamique depuis Supabase, cache 1 h)
-  - `/sitemap-pharmacies.xml` (idem)
-  - `/product/:id` → og:image = vraie photo produit pour bots (WhatsApp,
-    Facebook, Twitter, Google, etc.)
-  - `/pharmacy/:id` → og:image = cover pharmacie + JSON-LD Pharmacy
-  - `/ping-sitemap` → ping Bing IndexNow (appelée après approveProduct)
+- `RESEND_API_KEY` : clé Resend (`re_xxx`)
+- `RESEND_FROM` : `YARAM <noreply@yaram.app>`
+- `BACKUP_TOKEN` : token aléatoire pour cron backup
+- `TWILIO_*` : credentials Twilio WhatsApp
+- `GEMINI_API_KEY` : pour analyze-skin
 
 ---
 
-## 6. Ce qui reste à faire (priorité décroissante)
+## 4. Emails transactionnels
 
-### 🔴 Critique avant gros lancement
-- [ ] **Audit RLS Supabase complet** (orders, addresses, users_profile,
-      favorites, reviews, skin_scans, loyalty_transactions, promo_uses,
-      delivery_tracking, etc.). Vérifier que les policies existent et que
-      la cliente A ne peut pas lire les données de la cliente B.
-- [ ] **Vrai système validation paiement** : aujourd'hui `Payment.jsx` fait
-      `setTimeout(1500)` puis marque `paid`. N'importe qui peut commander
-      gratuit. Faut soit webhook Wave/OM, soit waiting-room admin + realtime.
-- [ ] **Hash du PIN pharmacie en DB** : actuellement comparaison `pin = p_pin`
-      en clair dans la RPC. Stocker un hash bcrypt/scrypt via `pgcrypto`.
+**Templates côté custom (lib/emails.js + send-email edge function)** :
+- `welcome` : à l'inscription (signup email ou Google OAuth via flag `welcomed_at`)
+- `orderConfirmed` : checkout finalisé
+- `orderShipped` : livreur clic "in_route"
+- `orderDelivered` : cliente clic "Confirmer la livraison"
+- `pharmacyNewOrder` : envoyé à chaque pharma de l'order
+
+**Templates côté Supabase Auth (brandés YARAM)** :
+- Confirm signup
+- Magic Link
+- Reset Password
+- Change Email Address
+
+---
+
+## 5. Backup DB
+
+- **Edge function** `backup-db` dump 26 tables en JSON → bucket `db-backups`
+- **Cron quotidien** via GitHub Actions (`.github/workflows/daily-backup.yml`) à **04:00 GMT**
+- Tu peux lancer manuellement depuis https://github.com/ousmagakou-del/diaara/actions
+- Récupérer un backup : Supabase Dashboard → Storage → bucket `db-backups` → télécharger le JSON
+
+---
+
+## 6. Tests E2E
+
+**Setup** : Playwright + 6 fichiers de tests dans `e2e/`
+
+| Fichier | Couverture |
+|---|---|
+| 01-home | Home charge, SW, manifest, robots.txt |
+| 02-navigation | Routes, F5 persiste, SPA fallback, /privacy /terms |
+| 03-seo | Meta, canonical, OG, JSON-LD, sitemaps |
+| 04-rls-security | **Anti-régression RLS** — vérifie les 14 verrous |
+| 05-search-product | Catalogue + fiche produit |
+| 06-pwa-perf | Icones, FCP < 3s, pas d'erreur console |
+
+**CI** : workflow `.github/workflows/e2e-tests.yml` relance les tests sur https://yaram.app à chaque push sur main.
+
+**Lancer localement** : `npm run test:e2e:prod`
+
+---
+
+## 7. RGPD
+
+**Pages** : `/privacy`, `/terms`, `/delete_account`
+
+**Profile.jsx** propose :
+- 📥 Télécharger mes données (RGPD article 20)
+- 🔒 Politique de confidentialité
+- 📄 Conditions générales
+- 🗑️ Supprimer mon compte (flow 2 étapes, irréversible)
+
+**Suppression** : la function `delete-my-account` anonymise les orders (`user_id → null`, `address → '[Supprimé]'`) pour la compta sénégalaise (10 ans), puis supprime tout le reste (profile, favorites, addresses, skin_scans, loyalty, push_subs, reviews, auth user).
+
+**Buckets privés** : `skin-scans` et `delivery-proofs` (photos visages + signatures clients). Affichage via composant `<SignedImage>` qui génère une URL signée 7 jours.
+
+---
+
+## 8. Performance
+
+- **Splash inline** dans `index.html` visible en 50ms (avant React)
+- **Lazy loading** : 12 pages lazy-loaded (Admin, Pharma, Livreur, Scan, Checkout, Payment, etc.)
+- **manualChunks Vite** : vendor-react, vendor-supabase, vendor-zxing isolés
+- **Service Worker v9** : network-first HTML/JS, cache-first images (7j), stale-while-revalidate Supabase GET
+- **Home cache** persisté en sessionStorage (5 min) — refresh = instant
+- **Polling au lieu de realtime** pour orders (RLS bloque le change feed)
+- **Realtime broadcast** `yaram-new-orders` channel pour notifs instant admin/pharma sans toucher RLS
+
+---
+
+## 9. Ce qui reste avant launch sérieux
+
+### 🔴 Critique (bloquant)
+1. **Vrai paiement Wave/OM/Stripe** — aujourd'hui le checkout est en démo (`setTimeout(1500)`). Sans gateway réel, aucune vraie transaction. Bloqué côté compte marchand (3-5j Wave, ou IBAN Sénégal pour Stripe).
 
 ### 🟠 Important
-- [ ] **Composite OG image** pour partages (image générée avec logo +
-      photo produit + prix + badge promo) via `satori` + `resvg-wasm` ou
-      Cloudflare Image Resizing
-- [ ] **Audit accessibilité (a11y)** : navigation clavier, lecteur d'écran,
-      contrastes WCAG AA, focus rings, ARIA labels manquants
-- [ ] **TypeScript progressif** sur `lib/*.js` (lib/supabase.js, lib/cart.js)
-- [ ] **Tests** (zéro test actuel). Au minimum : tests unitaires sur
-      `lib/cart.js`, `lib/seo.js`, `getShippingZone`, et un test e2e
-      Playwright sur le funnel signup → ajout panier → checkout
-- [ ] **Real auth admin** : remplacer la session PIN dans `sessionStorage`
-      par une vraie session Supabase Auth + flag `is_admin`
-- [ ] **Sentry / monitoring** : capturer les erreurs en prod
-      (`window.onerror`, `unhandledrejection`, Sentry SDK)
-- [ ] **Email transactionnels** : confirmation commande, reset password,
-      facture (via Resend ou Supabase Edge Function)
-- [ ] **Pagination Marketing/Performance/SkinScans/Dashboard admin**
-      (charge encore tout en mémoire)
-- [ ] **Realtime Livreur** : aujourd'hui le livreur ne voit pas si admin
-      force la livraison côté admin
+2. **Hash PIN pharma avec pgcrypto** : le PIN admin est déjà bcrypt-hashé (table `admin_users.pin_hash`). Vérifier que pharma `pharmacies.pin` l'est aussi (actuellement plain text dans une colonne column-level-protégée).
+3. **Validation paiement coté serveur** : webhook Wave/OM pour confirmer paiement avant de marquer order='paid' (anti-fraude).
+4. **i18n wolof + anglais** : si tu vises au-delà du francophone Sénégal.
 
-### 🟡 Améliorations
-- [ ] Blog SEO (5-10 articles long-tail beauté Sénégal)
-- [ ] i18n wolof + anglais
-- [ ] Cleanup ESLint : 130 erreurs pré-existantes à nettoyer
-- [ ] Push notifications : audit du flow complet (existe mais jamais testé)
-- [ ] Stock alerts pharmacies (notif quand stock < 5)
-- [ ] Avis : photo modération avant publication
-- [ ] Backup strategy / disaster recovery (export régulier Supabase)
-- [ ] Wolof / anglais traductions
+### 🟡 Polish
+5. **Photo moderation** : on modère à la main pour l'instant. Quand le volume monte, intégrer SightEngine (1 h).
+6. **Tests E2E avancés** : ajouter checkout complet (signup → cart → payment → tracking) — nécessite comptes de test.
+7. **App Store / Play Store** : packaging PWA via PWABuilder ou Capacitor.
 
 ---
 
-## 7. Comment maintenir / faire évoluer
+## 10. Variables d'environnement
 
-### Ajouter une colonne à la table `pharmacies`
-1. ALTER TABLE en SQL Supabase
-2. Ajouter au `GRANT SELECT(...)` dans Supabase
-3. Ajouter à `PHARMACY_PUBLIC_COLUMNS` dans `src/lib/supabase.js`
-4. Ajouter aux selects explicites dans :
-   - `PharmaciesSection.refresh()` (admin)
-   - `PharmacyDetail.jsx` useEffect
-   - `Livreur.jsx` loadTracking
-   - `getProductAvailability` (jointure)
+### Cloudflare Pages (Production)
+- `VITE_SUPABASE_URL` : `https://qxhhnrnworwrnwmqekmb.supabase.co`
+- `VITE_SUPABASE_ANON_KEY` : (clé anon publique)
+- `VITE_SENTRY_DSN` : DSN Sentry pour monitoring
 
-### Ajouter un nouveau setting modifiable depuis l'admin
-1. Ajouter une row dans `site_settings` via UI admin (ou seed SQL)
-2. Ajouter une clé au fallback `SETTINGS_FALLBACK` dans `src/lib/supabase.js`
-3. Ajouter le champ au formulaire `SettingsSection.jsx`
-4. Utiliser `getCachedSetting('macle', fallback)` partout où on en a besoin
+### Cloudflare Pages Functions
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY` (pour bot-detection og: par produit)
 
-### Ajouter une nouvelle page client
-1. Créer `src/pages/MaPage.jsx`
-2. Ajouter import + case dans `App.jsx`
-3. Si page lourde (>50 KB), wrapper avec `lazy(() => import(...))`
-4. Toujours utiliser `usePageSEO({ title, description, canonical })`
-5. Si données fetch : pattern `try/catch/finally + cancelled flag`
-6. Si liste : skeleton screen pendant le loading
+### Supabase Edge Functions Secrets
+- `RESEND_API_KEY`, `RESEND_FROM`
+- `BACKUP_TOKEN`
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
+- `GEMINI_API_KEY`
 
-### Ajouter un nouveau toast
-```jsx
-import { toast, confirmDialog } from '../lib/toast';
-toast.success('Sauvegardé');
-toast.error('Échec : ' + e.message);
-if (await confirmDialog('Sûr ?', { confirmLabel: 'Oui', danger: true })) { ... }
-```
+### GitHub Actions Secrets (repo `ousmagakou-del/diaara`)
+- `BACKUP_TOKEN` : pour le workflow daily-backup (SUPABASE_ANON_KEY est inline dans le YAML car publique)
 
-### Déployer
+---
+
+## 11. Workflows GitHub
+
+| Workflow | Quand | Quoi |
+|---|---|---|
+| `daily-backup.yml` | Tous les jours 04:00 GMT | Trigger l'edge function `backup-db` |
+| `e2e-tests.yml` | Push sur main | Lance les 28+ tests Playwright sur prod |
+
+---
+
+## 12. Commandes utiles
+
 ```bash
-cd ~/Documents/diaara
+# Dev local
+npm run dev
+
+# Build production
 npm run build
-git add -A
-git commit -m "feat/fix: description claire"
-git push
-# Cloudflare Pages auto-déploie main → yaram.app
-# Cache navigateur : si client en cache vieux SW, bump SW_VERSION dans public/sw.js
+
+# Lancer les tests E2E
+npm run test:e2e:prod              # contre https://yaram.app
+npm run test:e2e                   # contre localhost:5173
+npm run test:e2e:ui                # mode UI interactif
+
+# Lancer un backup manuel
+curl -X POST https://qxhhnrnworwrnwmqekmb.supabase.co/functions/v1/backup-db \
+  -H "Authorization: Bearer <SUPABASE_ANON_KEY>" \
+  -H "x-backup-token: <BACKUP_TOKEN>"
+
+# Voir le statut des sessions admin actives
+# (depuis Supabase SQL Editor)
+SELECT admin_id, admin_email, created_at, expires_at, last_used_at
+FROM admin_sessions WHERE expires_at > now();
 ```
 
 ---
 
-## 8. Risques connus / dette technique
+## 13. Risques connus
 
-| Risque | Sévérité | Impact | Mitigation actuelle | Vraie solution |
-|--------|----------|--------|---------------------|----------------|
-| Paiement simulé (`setTimeout` + auto-paid) | 🔴 Critique | Commandes gratuites | Aucune | Webhook Wave/OM ou validation admin manuelle |
-| RLS write `site_settings` ouverte à `anon` | 🟠 Moyen | N'importe qui peut changer la commission | Aucune | RPC SECURITY DEFINER avec check admin |
-| PIN pharmacie comparé en clair en DB | 🟠 Moyen | Si fuite DB, PINs lisibles | Aucune | Hash bcrypt via `pgcrypto` |
-| Admin auth via PIN localStorage | 🟠 Moyen | Vol de session si XSS | sessionStorage + expiry 8h | Vraie Supabase Auth + flag is_admin |
-| Service Worker cache agressif | 🟡 Faible | Vieilles versions servies | Bump `SW_VERSION` à chaque deploy critique | Tester avec Lighthouse |
-| 130 erreurs ESLint pré-existantes | 🟡 Faible | Code legacy | À ignorer dans ce périmètre | Migration TypeScript progressive |
-| Pas de tests | 🟠 Moyen | Régressions possibles | Audit manuel à chaque deploy | Tests Vitest + Playwright |
-| Compositions OG images statiques | 🟡 Faible | Partages moins engageants | og:image = photo produit directe | satori/resvg-wasm ou Cloudflare Images |
+1. **PIN pharma en plain text** dans `pharmacies.pin`. Protégé par column-level GRANT REVOKE mais pas hashé. À hasher avec `crypt()` quand possible.
+2. **Pas de paiement réel** — voir #9.
+3. **Cloudflare Pages Free tier** : 500 builds/mois, illimité bandwidth. À surveiller.
+4. **Supabase Free tier** : 500 MB DB, 1 GB Storage, 2 GB bandwidth/mois, 50 000 MAU. À surveiller quand traction.
+5. **Resend Free** : 100 emails/jour, 3000/mois. Upgrade $20/mois pour 50 000.
+6. **GitHub Actions Free** : 2 000 min/mois (la CI Playwright prend ~3 min/run, donc OK pour ~600 push/mois).
 
 ---
 
-## 9. Contacts / liens utiles
+## 14. Contacts & accès
 
-- **Repo GitHub** : `github.com/ousmagakou-del/diaara`
-- **Hosting** : Cloudflare Pages → `yaram.app`
-- **Backend** : Supabase project `qxhhnrnworwrnwmqekmb`
-- **WhatsApp ops** : `+221 77 438 87 66`
-- **Search Console** : à ajouter `yaram.app`
-- **Test rich snippets** : https://search.google.com/test/rich-results
-- **Debug og: WhatsApp/Facebook** : https://developers.facebook.com/tools/debug/
+- **Domaine** : `yaram.app` (Cloudflare DNS)
+- **Repo** : https://github.com/ousmagakou-del/diaara
+- **Cloudflare Pages** : projet `diaara-brg` (ex-nom historique)
+- **Supabase project** : `qxhhnrnworwrnwmqekmb` (compte `lilouzgakou@gmail.com`)
+- **Sentry** : projet `yaram` (compte à créer si pas fait)
+- **Resend** : domaine `yaram.app` vérifié (DKIM + SPF + DMARC)
+- **Twilio** : compte WhatsApp Business
+
+**Support contact** : `contact@yaram.app` · WhatsApp `+221 77 438 87 66`
 
 ---
 
-*Document généré après la session de refacto Mai 2026.*
-*Pour mettre à jour ce bilan, c'est ici : `/BILAN.md`*
+## 15. Évolutions futures (idées)
+
+- Migration admin vers vraie Supabase Auth (remplacer PIN sessionStorage) → réduit la surface d'attaque
+- Edge function `notify-pharma-new-order` au lieu du broadcast (envoie push + WhatsApp + email en 1 fois)
+- App Store packaging via PWABuilder ou Capacitor
+- Blog SEO (articles "Comment soigner peau grasse Dakar")
+- Programme de parrainage avancé (niveaux, récompenses)
+- Click & collect (retirer en pharmacie)
+- Click-to-call pharmacie depuis fiche pharmacie
+
+---
+
+**Dernière mise à jour** : 19 mai 2026
+**Versions** : SW v9 · Sentry foundation · Resend v6 · 14 verrous RLS · 28+ tests E2E
