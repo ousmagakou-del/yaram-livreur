@@ -16,10 +16,10 @@
     "@capacitor/cli": "^8.3.4",
     "@capacitor/core": "^8.3.4",
     "@capacitor/ios": "^8.3.4",
+    "@capacitor/push-notifications": "^8.1.1",
     "@sentry/browser": "^8.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "@zxing/browser": "^0.2.0",
-    "onesignal-cordova-plugin": "^5.1.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
