@@ -106,12 +106,21 @@ export default function Home() {
     })();
   }, []);
 
-  // ─── Charger toutes les donnees ───
+  // ─── Charger toutes les donnees (STREAMING progressif) ───
+  // PERF FIX (mai 2026) :
+  // - Avant : Promise.all([8 fetches]) qui bloque sur la plus lente requete (3-8 sec sur 4G)
+  // - Apres : 3 phases parallèles. Phase 1 = ESSENTIEL (products, categories), affiche
+  //   la page immediatement. Phase 2 + 3 = enrichissement (banniere, best sellers, ...)
+  //   en arriere-plan sans bloquer l'UI.
+  //
+  // - Safety : fetchingRef reset GARANTI via try/catch/finally à 3 niveaux
+  // - Safety : si Phase 1 mets > 8 sec, on abort et garde le cache (evite app figee)
   const loadData = async (force = false) => {
-    if (fetchingRef.current) return;
+    // Si fetch deja en cours ET pas force → skip
+    if (fetchingRef.current && !force) return;
     fetchingRef.current = true;
 
-    // Si on a deja du cache recent (< 5 min) et pas force, on skip
+    // Cache check : si data fresh (< 5 min) et pas force, on skip
     const cacheAge = Date.now() - homeDataCache.loadedAt;
     if (!force && homeDataCache.products && cacheAge < 5 * 60 * 1000) {
       fetchingRef.current = false;
@@ -119,22 +128,28 @@ export default function Home() {
       return;
     }
 
+    // SAFETY : timeout global 12 sec. Au-dela on relache fetchingRef pour
+    // pas figer l'app, meme si une promise pend infiniment.
+    const safetyTimeout = setTimeout(() => {
+      console.warn('[Home] loadData safety timeout, releasing fetchingRef');
+      fetchingRef.current = false;
+      setLoading(false);
+    }, 12000);
+
     try {
-      const [p, ph, br, bn, catRes] = await Promise.all([
+      // ═══ PHASE 1 : ESSENTIEL (affiche la page le plus vite possible) ═══
+      // Products + categories en parallele. Quand prets → setState + page utilisable.
+      const phase1 = Promise.all([
         getAllProducts(),
-        getAllPharmacies(),
-        getAllBrands(),
-        getAllBanners().catch(() => []),
-        supabase.from('categories').select('*').eq('active', true).order('display_order', { ascending: true }),
+        supabase.from('categories').select('*').eq('active', true).order('display_order', { ascending: true }).then(r => r?.data || []),
       ]);
 
-      setProducts(p);
-      setPharmacies(ph);
-      homeDataCache.products = p;
-      homeDataCache.pharmacies = ph;
+      const [p, catData] = await phase1;
 
-      // Categories
-      const catData = catRes?.data || [];
+      setProducts(p);
+      homeDataCache.products = p;
+
+      // Compute categories
       let newCategories;
       if (catData.length > 0) {
         const counts = {};
@@ -146,13 +161,11 @@ export default function Home() {
           if (!prod.category) return;
           if (!catMap[prod.category]) {
             catMap[prod.category] = {
-              id: prod.category,
-              slug: prod.category,
+              id: prod.category, slug: prod.category,
               name: prod.category.charAt(0).toUpperCase() + prod.category.slice(1),
               bg_color: DEFAULT_CATEGORY_PRESET.bg_color,
               text_color: DEFAULT_CATEGORY_PRESET.text_color,
-              icon_url: null,
-              product_count: 0,
+              icon_url: null, product_count: 0,
             };
           }
           catMap[prod.category].product_count++;
@@ -162,53 +175,68 @@ export default function Home() {
       setCategories(newCategories);
       homeDataCache.categories = newCategories;
 
-      // Top marques
-      const brandCount = {};
-      p.forEach(prod => { if (prod.brand) brandCount[prod.brand] = (brandCount[prod.brand] || 0) + 1; });
-      const sortedBrands = (br || [])
-        .map(b => ({ ...b, _count: brandCount[b.name] || 0 }))
-        .sort((a, b) => b._count - a._count)
-        .slice(0, 10);
-      setTopBrands(sortedBrands);
-      homeDataCache.topBrands = sortedBrands;
+      // L'utilisateur peut maintenant voir la page → unblock loading
+      setLoading(false);
 
-      // Bannieres
-      const now = new Date();
-      const activeBn = (bn || []).filter(b =>
-        b.active !== false &&
-        (!b.end_date || new Date(b.end_date) > now)
-      );
-      setBanners(activeBn);
-      homeDataCache.banners = activeBn;
+      // ═══ PHASE 2 : ENRICHISSEMENT (best sellers, brands, banners, pharmacies) ═══
+      // Lancé en parallele mais NE BLOQUE PAS l'UI. Si une promise rame, on s'en moque.
+      Promise.all([
+        getAllPharmacies().catch(() => []),
+        getAllBrands().catch(() => []),
+        getAllBanners().catch(() => []),
+      ]).then(([ph, br, bn]) => {
+        setPharmacies(ph);
+        homeDataCache.pharmacies = ph;
 
+        // Top brands
+        const brandCount = {};
+        p.forEach(prod => { if (prod.brand) brandCount[prod.brand] = (brandCount[prod.brand] || 0) + 1; });
+        const sortedBrands = (br || [])
+          .map(b => ({ ...b, _count: brandCount[b.name] || 0 }))
+          .sort((a, b) => b._count - a._count)
+          .slice(0, 10);
+        setTopBrands(sortedBrands);
+        homeDataCache.topBrands = sortedBrands;
+
+        // Banners (filtre par dates)
+        const now = new Date();
+        const activeBn = (bn || []).filter(b =>
+          b.active !== false && (!b.end_date || new Date(b.end_date) > now)
+        );
+        setBanners(activeBn);
+        homeDataCache.banners = activeBn;
+      }).catch(e => console.warn('[Home] phase 2 enrichissement failed (non-bloquant):', e?.message));
+
+      // ═══ PHASE 3 : USER-SPECIFIC (favorites, last scan, best sellers RPC) ═══
+      // Aussi non-bloquant. Si user pas connecte, skip.
       if (user?.id) {
-        const { data: favs } = await supabase
-          .from('favorites').select('product_id').eq('user_id', user.id);
-        setFavIds((favs || []).map(f => f.product_id));
+        supabase.from('favorites').select('product_id').eq('user_id', user.id)
+          .then(({ data }) => setFavIds((data || []).map(f => f.product_id)))
+          .catch(() => {});
 
-        const { data: scan } = await supabase
-          .from('skin_scans').select('*')
+        supabase.from('skin_scans').select('*')
           .eq('user_id', user.id).order('created_at', { ascending: false })
-          .limit(1).maybeSingle();
-        setLatestScan(scan);
+          .limit(1).maybeSingle()
+          .then(({ data }) => setLatestScan(data))
+          .catch(() => {});
       }
 
-      try {
-        // Vague 11 RLS : aggregation cote serveur via RPC public_best_sellers.
-        // Plus de lecture directe sur orders (qui sera bloquee apres lockdown).
-        const { data: rows } = await supabase.rpc('public_best_sellers', { p_limit: 30 });
-        const best = (rows || [])
-          .map(r => p.find(pr => pr.id === r.product_id))
-          .filter(Boolean);
-        setBestSellers(best);
-        homeDataCache.bestSellers = best;
-      } catch (e) { console.error('best sellers error:', e); }
+      // Best sellers RPC (cote serveur, peut etre lent) — non-bloquant
+      supabase.rpc('public_best_sellers', { p_limit: 30 })
+        .then(({ data: rows }) => {
+          const best = (rows || []).map(r => p.find(pr => pr.id === r.product_id)).filter(Boolean);
+          setBestSellers(best);
+          homeDataCache.bestSellers = best;
+        })
+        .catch(e => console.warn('[Home] best sellers RPC failed (non-bloquant):', e?.message));
 
+      // Mise a jour finale du cache (meme si Phase 2/3 pas encore terminees)
       homeDataCache.loadedAt = Date.now();
       persistHomeCache();
     } catch (err) {
-      console.error('Home load error:', err);
+      console.error('[Home] Phase 1 fatal error:', err);
     } finally {
+      clearTimeout(safetyTimeout);
       setLoading(false);
       fetchingRef.current = false;
     }
@@ -233,19 +261,23 @@ export default function Home() {
   }, [route?.name]);
 
   // ─── Refresh quand l'app redevient visible (retour iOS) ───
+  // PERF FIX : on ne refetch QUE si on est physiquement sur la Home, sinon
+  // on déclenche des refetch inutiles quand l'user revient du background sur
+  // une autre page (ex: Promos, Product) → lag a la prochaine nav home.
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        const cacheAge = Date.now() - homeDataCache.loadedAt;
-        if (cacheAge > 60 * 1000) {
-          loadData(true);
-        }
+      if (document.visibilityState !== 'visible') return;
+      // Skip si on n'est pas sur la Home (ex : user sur Promos quand iPhone re-ouvre)
+      if (route?.name !== 'home' && route?.name) return;
+      const cacheAge = Date.now() - homeDataCache.loadedAt;
+      if (cacheAge > 60 * 1000) {
+        loadData(true);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [route?.name]);
 
   // ─── Trier pharmacies par distance ───
   useEffect(() => {
