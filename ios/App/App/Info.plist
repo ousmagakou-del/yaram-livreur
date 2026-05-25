@@ -78,6 +78,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>YARAM peut accéder au micro pour les futures fonctionnalités vidéo (non utilisé actuellement).</string>
 
+	<key>NSFaceIDUsageDescription</key>
+	<string>YARAM utilise Face ID pour te reconnecter rapidement et en sécurité sans retaper ton mot de passe.</string>
+
 	<!-- Permet d'ouvrir des URLs externes (WhatsApp, Wave, etc.) -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>

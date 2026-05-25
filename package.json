@@ -13,6 +13,8 @@
     "test:e2e:prod": "BASE_URL=https://yaram.app playwright test"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
     "@capacitor/cli": "^8.3.4",
     "@capacitor/core": "^8.3.4",
     "@capacitor/ios": "^8.3.4",

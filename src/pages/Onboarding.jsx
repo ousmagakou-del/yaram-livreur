@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signUp, signIn, signInWithGoogle, supabase } from '../lib/supabase';
 import { notifyWelcome } from '../lib/notifications';
 import { sendEmail } from '../lib/emails';
 import { isIOSApp } from '../lib/platform';
+import { isBiometricAvailable, isBiometricEnabled, loginWithBiometric, enableBiometric } from '../lib/biometric';
+import { toast } from '../lib/toast';
 import './Onboarding.css';
 
 // ─── URLs des photos onboarding (Supabase Storage) ───
@@ -49,6 +51,83 @@ export default function Onboarding({ onComplete }) {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotMsg, setForgotMsg] = useState({ text: '', kind: '' });
+
+  // ─── Face ID / Touch ID (Option B : reconnexion rapide) ───
+  // - bioAvailable : Face ID/Touch ID dispo sur cet iPhone
+  // - bioType : 'faceId' | 'touchId' | 'unknown'
+  // - bioEnabledForUser : un user a déjà activé Face ID sur cet appareil
+  //   → on affiche le gros bouton "Face ID" sur l'écran login
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioType, setBioType] = useState(null);
+  const [bioEnabledEmail, setBioEnabledEmail] = useState(null);
+  const [bioLoading, setBioLoading] = useState(false);
+  // Popup post-login : "Tu veux activer Face ID pour la prochaine fois ?"
+  const [askEnableBio, setAskEnableBio] = useState(false);
+  const [enabledUserEmail, setEnabledUserEmail] = useState(null);
+
+  // Check Face ID dispo au mount (sur iOS uniquement)
+  useEffect(() => {
+    (async () => {
+      const { available, type } = await isBiometricAvailable();
+      if (available) {
+        setBioAvailable(true);
+        setBioType(type);
+        // Y a-t-il déjà un user qui a activé Face ID sur cet appareil ?
+        const { enabled, email: storedEmail } = await isBiometricEnabled();
+        if (enabled) setBioEnabledEmail(storedEmail || 'utilisateur');
+      }
+    })();
+  }, []);
+
+  // Handler : "Se connecter avec Face ID"
+  const handleFaceIdLogin = async () => {
+    setBioLoading(true);
+    setError(null);
+    try {
+      const result = await loginWithBiometric();
+      if (!result.ok) {
+        if (result.error === 'cancelled') {
+          // user a annulé, pas une vraie erreur
+          setBioLoading(false);
+          return;
+        }
+        if (result.error === 'session_expired_relogin_required') {
+          setError('Ta session Face ID a expiré. Reconnecte-toi avec ton mot de passe.');
+          setBioEnabledEmail(null); // cache le bouton Face ID
+        } else {
+          setError('Connexion Face ID échouée. Utilise ton mot de passe.');
+        }
+        setBioLoading(false);
+        return;
+      }
+      // SUCCESS : Supabase a une session restaurée → App.jsx va detect onAuthStateChange
+      // et passer au state user (fermeture auto de Onboarding)
+      if (onComplete) onComplete(result.user);
+    } catch (e) {
+      setError(e?.message || 'Erreur Face ID');
+      setBioLoading(false);
+    }
+  };
+
+  // Handler : "Activer Face ID" (popup post-login)
+  const handleEnableBio = async () => {
+    setBioLoading(true);
+    const result = await enableBiometric(enabledUserEmail);
+    setBioLoading(false);
+    if (result.ok) {
+      toast.success('✅ Face ID activé !');
+    } else if (result.error !== 'cancelled') {
+      toast.error('Activation Face ID échouée : ' + (result.error || ''));
+    }
+    setAskEnableBio(false);
+    // Continue le flow normal d'onboarding (skin quiz ou home)
+    if (onComplete) onComplete();
+  };
+
+  const handleSkipBio = () => {
+    setAskEnableBio(false);
+    if (onComplete) onComplete();
+  };
 
   const handleNext = () => {
     if (slide < SLIDES.length - 1) setSlide(slide + 1);
@@ -115,7 +194,14 @@ export default function Onboarding({ onComplete }) {
             params: { firstName: firstName.trim() },
           }).catch(e => console.warn('welcome email failed:', e.message));
         }
-        setStep('done');
+        // Propose Face ID si dispo sur l'appareil
+        if (bioAvailable) {
+          setEnabledUserEmail(email.trim());
+          setAskEnableBio(true);
+          // Pas de setStep('done') — le popup gérera la suite
+        } else {
+          setStep('done');
+        }
       }
     } catch (err) {
       setError(friendlyAuthError(err));
@@ -135,6 +221,13 @@ export default function Onboarding({ onComplete }) {
       const { data, error } = await signIn(email, password);
       if (error) throw error;
       if (data.user) {
+        // Si Face ID dispo et pas encore activé pour cet user → propose activation
+        if (bioAvailable && bioEnabledEmail !== email.trim()) {
+          setEnabledUserEmail(email.trim());
+          setAskEnableBio(true);
+          setLoading(false);
+          return; // popup gérera onComplete()
+        }
         if (onComplete) await onComplete();
       }
     } catch (err) {
@@ -233,6 +326,53 @@ export default function Onboarding({ onComplete }) {
         </div>
         <div className="ob-auth-bottom">
           {error && <div className="ob-error">⚠️ {error}</div>}
+
+          {/* ─── Face ID / Touch ID : seulement si un user a déjà activé sur cet appareil ─── */}
+          {bioEnabledEmail && mode === 'login' && (
+            <button
+              onClick={handleFaceIdLogin}
+              disabled={bioLoading}
+              style={{
+                width: '100%',
+                padding: 14,
+                background: 'linear-gradient(135deg, #1F8B4C 0%, #166635 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: bioLoading ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                fontFamily: 'inherit',
+                marginBottom: 12,
+                boxShadow: '0 4px 14px rgba(31, 139, 76, 0.3)',
+              }}
+            >
+              {bioLoading ? (
+                <span>⏳ Authentification…</span>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {bioType === 'touchId' ? (
+                      // Empreinte digitale
+                      <>
+                        <path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                      </>
+                    ) : (
+                      // Face ID (carré avec yeux)
+                      <>
+                        <path d="M9 11h.01M15 11h.01M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2M8 17v2a2 2 0 002 2h4a2 2 0 002-2v-2M3 7h2M3 17h2M19 7h2M19 17h2M9 14s1 2 3 2 3-2 3-2" />
+                      </>
+                    )}
+                  </svg>
+                  <span>Continuer avec {bioType === 'touchId' ? 'Touch ID' : 'Face ID'}</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* ─── Google Sign-In : masqué sur iOS ─── */}
           {/* Apple Guideline 4.8 : si on garde Google, on DOIT aussi proposer Sign in
@@ -384,6 +524,79 @@ export default function Onboarding({ onComplete }) {
             </button>
           </p>
         </div>
+
+        {/* ─── Popup activation Face ID (après login/signup réussi) ─── */}
+        {askEnableBio && (
+          <div style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: 20,
+            animation: 'ob-fade 0.2s ease-out',
+          }}>
+            <div style={{
+              background: 'white',
+              borderRadius: 18,
+              padding: 28,
+              maxWidth: 360,
+              width: '100%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 56, marginBottom: 14 }}>
+                {bioType === 'touchId' ? '👆' : '🤳'}
+              </div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 10px', color: '#1A1A1A' }}>
+                Activer {bioType === 'touchId' ? 'Touch ID' : 'Face ID'} ?
+              </h2>
+              <p style={{ fontSize: 14, color: '#6B6B6B', marginBottom: 22, lineHeight: 1.5 }}>
+                Connecte-toi rapidement à YARAM la prochaine fois sans retaper ton mot de passe.
+              </p>
+
+              <button
+                onClick={handleEnableBio}
+                disabled={bioLoading}
+                style={{
+                  width: '100%',
+                  padding: 14,
+                  background: 'linear-gradient(135deg, #1F8B4C 0%, #166635 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 12,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: bioLoading ? 'wait' : 'pointer',
+                  fontFamily: 'inherit',
+                  marginBottom: 10,
+                }}
+              >
+                {bioLoading ? '⏳ Activation...' : `Activer ${bioType === 'touchId' ? 'Touch ID' : 'Face ID'}`}
+              </button>
+
+              <button
+                onClick={handleSkipBio}
+                disabled={bioLoading}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  background: 'transparent',
+                  color: '#6B6B6B',
+                  border: 'none',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Plus tard
+              </button>
+
+              <p style={{ fontSize: 11, color: '#999', marginTop: 14 }}>
+                Tu peux modifier ce choix à tout moment dans les paramètres.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ─── Modal Forgot Password ─── */}
         {forgotOpen && (
