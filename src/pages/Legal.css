@@ -1,7 +1,13 @@
 /* Pages legales YARAM (Privacy / Terms / DeleteAccount) */
 
 .legal-screen {
-  min-height: 100vh;
+  /* FIX iPad/iPhone : utiliser 100dvh (dynamic viewport) + overflow scroll
+     pour que le contenu soit scrollable même avec sticky header.
+     L'ancienne version min-height: 100vh bloquait le scroll sur iPad/Safari. */
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smooth scroll iOS WebKit */
   background: var(--bg, #F5F6F8);
   padding-bottom: 60px;
 }

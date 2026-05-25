@@ -7,9 +7,9 @@
 // - Ignore mutations Supabase (POST/PUT/DELETE)
 // ════════════════════════════════════════════════
 
-const SW_VERSION = 'v14-2026-05-24-gtm-installed';
-const CACHE_STATIC = 'yaram-static-v14';
-const CACHE_SUPABASE = 'yaram-supabase-v14';
+const SW_VERSION = 'v15-2026-05-24-ios-app-store-redirect';
+const CACHE_STATIC = 'yaram-static-v15';
+const CACHE_SUPABASE = 'yaram-supabase-v15';
 
 const ESSENTIAL = [
   '/',

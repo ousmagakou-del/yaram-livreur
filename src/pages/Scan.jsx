@@ -33,9 +33,21 @@ export default function Scan() {
   const cancelledRef = useRef(false);
   
   // Démarrer la caméra
+  // FIX iPad/WebView : ajout d'un timeout global de 15s sur getUserMedia.
+  // Sur certains iPad (notamment M3 sous iPadOS 26), le WebView Capacitor
+  // peut rester bloqué silencieusement sans répondre. On force une erreur
+  // visible pour ne pas laisser l'utilisateur sur un écran qui ne charge jamais.
   const startCamera = async () => {
+    // Compatibilité : certains WebView (très anciens) n'ont pas mediaDevices
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setCameraError('Ton navigateur ne supporte pas la caméra. Essaie sur un iPhone récent ou un autre navigateur.');
+      setPhase('error');
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Race entre getUserMedia et un timeout de 15s
+      const cameraPromise = navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
           width: { ideal: 640 },
@@ -43,31 +55,62 @@ export default function Scan() {
         },
         audio: false,
       });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT_CAMERA_15S')), 15000)
+      );
+
+      const stream = await Promise.race([cameraPromise, timeoutPromise]);
       streamRef.current = stream;
       cancelledRef.current = false;
       setPhase('camera');
-      // setPhase change DOM → on attend que video soit dans le DOM avant d'attacher le stream
     } catch (e) {
       console.error('[Scan] Camera error:', e);
-      setCameraError(
-        e.name === 'NotAllowedError'
-          ? 'Autorise l\'accès à la caméra pour continuer'
-          : 'Impossible d\'accéder à la caméra : ' + e.message
-      );
+      let msg;
+      if (e.message === 'TIMEOUT_CAMERA_15S') {
+        msg = 'La caméra ne répond pas. Vérifie que tu as autorisé l\'accès dans Réglages → YARAM → Caméra, puis réessaie.';
+      } else if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        msg = 'Autorise l\'accès à la caméra pour continuer (Réglages → YARAM → Caméra).';
+      } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+        msg = 'Aucune caméra détectée sur cet appareil.';
+      } else {
+        msg = 'Impossible d\'accéder à la caméra : ' + (e.message || e.name || 'erreur inconnue');
+      }
+      setCameraError(msg);
       setPhase('error');
     }
   };
 
   // Attacher le stream à <video> dès que dispo
+  // FIX iPad : si onloadedmetadata ne se déclenche pas en 10s, on force erreur
+  // au lieu de rester bloqué sur "Démarrage caméra...".
   useEffect(() => {
     if (phase === 'camera' && videoRef.current && streamRef.current && !videoRef.current.srcObject) {
       videoRef.current.srcObject = streamRef.current;
+
+      // Safety net : si video pas prête en 10s, on bascule sur erreur
+      const videoTimeout = setTimeout(() => {
+        if (!videoReady && phase === 'camera') {
+          console.error('[Scan] Video metadata timeout');
+          setCameraError('La caméra démarre mais la vidéo ne s\'affiche pas. Réessaie en redémarrant l\'app.');
+          setPhase('error');
+        }
+      }, 10000);
+      timeoutRef.current = videoTimeout;
+
       videoRef.current.onloadedmetadata = () => {
-        videoRef.current.play()
-          .then(() => setVideoReady(true))
-          .catch(e => console.error('[Scan] Play error:', e));
+        clearTimeout(videoTimeout);
+        if (videoRef.current) {
+          videoRef.current.play()
+            .then(() => setVideoReady(true))
+            .catch(e => {
+              console.error('[Scan] Play error:', e);
+              setCameraError('Impossible de lancer la vidéo : ' + e.message);
+              setPhase('error');
+            });
+        }
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
   // Auto-démarrer le scanning quand vidéo prête (2 sec après)

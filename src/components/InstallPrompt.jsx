@@ -1,60 +1,75 @@
 import { useState, useEffect } from 'react';
+import { isNativeApp } from '../lib/platform';
 
 /**
- * Composant qui affiche un prompt d'installation PWA
- * - Android : utilise beforeinstallprompt natif
- * - iOS : affiche instructions manuelles ("Ajouter à l'écran d'accueil")
+ * Composant qui propose à l'utilisateur d'installer YARAM sur son téléphone.
+ *
+ * Comportement par plateforme :
+ * - Capacitor (app native iOS/Android) : ne s'affiche JAMAIS (l'user est déjà dans l'app)
+ * - iOS Safari/Chrome web : propose de télécharger sur l'App Store (vraie app native)
+ * - Android Chrome : PWA install natif (Android n'a pas encore d'app native YARAM)
+ * - Déjà installé en PWA (standalone) : ne s'affiche pas
+ * - Dismissed dans les 7 derniers jours : ne s'affiche pas
  */
+const APP_STORE_URL = 'https://apps.apple.com/sn/app/yaram/id6771017009';
+
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
-  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   useEffect(() => {
-    // Détecter iOS
+    // 1. Si on est dans l'app Capacitor native → ne JAMAIS afficher le prompt.
+    //    L'user est déjà dans la vraie app, pas besoin de lui dire de l'installer.
+    if (isNativeApp()) return;
+
+    // 2. Détecter iOS (web, pas Capacitor) — inclut Safari, Chrome iOS, Firefox iOS,
+    //    Edge iOS (tous utilisent le moteur WebKit sur iOS).
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(ios);
-    
-    // Vérifier si déjà installée
+
+    // 3. Vérifier si déjà installée en PWA (standalone)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || window.navigator.standalone === true;
     if (isStandalone) return;
-    
-    // Si déjà dismissed cette semaine, ne plus afficher
+
+    // 4. Si déjà dismissed cette semaine, ne plus afficher
     const dismissed = localStorage.getItem('yaram-pwa-dismissed');
     if (dismissed) {
       const dismissedDate = new Date(dismissed);
       const daysSince = (Date.now() - dismissedDate) / (1000 * 60 * 60 * 24);
       if (daysSince < 7) return;
     }
-    
-    // Android : écouter l'événement natif
+
+    // 5. iOS : afficher le banner après 5 secondes (pour pas être agressif au boot)
+    //    On veut que les users iOS voient vite qu'il y a une vraie app native dispo.
+    if (ios) {
+      const t = setTimeout(() => setShowPrompt(true), 5000);
+      return () => clearTimeout(t);
+    }
+
+    // 6. Android : écouter l'événement natif beforeinstallprompt
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // Attendre 30 secondes avant de proposer
+      // Attendre 30 secondes avant de proposer (laisser le temps à l'user de découvrir)
       setTimeout(() => setShowPrompt(true), 30000);
     };
     window.addEventListener('beforeinstallprompt', handler);
-    
-    // iOS : afficher prompt manuel après 45 secondes
-    if (ios) {
-      const t = setTimeout(() => setShowPrompt(true), 45000);
-      return () => {
-        clearTimeout(t);
-        window.removeEventListener('beforeinstallprompt', handler);
-      };
-    }
-    
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstall = async () => {
+    // iOS : redirige direct vers l'App Store (vraie app native)
     if (isIOS) {
-      setShowIOSInstructions(true);
+      window.open(APP_STORE_URL, '_blank');
+      // Mémorise qu'on a redirigé pour ne pas réafficher tout de suite
+      localStorage.setItem('yaram-pwa-dismissed', new Date().toISOString());
+      setShowPrompt(false);
       return;
     }
+
+    // Android : utilise le prompt natif PWA
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
@@ -72,68 +87,43 @@ export default function InstallPrompt() {
 
   if (!showPrompt) return null;
 
-  if (showIOSInstructions) {
-    return (
-      <div style={overlayStyle} onClick={() => setShowIOSInstructions(false)}>
-        <div style={modalStyle} onClick={e => e.stopPropagation()}>
-          <button onClick={() => setShowIOSInstructions(false)} style={closeStyle}>✕</button>
-          <div style={{ fontSize: 56, marginBottom: 10 }}>📱</div>
-          <h2 style={{ margin: '0 0 10px', fontSize: 20, color: '#1A1A1A' }}>
-            Installer YARAM
-          </h2>
-          <p style={{ fontSize: 14, color: '#6B6B6B', marginBottom: 24 }}>
-            Sur iPhone, suis ces étapes :
-          </p>
-          
-          <ol style={{ textAlign: 'left', paddingLeft: 0, listStyle: 'none' }}>
-            {[
-              ['1', 'Appuie sur le bouton', <strong key="s">Partager</strong>, ' ⬆️ en bas de Safari'],
-              ['2', 'Fais défiler et choisis ', <strong key="a">Sur l\'écran d\'accueil</strong>],
-              ['3', 'Appuie sur ', <strong key="add">Ajouter</strong>, ' en haut à droite'],
-            ].map(([num, ...content], i) => (
-              <li key={i} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 12,
-                marginBottom: 14, padding: 12, background: '#F9FAFB',
-                borderRadius: 10,
-              }}>
-                <span style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: '#1F8B4C', color: 'white', fontWeight: 800,
-                  fontSize: 14, display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', flexShrink: 0,
-                }}>{num}</span>
-                <span style={{ fontSize: 13, color: '#1A1A1A', lineHeight: 1.5 }}>
-                  {content}
-                </span>
-              </li>
-            ))}
-          </ol>
-          
-          <button onClick={() => setShowIOSInstructions(false)} style={primaryBtn}>
-            J'ai compris
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Texte différent selon la plateforme
+  const title = isIOS
+    ? 'YARAM est sur l\'App Store !'
+    : 'Installe YARAM sur ton téléphone';
+  const subtitle = isIOS
+    ? 'Télécharge la vraie app iOS pour une expérience optimale'
+    : 'Accès rapide depuis ton écran d\'accueil';
+  const buttonLabel = isIOS ? 'Télécharger' : 'Installer';
 
   return (
     <div style={bannerStyle}>
-      <div style={{ width: 48, height: 48, borderRadius: 10,
-                    background: 'white', color: '#1F8B4C',
-                    fontWeight: 800, fontSize: 28,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0 }}>D</div>
+      <div style={iconStyle}>
+        {isIOS ? (
+          // Logo Apple stylisé pour iOS
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="#1F8B4C">
+            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+          </svg>
+        ) : (
+          // Logo YARAM "Y" pour Android
+          <span style={{
+            fontWeight: 800,
+            fontSize: 28,
+            color: '#1F8B4C',
+            fontFamily: 'inherit',
+          }}>Y</span>
+        )}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <strong style={{ fontSize: 14, display: 'block', color: 'white' }}>
-          Installe YARAM sur ton téléphone
+          {title}
         </strong>
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', display: 'block', marginTop: 2 }}>
-          Accès rapide depuis ton écran d'accueil
+          {subtitle}
         </span>
       </div>
       <button onClick={handleInstall} style={installBtnStyle}>
-        Installer
+        {buttonLabel}
       </button>
       <button onClick={handleDismiss} style={dismissStyle} aria-label="Fermer">
         ✕
@@ -158,6 +148,13 @@ const bannerStyle = {
   animation: 'slideUp 0.4s ease-out',
 };
 
+const iconStyle = {
+  width: 48, height: 48, borderRadius: 10,
+  background: 'white',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  flexShrink: 0,
+};
+
 const installBtnStyle = {
   background: 'white',
   color: '#1F8B4C',
@@ -179,44 +176,4 @@ const dismissStyle = {
   fontSize: 16,
   cursor: 'pointer',
   flexShrink: 0,
-};
-
-const overlayStyle = {
-  position: 'fixed', inset: 0,
-  background: 'rgba(0,0,0,0.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  zIndex: 10000, padding: 20,
-};
-
-const modalStyle = {
-  background: 'white',
-  borderRadius: 16,
-  padding: 28,
-  maxWidth: 360,
-  width: '100%',
-  textAlign: 'center',
-  position: 'relative',
-};
-
-const closeStyle = {
-  position: 'absolute',
-  top: 12, right: 12,
-  background: '#F4F4F2',
-  border: 'none',
-  width: 32, height: 32,
-  borderRadius: '50%',
-  fontSize: 14,
-  cursor: 'pointer',
-};
-
-const primaryBtn = {
-  width: '100%',
-  padding: 14,
-  background: '#1F8B4C',
-  color: 'white',
-  border: 'none',
-  borderRadius: 12,
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: 'pointer',
 };

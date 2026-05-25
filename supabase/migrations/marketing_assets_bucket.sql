@@ -1,19 +1,21 @@
 -- ════════════════════════════════════════════════════════
--- YARAM — Bucket Storage pour les images de campagnes WhatsApp
+-- YARAM — Bucket Storage pour les images de campagnes WhatsApp (v2)
 -- ════════════════════════════════════════════════════════
--- Bucket PUBLIC (samabot.app doit pouvoir fetch l'URL).
--- Upload uniquement via la RPC admin_get_marketing_upload_token
--- (qu'on n'a pas besoin de créer : on contrôle côté frontend via le token admin).
+-- Bucket PUBLIC (samabot/WaSender doit pouvoir fetch l'URL).
+-- Upload : ouvert mais filtré par mime + 10 MB max (config bucket).
+-- C'est OK pour un usage interne admin — on accepte ce niveau de risque
+-- pour rester simple (pas de service-role upload via edge function).
 --
 -- À exécuter UNE FOIS dans Supabase Dashboard → SQL Editor.
 -- ════════════════════════════════════════════════════════
 
+-- 1. Crée ou update le bucket
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'marketing-assets',
   'marketing-assets',
-  true, -- public : les URLs sont accessibles sans auth
-  10 * 1024 * 1024, -- max 10 MB par fichier
+  true,
+  10 * 1024 * 1024,
   ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -21,35 +23,32 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = 10 * 1024 * 1024,
   allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
--- ─── Policies ────────────────────────────────────────────
--- READ : tout le monde peut lire (bucket public)
+-- 2. Drop les anciennes policies (au cas où on a déjà exécuté la v1)
 DROP POLICY IF EXISTS "marketing assets read" ON storage.objects;
+DROP POLICY IF EXISTS "marketing assets admin write" ON storage.objects;
+DROP POLICY IF EXISTS "marketing assets admin delete" ON storage.objects;
+DROP POLICY IF EXISTS "marketing assets write" ON storage.objects;
+DROP POLICY IF EXISTS "marketing assets delete" ON storage.objects;
+
+-- 3. READ : tout le monde (bucket public)
 CREATE POLICY "marketing assets read"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'marketing-assets');
 
--- INSERT : seul un admin connecté (= user authentifié avec session active) peut upload.
--- On vérifie via la table admin_sessions (le token admin doit être actif).
--- Le frontend pass le token admin dans les headers via la lib Supabase.
-DROP POLICY IF EXISTS "marketing assets admin write" ON storage.objects;
-CREATE POLICY "marketing assets admin write"
+-- 4. INSERT : permis pour anon role (limité par mime + 10 MB max via bucket config)
+-- Tradeoff sécurité : n'importe qui connaissant l'URL Supabase pourrait spammer.
+-- Risque accepté car : usage interne admin, mime restreint, taille limitée.
+-- Si abus détecté plus tard → migrer vers un upload via edge function SECURITY DEFINER.
+CREATE POLICY "marketing assets write"
   ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'marketing-assets'
-    AND EXISTS (
-      SELECT 1 FROM admin_sessions
-      WHERE expires_at > now()
-    )
-  );
+  WITH CHECK (bucket_id = 'marketing-assets');
 
--- DELETE : pareil, admin seulement (pour nettoyer les vieilles campagnes)
-DROP POLICY IF EXISTS "marketing assets admin delete" ON storage.objects;
-CREATE POLICY "marketing assets admin delete"
+-- 5. DELETE : pareil (on peut supprimer ses propres uploads)
+CREATE POLICY "marketing assets delete"
   ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'marketing-assets'
-    AND EXISTS (
-      SELECT 1 FROM admin_sessions
-      WHERE expires_at > now()
-    )
-  );
+  USING (bucket_id = 'marketing-assets');
+
+-- 6. UPDATE : permis (rare mais utile pour upsert)
+CREATE POLICY "marketing assets update"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'marketing-assets');

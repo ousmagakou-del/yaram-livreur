@@ -1,0 +1,87 @@
+name: Customer Reminders (daily)
+
+# Lance tous les jours à 9h00 UTC (= 9h Dakar UTC+0)
+# Évite les heures de pointe : utilisateurs en train de dormir → moins de friction
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  # Permet aussi un déclenchement manuel depuis l'interface GitHub Actions
+  # (utile pour tester ou re-run après un fix)
+  workflow_dispatch:
+    inputs:
+      types:
+        description: 'Types de rappels (CSV : replenishment,reengagement,anniversary,scan_refresh) — vide = tous'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run (ne pas envoyer, juste simuler)'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build JSON body
+        id: build_body
+        run: |
+          TYPES="${{ github.event.inputs.types }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+          # Construit le body : types vide = tous types, dry_run optionnel
+          if [ -z "$TYPES" ]; then
+            BODY='{}'
+            if [ "$DRY_RUN" = "true" ]; then
+              BODY='{"dry_run":true}'
+            fi
+          else
+            # Convertit CSV en array JSON
+            TYPES_JSON=$(echo "$TYPES" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; ""))')
+            if [ "$DRY_RUN" = "true" ]; then
+              BODY=$(jq -n --argjson types "$TYPES_JSON" '{types: $types, dry_run: true}')
+            else
+              BODY=$(jq -n --argjson types "$TYPES_JSON" '{types: $types}')
+            fi
+          fi
+          echo "body=$BODY" >> "$GITHUB_OUTPUT"
+          echo "Body: $BODY"
+
+      - name: Call send-customer-reminders edge function
+        run: |
+          response=$(curl -sS -w "\n%{http_code}" -X POST \
+            "https://qxhhnrnworwrnwmqekmb.supabase.co/functions/v1/send-customer-reminders" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4aGhucm53b3J3cm53bXFla21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTExMzYsImV4cCI6MjA5NDA4NzEzNn0.l_7-Eg06UFnXvSw1BQiuNw0yU94jillHNycx-jvP1Aw" \
+            -H "x-cron-token: ${{ secrets.REMINDER_CRON_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '${{ steps.build_body.outputs.body }}')
+
+          # Sépare body et code HTTP
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response body:"
+          echo "$body" | jq .
+
+          if [ "$http_code" -lt "200" ] || [ "$http_code" -ge "300" ]; then
+            echo "::error::Edge function returned non-2xx status: $http_code"
+            exit 1
+          fi
+
+          # Extraction des stats pour log lisible
+          total_sent=$(echo "$body" | jq -r '.total_sent // 0')
+          total_failed=$(echo "$body" | jq -r '.total_failed // 0')
+
+          echo "✅ Customer reminders run completed"
+          echo "   Sent: $total_sent"
+          echo "   Failed: $total_failed"
+
+          # Annotations GitHub Actions visibles dans le résumé du run
+          echo "## 📬 Customer Reminders Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total envoyés** : $total_sent" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total échecs** : $total_failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "$body" | jq . >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

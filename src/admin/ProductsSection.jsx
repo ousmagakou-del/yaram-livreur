@@ -45,6 +45,11 @@ export default function ProductsSection() {
       inci: p.inci, reason: p.reason,
       badges: p.badges || [],
       active: p.active,
+      // Durée moyenne d'utilisation : sert aux rappels d'épuisement (replenishment).
+      // Si l'user laisse vide, on garde la valeur DB existante (qui a son défaut catégorie).
+      usage_duration_days: p.usage_duration_days != null && p.usage_duration_days !== ''
+        ? parseInt(p.usage_duration_days)
+        : null,
     };
     const { error } = await supabase.rpc('admin_upsert_product', {
       p_token: token,
@@ -138,6 +143,7 @@ export default function ProductsSection() {
       rating: 0, review_count: 0, img: '',
       short_desc: '', long_desc: '', inci: '', reason: '',
       badges: [], active: true,
+      usage_duration_days: 60, // défaut sérum : ajustable par produit
     });
   };
 
@@ -333,6 +339,20 @@ function ProductEditor({ product, brands, onSave, onCancel }) {
           <label>Description longue<textarea value={p.long_desc} onChange={e => upd('long_desc', e.target.value)} rows={3} /></label>
           <label>Pourquoi recommandé<textarea value={p.reason} onChange={e => upd('reason', e.target.value)} rows={2} placeholder="Idéal pour les peaux mixtes phototype VI..." /></label>
           <label>INCI (liste ingrédients)<textarea value={p.inci} onChange={e => upd('inci', e.target.value)} rows={3} placeholder="Aqua, Niacinamide, Zinc PCA..." /></label>
+          <label>
+            Durée moyenne d'utilisation (jours)
+            <input
+              type="number"
+              min="7"
+              max="730"
+              value={p.usage_duration_days ?? ''}
+              onChange={e => upd('usage_duration_days', e.target.value)}
+              placeholder="60"
+            />
+            <small style={{ display: 'block', fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+              Sert au rappel de réachat. Conseil : sérum 30ml = 60j · crème 50ml = 90j · parfum = 180j · masque = 30j.
+            </small>
+          </label>
         </div>
 
         <div className="adm-form-section" style={{ gridColumn: '1 / -1' }}>
