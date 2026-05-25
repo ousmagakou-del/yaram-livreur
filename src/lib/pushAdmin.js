@@ -1,0 +1,140 @@
+// ════════════════════════════════════════════════════════
+// YARAM — Helpers admin pour envoyer des push notifications
+// ════════════════════════════════════════════════════════
+//
+// 2 use cases :
+//
+// 1. AUTO push sur change de status commande
+//    Appelé depuis OrdersSection / Pharma / Livreur quand le status
+//    change (paid → preparing → shipped → delivered)
+//
+// 2. BROADCAST manuel depuis l'admin
+//    Appelé depuis PushBroadcastSection
+//
+// Les 2 appellent l'edge function `send-push-notification` avec
+// auth admin (admin_sessions.token).
+// ════════════════════════════════════════════════════════
+
+import { supabase } from './supabase';
+import { getAdminToken } from './adminAuth';
+
+const ORDER_STATUS_TEMPLATES = {
+  paid: {
+    title: '✅ Paiement reçu !',
+    message: (order) => `Ta commande ${order.id?.slice(0, 12) || ''} est confirmée. On la prépare !`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  preparing: {
+    title: '👩‍🍳 On prépare ta commande',
+    message: (order) => `Ta commande ${order.id?.slice(0, 12) || ''} est en cours de préparation à la pharmacie.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  ready: {
+    title: '📦 Commande prête',
+    message: (order) => `Ta commande ${order.id?.slice(0, 12) || ''} est prête, le livreur va bientôt partir.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  shipped: {
+    title: '🛵 En route !',
+    message: (order) => `Ton livreur Moussa est en route. Tu peux le suivre en temps réel.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  delivered: {
+    title: '🎉 Livré !',
+    message: () => `Ta commande est livrée. Profite bien de tes produits ! 💚`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  cancelled: {
+    title: '❌ Commande annulée',
+    message: () => `Ta commande a été annulée. Si tu as une question, contacte-nous sur WhatsApp.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+};
+
+/**
+ * Envoie un push notif "status commande change" à l'user concerné.
+ * Best effort : ne throw pas, log juste si erreur.
+ *
+ * @param {Object} order - { id, user_id, status, ... }
+ * @returns {Promise<{ success, error?, recipients? }>}
+ */
+export async function pushOrderStatus(order) {
+  if (!order?.user_id || !order?.status) {
+    return { success: false, error: 'missing_user_or_status' };
+  }
+
+  const tpl = ORDER_STATUS_TEMPLATES[order.status];
+  if (!tpl) {
+    return { success: false, error: `no_template_for_status_${order.status}` };
+  }
+
+  const token = getAdminToken();
+  if (!token) {
+    return { success: false, error: 'no_admin_token' };
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        token,
+        type: 'order_status',
+        user_id: order.user_id,
+        title: tpl.title,
+        message: typeof tpl.message === 'function' ? tpl.message(order) : tpl.message,
+        url: typeof tpl.url === 'function' ? tpl.url(order) : tpl.url,
+        data: {
+          order_id: order.id,
+          status: order.status,
+        },
+      },
+    });
+    if (error) {
+      console.warn('[pushOrderStatus] invoke error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return data || { success: true };
+  } catch (e) {
+    console.warn('[pushOrderStatus] exception:', e?.message);
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Envoie un broadcast push à tous les users iOS (ou avec filtres).
+ *
+ * @param {Object} opts
+ * @param {string} opts.title
+ * @param {string} opts.message
+ * @param {string} [opts.url]    - URL à ouvrir au tap
+ * @param {Array}  [opts.filters] - Filtres OneSignal pour cibler (skin_type, ville, etc.)
+ * @returns {Promise<{ success, recipients?, notification_id?, error? }>}
+ */
+export async function pushBroadcast({ title, message, url, filters }) {
+  const token = getAdminToken();
+  if (!token) {
+    return { success: false, error: 'no_admin_token' };
+  }
+  if (!title || !message) {
+    return { success: false, error: 'title_and_message_required' };
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        token,
+        type: 'manual',
+        broadcast: true,
+        title,
+        message,
+        url: url || null,
+        filters: filters || [],
+      },
+    });
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return data || { success: true };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}

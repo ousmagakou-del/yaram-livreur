@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Push Notifications capability
+         "development" pour TestFlight / dev local
+         "production" pour App Store release
+         Apple gère automatiquement le switch entre les deux selon le build type
+         tant que la clé APNs OneSignal couvre "Sandbox & Production" -->
+    <key>aps-environment</key>
+    <string>production</string>
+</dict>
+</plist>

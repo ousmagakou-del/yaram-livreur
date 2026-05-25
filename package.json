@@ -19,6 +19,7 @@
     "@sentry/browser": "^8.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "@zxing/browser": "^0.2.0",
+    "onesignal-cordova-plugin": "^5.3.10",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

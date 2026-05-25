@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getCachedSetting } from '../lib/supabase';
 import { adminListOrders, adminUpdateOrder } from '../lib/adminApi';
 import { confirmDialog, toast } from '../lib/toast';
+import { pushOrderStatus } from '../lib/pushAdmin';
 
 // Flow lineaire des statuts "normaux" d'une commande. Une commande peut sortir
 // de ce flow (refused, cancelled, disputed...) et ne plus etre "avancable".
@@ -84,14 +85,26 @@ export default function OrdersSection() {
     if (idx === -1 || idx >= STATUS_FLOW.length - 1) return;
     const next = STATUS_FLOW[idx + 1];
     const { error } = await adminUpdateOrder(order.id, { status: next });
-    if (error) toast.error('Échec mise à jour : ' + (error.message || ''));
+    if (error) {
+      toast.error('Échec mise à jour : ' + (error.message || ''));
+      refresh();
+      return;
+    }
+    // PUSH NOTIF : informe la cliente du nouveau status (best-effort, ne bloque pas).
+    // Si pas de device iOS lié → skip silencieux côté serveur.
+    pushOrderStatus({ ...order, status: next }).catch(() => { /* silent */ });
     refresh();
   };
 
   const cancel = async (order) => {
     if (!await confirmDialog('Annuler cette commande ?')) return;
     const { error } = await adminUpdateOrder(order.id, { status: 'cancelled' });
-    if (error) toast.error('Échec annulation : ' + (error.message || ''));
+    if (error) {
+      toast.error('Échec annulation : ' + (error.message || ''));
+      refresh();
+      return;
+    }
+    pushOrderStatus({ ...order, status: 'cancelled' }).catch(() => { /* silent */ });
     refresh();
   };
 

@@ -2,6 +2,7 @@ import { useState, createContext, useContext, useEffect, useRef, lazy, Suspense 
 import { supabase, getCurrentUser, getAllProducts, getAllBrands, getProductCategorySlugs } from './lib/supabase';
 import { maybeSendWelcomeEmail } from './lib/emails';
 import { checkAndNotifyCartAbandon, notifyWelcome } from './lib/notifications';
+import { initPush, setupPushForUser } from './lib/push';
 import SplashScreen from './components/SplashScreen';
 import Onboarding from './pages/Onboarding';
 import Home from './pages/Home';
@@ -160,6 +161,13 @@ function ClientApp() {
     return () => clearTimeout(t);
   }, []);
 
+  // PUSH NOTIFICATIONS : init OneSignal SDK au boot (no-op sur web).
+  // Ne demande PAS la permission encore (on le fera après login pour avoir
+  // un meilleur taux d'acceptation : "j'ai mon compte, j'autorise les notifs").
+  useEffect(() => {
+    initPush().catch(() => { /* silent : push optionnel, ne doit pas bloquer */ });
+  }, []);
+
   useEffect(() => {
     const handlePopState = () => {
       const newRoute = pathToRoute(window.location.pathname, window.location.search);
@@ -266,6 +274,22 @@ function ClientApp() {
       clearTimeout(cartTimer);
     };
   }, [authChecked, user?.id, user?.phone]);
+
+  // ─── PUSH NOTIFICATIONS : setup après login (popup permission iOS + save device en DB) ───
+  // Délai de 3 secondes pour laisser l'user "atterrir" sur l'app avant de
+  // lui demander la permission (= meilleur taux d'acceptation).
+  // No-op sur web (le helper isNativeApp() check ça).
+  const pushSetupRef = useRef(false);
+  useEffect(() => {
+    if (!authChecked || !user?.id) return;
+    if (pushSetupRef.current) return;
+    pushSetupRef.current = true;
+
+    const t = setTimeout(() => {
+      setupPushForUser(user).catch(() => { /* silent */ });
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [authChecked, user?.id]);
 
   const navigate = (target) => {
     if (target === -1) { goBack(); return; }

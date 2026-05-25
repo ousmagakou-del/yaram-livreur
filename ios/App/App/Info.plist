@@ -23,9 +23,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>$(MARKETING_VERSION)</string>
+	<string>1.0.2</string>
 	<key>CFBundleVersion</key>
-	<string>7</string>
+	<string>9</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -35,6 +35,13 @@
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
+	</array>
+	<!-- Background Modes : remote-notification permet à iOS de réveiller l'app
+	     en background pour traiter une push notif silencieuse (data-only).
+	     Indispensable pour que OneSignal puisse delivrer correctement. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

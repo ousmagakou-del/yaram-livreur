@@ -27,6 +27,7 @@ import BannersSection from '../admin/BannersSection';
 import CategoriesSection from '../admin/CategoriesSection';
 import LoyaltySection from '../admin/LoyaltySection';
 import NotificationsSection from '../admin/NotificationsSection';
+import PushBroadcastSection from '../admin/PushBroadcastSection';
 import './Admin.css';
 
 const NAV = [
@@ -40,6 +41,7 @@ const NAV = [
   { id: 'finances',    icon: '💸', label: 'Finances' },
   { id: 'loyalty',     icon: '💚', label: 'Fidélité' },
   { id: 'notifications', icon: '📲', label: 'Notifications WhatsApp' },
+  { id: 'push',          icon: '🔔', label: 'Push iOS' },
   { id: 'products',    icon: '🛍️', label: 'Produits' },
   { id: 'validation',  icon: '✨', label: 'Validation produits', badge: true },
   { id: 'brands',      icon: '🏷️', label: 'Marques' },
@@ -264,6 +266,7 @@ export default function Admin() {
         {section === 'finances'      && <FinancesSection />}
         {section === 'loyalty'       && <LoyaltySection />}
         {section === 'notifications' && <NotificationsSection />}
+        {section === 'push'          && <PushBroadcastSection />}
         {section === 'products'      && <ProductsSection />}
         {section === 'validation'    && <ProductsValidationSection />}
         {section === 'brands'        && <BrandsSection />}

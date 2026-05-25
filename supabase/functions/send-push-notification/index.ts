@@ -1,0 +1,232 @@
+// ════════════════════════════════════════════════════════
+// YARAM — Edge function : send-push-notification (v1)
+// ════════════════════════════════════════════════════════
+//
+// Envoie une push notification via OneSignal REST API.
+//
+// 2 modes d'envoi :
+//
+// 1. CIBLÉ par user_id : envoie à tous les devices d'un user spécifique
+//    body: { type, user_id, title, message, url? }
+//
+// 2. BROADCAST : envoie à tous les devices iOS de l'app (avec filtres)
+//    body: { type, broadcast: true, title, message, url?, filters?: [...] }
+//
+// AUTH :
+// - Token admin (admin_sessions) pour les broadcasts manuels
+// - Service role uniquement pour les pushs auto (déclenchés par les hooks DB)
+//
+// SECRETS Supabase requis :
+//   - ONESIGNAL_APP_ID    : ID de l'app OneSignal
+//   - ONESIGNAL_REST_KEY  : REST API Key OneSignal (commence par os_v2_app_...)
+// ════════════════════════════════════════════════════════
+
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
+};
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+
+type PushBody = {
+  // Auth : soit token admin, soit appel interne (service role via x-internal-secret)
+  token?: string;
+  internal_secret?: string;
+
+  // Type de notif (pour logs analytics)
+  type?: 'manual' | 'order_status' | 'replenishment' | 'reengagement' | 'anniversary' | 'scan_refresh' | 'welcome';
+
+  // Ciblage : soit user_id (1 user), soit broadcast (tous)
+  user_id?: string;
+  broadcast?: boolean;
+
+  // Filtres pour broadcast (optionnels)
+  filters?: Array<{ field: string; relation: string; value: string }>;
+
+  // Contenu
+  title: string;
+  message: string;
+  url?: string;
+  data?: Record<string, unknown>;  // payload custom passé à l'app
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method !== "POST") return json({ success: false, error: "method_not_allowed" }, 405);
+
+  let body: PushBody;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ success: false, error: "invalid_json" }, 400);
+  }
+
+  if (!body.title || !body.message) {
+    return json({ success: false, error: "title_and_message_required" }, 400);
+  }
+  if (!body.user_id && !body.broadcast) {
+    return json({ success: false, error: "user_id_or_broadcast_required" }, 400);
+  }
+
+  // ─── AUTH ─────────────────────────────────────────────
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const INTERNAL_SECRET = Deno.env.get("INTERNAL_PUSH_SECRET");
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+
+  let authMethod: 'admin' | 'internal' | null = null;
+  let actorEmail = 'system';
+
+  // Internal call (depuis une autre edge function / trigger DB)
+  if (body.internal_secret && INTERNAL_SECRET && body.internal_secret === INTERNAL_SECRET) {
+    authMethod = 'internal';
+  }
+  // Admin call (depuis l'admin UI broadcast)
+  else if (body.token) {
+    const { data: session } = await admin
+      .from("admin_sessions")
+      .select("admin_email, expires_at")
+      .eq("token", body.token)
+      .maybeSingle();
+    if (session && new Date(session.expires_at) > new Date()) {
+      authMethod = 'admin';
+      actorEmail = session.admin_email;
+    }
+  }
+
+  if (!authMethod) {
+    return json({ success: false, error: "unauthorized" }, 401);
+  }
+
+  // ─── OneSignal API ────────────────────────────────────
+  const APP_ID = Deno.env.get("ONESIGNAL_APP_ID");
+  const REST_KEY = Deno.env.get("ONESIGNAL_REST_KEY");
+  if (!APP_ID || !REST_KEY) {
+    return json({ success: false, error: "ONESIGNAL_credentials_missing" }, 500);
+  }
+
+  // Construction du payload OneSignal selon les docs
+  // https://documentation.onesignal.com/reference/create-notification
+  const payload: Record<string, unknown> = {
+    app_id: APP_ID,
+    headings: { en: body.title, fr: body.title },
+    contents: { en: body.message, fr: body.message },
+  };
+
+  // Données custom passées à l'app (deeplink, productId, etc.)
+  if (body.url || body.data) {
+    payload.data = { ...(body.data || {}), url: body.url || null };
+  }
+
+  // URL d'ouverture par défaut au tap sur notif
+  if (body.url) {
+    payload.url = body.url;
+    payload.app_url = body.url;  // pour les apps natives
+  }
+
+  // ─── Ciblage ──────────────────────────────────────────
+  let playerIdsForLog: string[] = [];
+
+  if (body.broadcast) {
+    // Broadcast à tous les devices (avec filtres optionnels)
+    payload.included_segments = ["Subscribed Users"];
+
+    if (body.filters && body.filters.length > 0) {
+      payload.filters = body.filters;
+    }
+  } else {
+    // Ciblage par user_id → fetch tous ses player_ids actifs
+    const { data: devices } = await admin
+      .from("user_devices")
+      .select("onesignal_player_id")
+      .eq("user_id", body.user_id)
+      .eq("push_enabled", true);
+
+    const playerIds = (devices || []).map(d => d.onesignal_player_id).filter(Boolean);
+    if (playerIds.length === 0) {
+      // Pas de device → log skipped, retour OK (pas une vraie erreur)
+      await admin.from("push_logs").insert({
+        user_id: body.user_id || null,
+        type: body.type || 'manual',
+        title: body.title,
+        message: body.message,
+        url: body.url || null,
+        status: 'failed',
+        error_text: 'no_active_devices',
+      });
+      return json({ success: false, error: "no_active_devices", user_id: body.user_id });
+    }
+    payload.include_subscription_ids = playerIds;
+    playerIdsForLog = playerIds;
+  }
+
+  // ─── Appel OneSignal ──────────────────────────────────
+  let osResult: { id?: string; recipients?: number; errors?: unknown };
+  try {
+    const res = await fetch("https://onesignal.com/api/v1/notifications", {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${REST_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    osResult = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      await admin.from("push_logs").insert({
+        user_id: body.user_id || null,
+        type: body.type || 'manual',
+        title: body.title,
+        message: body.message,
+        url: body.url || null,
+        status: 'failed',
+        error_text: `http_${res.status}: ${JSON.stringify(osResult).slice(0, 500)}`,
+      });
+      return json({ success: false, error: "onesignal_error", detail: osResult, status: res.status }, 500);
+    }
+  } catch (e) {
+    return json({ success: false, error: (e as Error)?.message || String(e) }, 500);
+  }
+
+  // ─── Log success ──────────────────────────────────────
+  if (body.broadcast) {
+    await admin.from("push_logs").insert({
+      user_id: null,
+      type: body.type || 'manual',
+      notification_id: osResult.id || null,
+      title: body.title,
+      message: body.message,
+      url: body.url || null,
+      status: 'sent',
+    });
+  } else {
+    // 1 log par player_id pour analytics fines
+    const rows = playerIdsForLog.map(pid => ({
+      user_id: body.user_id,
+      player_id: pid,
+      notification_id: osResult.id || null,
+      type: body.type || 'manual',
+      title: body.title,
+      message: body.message,
+      url: body.url || null,
+      status: 'sent',
+    }));
+    if (rows.length > 0) await admin.from("push_logs").insert(rows);
+  }
+
+  return json({
+    success: true,
+    notification_id: osResult.id,
+    recipients: osResult.recipients,
+    auth_method: authMethod,
+    actor: actorEmail,
+  });
+});
