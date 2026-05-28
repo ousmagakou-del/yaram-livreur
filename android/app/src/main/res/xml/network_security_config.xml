@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  YARAM Network Security Config
+  ════════════════════════════════════════════════════════
+  Force HTTPS partout, équivalent du NSAppTransportSecurity iOS.
+  - Aucun trafic en clair (HTTP) autorisé
+  - Cleartext bloqué pour tous les domaines
+  ════════════════════════════════════════════════════════
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

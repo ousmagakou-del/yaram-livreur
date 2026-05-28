@@ -7,9 +7,9 @@
 // - Ignore mutations Supabase (POST/PUT/DELETE)
 // ════════════════════════════════════════════════
 
-const SW_VERSION = 'v16-2026-05-25-home-perf-streaming';
-const CACHE_STATIC = 'yaram-static-v16';
-const CACHE_SUPABASE = 'yaram-supabase-v16';
+const SW_VERSION = 'v17-2026-05-25-skip-settings-cache';
+const CACHE_STATIC = 'yaram-static-v17';
+const CACHE_SUPABASE = 'yaram-supabase-v17';
 
 const ESSENTIAL = [
   '/',
@@ -66,6 +66,12 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.includes('/storage/')) {
       event.respondWith(cacheFirstLong(request));
       return;
+    }
+    // ─── EXCLUSIONS du cache REST : tables admin-modifiables ───
+    // site_settings change quand admin modifie WhatsApp/commission/shipping/colors
+    // → JAMAIS cacher sinon l'app reste sur les vieilles valeurs après update admin
+    if (url.pathname.includes('/rest/v1/site_settings')) {
+      return; // network direct, pas de cache
     }
     // REST API (products, brands, categories, etc.) → stale-while-revalidate
     if (url.pathname.includes('/rest/v1/')) {

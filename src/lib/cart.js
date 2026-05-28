@@ -47,6 +47,10 @@ export function addToCart({ product, pharmacy, qty = 1 }) {
       img: product.img,
       price: product.price,
       qty,
+      // ─── Infos import (preorder) — undefined = produit local ───
+      is_imported: product.is_imported || false,
+      lead_time_days: product.lead_time_days || 1,
+      origin_country: product.origin_country || 'SN',
     });
   }
   setCart(cart);

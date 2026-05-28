@@ -30,3 +30,22 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# ═══ ANDROID ═══
+# Build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/local.properties
+android/.idea/
+
+# Firebase / OneSignal (clés sensibles - NE JAMAIS COMMIT)
+android/app/google-services.json
+google-services-account-*.json
+yaram-firebase-adminsdk*.json
+
+# Keystore (perte = jamais pouvoir updater l'app sur le Play Store)
+*.keystore
+*.jks
+android/keystore.properties

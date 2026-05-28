@@ -27,6 +27,22 @@ window.__yaramHideBoot = hideBootSplash;
 // et applique les vraies valeurs des qu'elles arrivent (via getCachedSetting).
 loadSiteSettings().catch(() => { /* DB unavailable, keep fallback */ });
 
+// ─── Refresh settings quand l'app revient en foreground ───
+// Sans ça, l'app garde l'ancien numéro WhatsApp / commission / couleurs
+// indéfiniment tant que l'user ne tue pas l'app. Critique pour iOS (l'app
+// reste en mémoire après un swipe vers Home), critique aussi pour PWA.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      loadSiteSettings().catch(() => { /* silent */ });
+    }
+  });
+  // Aussi sur focus window (cas où l'app perd focus sans cacher l'onglet)
+  window.addEventListener('focus', () => {
+    loadSiteSettings().catch(() => { /* silent */ });
+  });
+}
+
 // Inject les couleurs en CSS variables des que les settings sont chargees.
 // Cible les noms reels utilises dans src/index.css (--primary, --accent).
 subscribeSettings((s) => {

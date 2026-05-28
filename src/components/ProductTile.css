@@ -101,3 +101,25 @@
 .pt-fav:active {
   transform: scale(0.9);
 }
+
+/* ═══ BADGE IMPORT (preorder) ═══ */
+.pt-import-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: linear-gradient(135deg, #0066CC 0%, #004999 100%);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 6px rgba(0, 102, 204, 0.3);
+  z-index: 2;
+}
+.pt-import-badge span {
+  font-size: 11px;
+}

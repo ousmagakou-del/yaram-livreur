@@ -1,0 +1,195 @@
+/* ════════════════════════════════════════════════════════ */
+/* YARAM — Page Boutique internationale                    */
+/* ════════════════════════════════════════════════════════ */
+
+.international-page {
+  padding-bottom: 80px;
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+/* ─── HERO ─── */
+.intl-hero {
+  background: linear-gradient(135deg, #0066CC 0%, #004999 50%, #002F66 100%);
+  color: #fff;
+  padding: 20px 16px 28px;
+  position: relative;
+  overflow: hidden;
+}
+.intl-hero::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 180px;
+  height: 180px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+}
+.intl-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -60px;
+  left: -30px;
+  width: 140px;
+  height: 140px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+}
+
+.intl-back {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  margin-bottom: 14px;
+  position: relative;
+  z-index: 2;
+}
+.intl-back:active {
+  transform: scale(0.92);
+}
+
+.intl-hero-content {
+  position: relative;
+  z-index: 2;
+}
+.intl-hero h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.intl-hero p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.92;
+}
+
+/* ─── HOW IT WORKS ─── */
+.intl-howit {
+  background: var(--bg-card);
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.intl-howit h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.intl-steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.intl-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.intl-step-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.intl-step strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.intl-step p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* ─── FILTRE PAYS ─── */
+.intl-filters {
+  display: flex;
+  gap: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.intl-filters::-webkit-scrollbar {
+  display: none;
+}
+.intl-filter-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 8px 14px;
+  border-radius: 22px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+.intl-filter-chip.active {
+  background: linear-gradient(135deg, #0066CC 0%, #004999 100%);
+  color: #fff;
+  border-color: #004999;
+}
+.intl-filter-chip:active {
+  transform: scale(0.95);
+}
+
+/* ─── LISTING ─── */
+.intl-products {
+  padding: 8px 16px 24px;
+}
+.intl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (min-width: 600px) {
+  .intl-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (min-width: 900px) {
+  .intl-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.intl-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.intl-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+.intl-empty h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: var(--ink);
+}
+.intl-empty p {
+  margin: 0;
+  font-size: 14px;
+  max-width: 280px;
+  margin: 0 auto;
+  line-height: 1.4;
+}

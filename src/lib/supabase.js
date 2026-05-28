@@ -183,7 +183,7 @@ export async function updateProfile(updates) {
 // Apres : ~400 octets par produit = ~7x moins de bande passante.
 // ⚠️ Toutes ces colonnes ONT ETE verifiees comme existantes (cf Product.jsx +
 // admin upsert). Si on rajoute une colonne ici, la verifier d'abord dans la DB.
-const PRODUCT_LIST_COLUMNS = 'id, name, brand, category, score, price, review_count, rating, badges, img, active, created_at';
+const PRODUCT_LIST_COLUMNS = 'id, name, brand, category, score, price, review_count, rating, badges, img, active, created_at, is_imported, lead_time_days, origin_country';
 
 export async function getAllProducts() {
   return cachedFetch('all_products', async () => {

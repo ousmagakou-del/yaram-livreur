@@ -39,6 +39,11 @@ export default function ProductTile({ product, size = 'normal' }) {
           onError={(e) => { e.target.src = fallbackImg; }}
         />
         <div className={`pt-score ${sc}`}>{product.score}</div>
+        {product.is_imported && (
+          <div className="pt-import-badge" title={`Import ${product.origin_country || 'USA'} - livraison sous ${product.lead_time_days || 15}j`}>
+            <span>✈️</span> Import {product.lead_time_days || 15}j
+          </div>
+        )}
         <button
           type="button"
           className={`pt-fav ${fav ? 'active' : ''}`}
