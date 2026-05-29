@@ -79,41 +79,6 @@ export default function International() {
         </div>
       </div>
 
-      {/* HOW IT WORKS */}
-      <div className="intl-howit">
-        <h2>Comment ça marche ?</h2>
-        <div className="intl-steps">
-          <div className="intl-step">
-            <div className="intl-step-icon">🛒</div>
-            <div>
-              <strong>1. Tu commandes</strong>
-              <p>Tu choisis ton produit et tu payes <strong>50% d'acompte</strong>.</p>
-            </div>
-          </div>
-          <div className="intl-step">
-            <div className="intl-step-icon">✈️</div>
-            <div>
-              <strong>2. On importe pour toi</strong>
-              <p>YARAM commande chez le fournisseur et fait venir à Dakar.</p>
-            </div>
-          </div>
-          <div className="intl-step">
-            <div className="intl-step-icon">📦</div>
-            <div>
-              <strong>3. Arrivée à Dakar</strong>
-              <p>Tu paies le <strong>solde 50%</strong>, on te livre.</p>
-            </div>
-          </div>
-          <div className="intl-step">
-            <div className="intl-step-icon">⏱️</div>
-            <div>
-              <strong>Délai : 15 jours en moyenne</strong>
-              <p>Tu es notifié à chaque étape (commande, transit, arrivée).</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* FILTRE PAYS */}
       {availableCountries.length > 1 && (
         <div className="intl-filters">

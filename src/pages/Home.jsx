@@ -617,6 +617,60 @@ export default function Home() {
           </section>
         )}
 
+        {/* ═══ BANNER BOUTIQUE INTERNATIONALE ═══ */}
+        <section className="yhome-section">
+          <button
+            onClick={() => navigate({ name: 'international', params: {} })}
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, #0066CC 0%, #004999 50%, #002F66 100%)',
+              border: 'none',
+              borderRadius: 16,
+              padding: '18px 18px',
+              color: '#fff',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              boxShadow: '0 6px 18px rgba(0, 102, 204, 0.25)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>🌍</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 3, letterSpacing: -0.3 }}>
+                Boutique internationale
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.92, lineHeight: 1.35 }}>
+                Tes marques préférées importées en 15 jours · Acompte 50%
+              </div>
+            </div>
+            <div style={{
+              fontSize: 22,
+              flexShrink: 0,
+              background: 'rgba(255,255,255,0.15)',
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>→</div>
+            <div style={{
+              position: 'absolute',
+              top: -25,
+              right: -25,
+              width: 90,
+              height: 90,
+              background: 'rgba(255,255,255,0.08)',
+              borderRadius: '50%',
+              pointerEvents: 'none',
+            }} />
+          </button>
+        </section>
+
         <section className="yhome-section">
           <div className="yhome-section-head">
             <div>

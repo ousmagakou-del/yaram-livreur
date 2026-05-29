@@ -508,6 +508,32 @@ export default function Product({ id }) {
           </div>
 
           <div className="prod-section">
+            {product.is_imported ? (
+              <>
+                <h3 className="prod-section-title">🌍 Vendu et expédié par YARAM</h3>
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(0,102,204,0.06) 0%, rgba(0,102,204,0.02) 100%)',
+                  border: '1px solid rgba(0,102,204,0.2)',
+                  borderRadius: 12,
+                  padding: 14,
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                }}>
+                  <span style={{ fontSize: 24 }}>✈️</span>
+                  <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>
+                    <strong style={{ color: '#0066CC', display: 'block', marginBottom: 4 }}>
+                      Import direct YARAM · Livraison sous {product.lead_time_days || 15}j
+                    </strong>
+                    <span style={{ color: 'var(--muted)' }}>
+                      Tu paies <b>50% à la commande</b>, le reste à l'arrivée à Dakar.
+                      On t'avertit à chaque étape (commande, transit, arrivée).
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+            <>
             <h3 className="prod-section-title">🏥 Disponible chez {pharmacies.length} pharmacie{pharmacies.length > 1 ? 's' : ''}</h3>
             {!hasStock ? (
               <div className="prod-no-stock">😢 Aucune pharmacie n'a ce produit en stock</div>
@@ -533,6 +559,8 @@ export default function Product({ id }) {
                   </button>
                 ))}
               </div>
+            )}
+            </>
             )}
           </div>
 
