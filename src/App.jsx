@@ -25,6 +25,8 @@ import Promos from './pages/Promos';
 import InstallPrompt from './components/InstallPrompt';
 import WhatsAppButton from './components/WhatsAppButton';
 import Toaster from './components/Toaster';
+import InterstitialPromo from './components/InterstitialPromo';
+import { getNextPromo, computeUserStats } from './lib/promos';
 import NetworkStatus from './components/NetworkStatus';
 
 // ─── Lazy-load : pages lourdes / rarement visitees par le client lambda ───
@@ -307,6 +309,33 @@ function ClientApp() {
     return () => clearTimeout(t);
   }, [authChecked, user?.id]);
 
+  // ─── Interstitial Promos : fetch + affichage au boot Home ───
+  // Affiche une promo plein écran 1.5s après l'arrivée sur Home (laisse le temps
+  // à l'écran de rendre, puis interstitiel). Frequency contrôlée DB-side.
+  const [activePromo, setActivePromo] = useState(null);
+  const promoFetchRef = useRef(false);
+  useEffect(() => {
+    if (!authChecked) return;
+    if (promoFetchRef.current) return;
+    // Ne fetch qu'au 1er render Home (pas sur les pages internes)
+    if (route?.name && route.name !== 'home') return;
+    promoFetchRef.current = true;
+
+    const t = setTimeout(async () => {
+      try {
+        const userStats = user?.id ? await computeUserStats(user) : {};
+        const promo = await getNextPromo({
+          placement: 'home',
+          user,
+          userStats,
+        });
+        if (promo) setActivePromo(promo);
+      } catch { /* silent */ }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, user?.id, route?.name]);
+
   const navigate = (target) => {
     if (target === -1) { goBack(); return; }
     
@@ -432,6 +461,12 @@ function ClientApp() {
         </div>
         <NetworkStatus />
         <Toaster />
+        {activePromo && (
+          <InterstitialPromo
+            promo={activePromo}
+            onClose={() => setActivePromo(null)}
+          />
+        )}
       </UserContext.Provider>
     </NavContext.Provider>
   );

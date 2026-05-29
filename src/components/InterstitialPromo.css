@@ -1,0 +1,217 @@
+/* ════════════════════════════════════════════════════════ */
+/* YARAM — Interstitial Promo (splash full-screen)         */
+/* ════════════════════════════════════════════════════════ */
+
+.yip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.yip-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.yip-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 480px;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(0.95);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Sur mobile : plein écran. Sur desktop : encadré. */
+  border-radius: 0;
+}
+.yip-overlay.visible .yip-content {
+  transform: scale(1);
+}
+
+@media (min-width: 600px) {
+  .yip-content {
+    height: auto;
+    min-height: 600px;
+    max-height: 90vh;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Bouton X */
+.yip-close {
+  position: absolute;
+  top: calc(var(--safe-top, 14px) + 14px);
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: currentColor;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.yip-close:active {
+  transform: scale(0.92);
+}
+
+/* ─── MODE IMAGE ─── */
+.yip-mode-image {
+  position: relative;
+}
+.yip-mode-image::after {
+  /* Gradient subtle en bas pour lisibilité du texte */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, transparent 50%, rgba(0,0,0,0.7) 100%);
+  pointer-events: none;
+}
+.yip-image-overlay {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding: 30px 24px calc(var(--safe-bottom, 0px) + 30px);
+  color: #FFFFFF;
+}
+.yip-image-title {
+  font-size: 28px;
+  font-weight: 900;
+  margin: 0 0 8px;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+}
+.yip-image-subtitle {
+  font-size: 14px;
+  margin: 0 0 20px;
+  opacity: 0.92;
+}
+
+/* ─── MODE TEMPLATE ─── */
+.yip-template {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: calc(var(--safe-top, 14px) + 60px) 24px calc(var(--safe-bottom, 0px) + 30px);
+}
+
+.yip-badge {
+  display: inline-block;
+  padding: 8px 18px;
+  border-radius: 22px;
+  border: 1px solid;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 30px;
+  backdrop-filter: blur(8px);
+}
+
+.yip-title {
+  font-size: clamp(28px, 7vw, 38px);
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.1;
+  margin: 0 0 16px;
+  max-width: 360px;
+}
+
+.yip-subtitle {
+  font-size: 14px;
+  opacity: 0.75;
+  margin: 0 0 32px;
+  max-width: 320px;
+  line-height: 1.4;
+}
+
+.yip-features {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 28px;
+}
+.yip-feature {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-align: left;
+  backdrop-filter: blur(8px);
+}
+.yip-feature-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.yip-feature strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.yip-feature span {
+  display: block;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* ─── CTAs ─── */
+.yip-cta-primary {
+  width: 100%;
+  max-width: 360px;
+  padding: 16px 20px;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  background: #4F46E5;
+  color: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35);
+  transition: transform 0.15s ease;
+}
+.yip-cta-primary:active {
+  transform: scale(0.97);
+}
+
+.yip-cta-secondary {
+  width: 100%;
+  max-width: 360px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+.yip-cta-secondary:active {
+  transform: scale(0.97);
+}
