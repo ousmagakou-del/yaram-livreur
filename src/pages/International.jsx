@@ -33,7 +33,13 @@ export default function International() {
   useEffect(() => {
     document.title = 'Boutique internationale | YARAM';
     let mounted = true;
-    (async () => {
+
+    const load = async () => {
+      if (mounted) setLoading(true);
+      // Safety timeout : sort du loading après 8s même si fetch tarde
+      const safetyTimeout = setTimeout(() => {
+        if (mounted) setLoading(false);
+      }, 8000);
       try {
         const { data, error } = await supabase
           .from('products')
@@ -46,10 +52,24 @@ export default function International() {
       } catch (e) {
         console.warn('[International] fetch failed:', e?.message);
       } finally {
+        clearTimeout(safetyTimeout);
         if (mounted) setLoading(false);
       }
-    })();
-    return () => { mounted = false; };
+    };
+    load();
+
+    // Auto-refresh sur retour navigation (popstate iOS)
+    const handleRouteBack = (e) => {
+      const target = e?.detail?.to?.name;
+      if (target && target !== 'international') return;
+      load();
+    };
+    window.addEventListener('yaram-route-back', handleRouteBack);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('yaram-route-back', handleRouteBack);
+    };
   }, []);
 
   const availableCountries = useMemo(() => {

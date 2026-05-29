@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { signUp, signIn, signInWithGoogle, supabase } from '../lib/supabase';
 import { notifyWelcome } from '../lib/notifications';
 import { sendEmail } from '../lib/emails';
-import { isIOSApp } from '../lib/platform';
+import { isIOSApp, isNativeApp } from '../lib/platform';
 import { isBiometricAvailable, isBiometricEnabled, loginWithBiometric, enableBiometric } from '../lib/biometric';
 import { toast } from '../lib/toast';
 import './Onboarding.css';
@@ -379,7 +379,9 @@ export default function Onboarding({ onComplete }) {
               with Apple. Pour rester simple (et passer le review), on masque Google
               uniquement sur iOS. Sur web et Android, rien ne change.
               TODO : ajouter Sign in with Apple en v1.0.1 pour réactiver Google sur iOS. */}
-          {!isIOSApp() && (
+          {/* Google Sign-In : caché sur TOUTE app native (iOS + Android) car
+              le redirect OAuth sort de l'app Capacitor. Sur web standard OK. */}
+          {!isNativeApp() && (
             <>
               <button
                 onClick={handleGoogle}

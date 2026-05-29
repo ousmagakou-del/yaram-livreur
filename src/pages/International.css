@@ -12,7 +12,9 @@
 .intl-hero {
   background: linear-gradient(135deg, #0066CC 0%, #004999 50%, #002F66 100%);
   color: #fff;
-  padding: 20px 16px 28px;
+  /* Safe-area-inset-top : sur Android, la status bar fait 24-40dp.
+     Sans ça, le bouton retour est en partie caché derrière la status bar. */
+  padding: calc(var(--safe-top, 14px) + 20px) 16px 28px;
   position: relative;
   overflow: hidden;
 }

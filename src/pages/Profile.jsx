@@ -4,6 +4,7 @@ import { supabase, signOut, updateProfile } from '../lib/supabase';
 import { toggleTheme, getTheme } from '../lib/theme';
 import { getWhatsAppNumber, getWhatsAppDisplay } from '../lib/utils';
 import { isIOSApp } from '../lib/platform';
+import { getMyAddresses } from '../lib/supabase';
 import { toast, confirmDialog, promptDialog } from '../lib/toast';
 import TabBar from '../components/TabBar';
 import './Profile.css';
@@ -20,6 +21,19 @@ export default function Profile() {
     lastScan: null,         // le dernier scan complet pour le skin_type/phototype
     loading: true,
   });
+
+  // Adresse par défaut (pour afficher la vraie ville de l'user, pas "Dakar" hardcodé)
+  const [defaultAddr, setDefaultAddr] = useState(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const list = await getMyAddresses();
+        const def = (list || []).find(a => a.is_default) || list?.[0] || null;
+        setDefaultAddr(def);
+      } catch { /* silent */ }
+    })();
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -173,8 +187,9 @@ export default function Profile() {
 
   const firstName = user?.first_name || 'Toi';
   const avatar = user?.avatar || ('https://ui-avatars.com/api/?background=fff&color=1F8B4C&bold=true&size=200&name=' + encodeURIComponent(firstName));
-  const city = user?.city || 'Dakar';
-  const neighborhood = user?.neighborhood;
+  // Priorité : adresse par défaut → user.city → null (n'affiche rien)
+  const city = defaultAddr?.city || user?.city || null;
+  const neighborhood = defaultAddr?.neighborhood || user?.neighborhood || null;
 
   // skin_type / phototype : priorité au dernier scan, fallback user
   const skinType = stats.lastScan?.skin_type || stats.lastScan?.diagnosis?.skin_type || user?.skin_type || null;
@@ -200,7 +215,11 @@ export default function Profile() {
           <div className="prof-cover-inner">
             <img src={avatar} alt={firstName} className="prof-avatar" />
             <h1 className="prof-name">{firstName}</h1>
-            <p className="prof-loc">{neighborhood ? `${neighborhood}, ` : ''}{city} 🇸🇳</p>
+            {city ? (
+              <p className="prof-loc">{neighborhood ? `${neighborhood}, ` : ''}{city} 🇸🇳</p>
+            ) : (
+              <p className="prof-loc" style={{ opacity: 0.7 }}>📍 Ajoute ton adresse →</p>
+            )}
             {(skinType || phototype) && (
               <div className="prof-skin-badge">
                 ✨ {skinType ? skinType.charAt(0).toUpperCase() + skinType.slice(1) : 'Peau'}
