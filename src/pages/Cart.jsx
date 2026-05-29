@@ -3,6 +3,7 @@ import { useNav } from '../App';
 import { formatPrice, getShippingZone } from '../lib/utils';
 import { getCart, setCart } from '../lib/cart';
 import { getMyAddresses } from '../lib/supabase';
+import { buildPreorderSummary } from '../lib/preorder';
 import TabBar from '../components/TabBar';
 import "./cart.css";
 
@@ -63,6 +64,10 @@ export default function Cart() {
   const shipping = subtotal > 0 && subtotal < zone.freeFrom ? zone.price : 0;
   const total = subtotal + shipping;
 
+  // Detecte si la commande contient des produits import (preorder 50/50)
+  const preorderSummary = buildPreorderSummary(items, shipping);
+  const isPreorder = preorderSummary.isPreorder;
+
   if (items.length === 0) {
     return (
       <div className="cart-screen page-anim">
@@ -94,6 +99,18 @@ export default function Cart() {
       </div>
 
       <div className="cart-scroll">
+        {isPreorder && (
+          <div className="cart-preorder-banner">
+            <div className="cart-preorder-icon">✈️</div>
+            <div className="cart-preorder-text">
+              <strong>Commande Import</strong>
+              <p>
+                Tu paies <strong>50% à la commande</strong>, le reste à l'arrivée à Dakar (environ {preorderSummary.leadTimeDays} jours).
+              </p>
+            </div>
+          </div>
+        )}
+
         {Object.entries(grouped).map(([phId, group]) => (
           <div key={phId} className="cart-group">
             <div className="cart-group-head">🏥 {group.name}</div>
@@ -103,7 +120,12 @@ export default function Cart() {
                 <div key={it.productId + phId} className="cart-item">
                   <img src={it.img} alt={it.name || 'Produit'} loading="lazy" decoding="async" />
                   <div className="cart-item-info">
-                    <div className="cart-item-brand">{it.brand}</div>
+                    <div className="cart-item-brand">
+                      {it.brand}
+                      {it.is_imported && (
+                        <span className="cart-item-import-tag">✈️ Import {it.lead_time_days || 15}j</span>
+                      )}
+                    </div>
                     <div className="cart-item-name">{it.name}</div>
                     <div className="cart-item-price">{formatPrice(it.price)} FCFA</div>
                   </div>
@@ -143,6 +165,22 @@ export default function Cart() {
             </div>
           )}
           <div className="cart-row cart-row-total"><span>Total</span><strong>{formatPrice(total)} FCFA</strong></div>
+
+          {isPreorder && (
+            <div className="cart-preorder-breakdown">
+              <div className="cart-row">
+                <span>💳 Acompte à payer maintenant (50%)</span>
+                <strong style={{ color: '#0066CC' }}>{formatPrice(preorderSummary.breakdown.depositAmount)} FCFA</strong>
+              </div>
+              <div className="cart-row">
+                <span>📦 Solde à l'arrivée à Dakar (50%)</span>
+                <strong>{formatPrice(preorderSummary.breakdown.balanceAmount)} FCFA</strong>
+              </div>
+              <div className="cart-row" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                <span>Arrivée estimée : {preorderSummary.expectedArrivalFormatted}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {Object.keys(grouped).length > 1 && (
@@ -155,8 +193,13 @@ export default function Cart() {
       </div>
 
       <div className="cart-cta">
-        <button className="btn-primary" onClick={() => navigate({ name: 'checkout', params: { items, total, subtotal, shipping } })}>
-          Passer commande · {formatPrice(total)} FCFA →
+        <button
+          className="btn-primary"
+          onClick={() => navigate({ name: 'checkout', params: { items, total, subtotal, shipping, preorderSummary } })}
+        >
+          {isPreorder
+            ? `Payer l'acompte · ${formatPrice(preorderSummary.breakdown.depositAmount)} FCFA →`
+            : `Passer commande · ${formatPrice(total)} FCFA →`}
         </button>
       </div>
     </div>

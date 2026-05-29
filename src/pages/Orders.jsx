@@ -54,12 +54,41 @@ export default function Orders() {
             >
               <div className="order-card-head">
                 <code>{o.id}</code>
-                <span className={'order-status ' + o.status}>{o.status}</span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {o.is_preorder && (
+                    <span style={{
+                      background: 'linear-gradient(135deg,#0066CC,#004999)',
+                      color: '#fff',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '2px 7px',
+                      borderRadius: 6,
+                      letterSpacing: 0.3,
+                    }}>✈️ IMPORT</span>
+                  )}
+                  <span className={'order-status ' + o.status}>{o.status}</span>
+                </div>
               </div>
               <div className="order-card-body">
                 <span>{o.items.length} articles · {o.total.toLocaleString('fr-FR')} FCFA</span>
                 <span>{new Date(o.created_at).toLocaleString('fr-FR')}</span>
               </div>
+              {o.is_preorder && o.expected_arrival_date && (
+                <div style={{
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1px dashed var(--line)',
+                  fontSize: 11,
+                  color: 'var(--muted)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}>
+                  <span>📅 Arrivée prévue : {new Date(o.expected_arrival_date).toLocaleDateString('fr-FR')}</span>
+                  <span style={{ color: '#0066CC', fontWeight: 600 }}>
+                    {o.deposit_paid_at ? '✓ Acompte payé' : '⏳ Acompte en attente'}
+                  </span>
+                </div>
+              )}
             </button>
           ))
         )}

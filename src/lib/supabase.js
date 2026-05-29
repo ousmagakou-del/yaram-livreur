@@ -261,7 +261,15 @@ function generateOrderId() {
   return 'DIA-' + Date.now().toString(36).toUpperCase();
 }
 
-export async function createOrder({ items, address, paymentMethod, subtotal, shipping, total, promoCode, promoDiscount }) {
+export async function createOrder({
+  items, address, paymentMethod, subtotal, shipping, total,
+  promoCode, promoDiscount,
+  // ─── Preorder (Import) ───
+  isPreorder = false,
+  depositAmount = null,
+  balanceAmount = null,
+  expectedArrivalDate = null,
+}) {
   const { data: { session } } = await supabase.auth.getSession();
   const order = {
     id: generateOrderId(),
@@ -274,6 +282,13 @@ export async function createOrder({ items, address, paymentMethod, subtotal, shi
     promo_discount: promoDiscount || 0,
     confirmation_token: 'CFM-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
   };
+  // ─── Champs preorder (Import) — uniquement si commande contient des items import ───
+  if (isPreorder) {
+    order.is_preorder = true;
+    order.deposit_amount = depositAmount;
+    order.balance_amount = balanceAmount;
+    if (expectedArrivalDate) order.expected_arrival_date = expectedArrivalDate;
+  }
   const { data, error } = await supabase.from('orders').insert(order).select().single();
   if (error) console.error('createOrder error:', error);
   // Invalide le cache de mes commandes pour que la nouvelle apparaisse

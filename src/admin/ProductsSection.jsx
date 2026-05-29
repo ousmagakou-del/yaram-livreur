@@ -365,6 +365,89 @@ function ProductEditor({ product, brands, onSave, onCancel }) {
             ))}
           </div>
         </div>
+
+        {/* ═══ IMPORT (Boutique internationale) ═══ */}
+        <div className="adm-form-section" style={{ gridColumn: '1 / -1', background: 'rgba(0,102,204,0.04)', borderRadius: 12, padding: 14 }}>
+          <h3 style={{ color: '#0066CC' }}>✈️ Boutique internationale (Import)</h3>
+          <label className="adm-form-checkbox">
+            <input
+              type="checkbox"
+              checked={!!p.is_imported}
+              onChange={e => upd('is_imported', e.target.checked)}
+            />
+            <span><strong>Produit importé</strong> — apparaîtra dans la section Boutique internationale avec workflow 50/50 acompte/solde</span>
+          </label>
+
+          {p.is_imported && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+              <label>
+                Pays d'origine
+                <select value={p.origin_country || 'US'} onChange={e => upd('origin_country', e.target.value)}>
+                  <option value="US">🇺🇸 États-Unis</option>
+                  <option value="FR">🇫🇷 France</option>
+                  <option value="UK">🇬🇧 Royaume-Uni</option>
+                  <option value="NG">🇳🇬 Nigeria</option>
+                  <option value="GH">🇬🇭 Ghana</option>
+                  <option value="ZA">🇿🇦 Afrique du Sud</option>
+                  <option value="CI">🇨🇮 Côte d'Ivoire</option>
+                  <option value="KR">🇰🇷 Corée du Sud</option>
+                  <option value="JP">🇯🇵 Japon</option>
+                </select>
+              </label>
+              <label>
+                Délai de livraison (jours) *
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={p.lead_time_days || 15}
+                  onChange={e => upd('lead_time_days', e.target.value)}
+                  placeholder="15"
+                />
+                <small style={{ display: 'block', fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+                  Délai entre commande et livraison à Dakar (15j en moyenne USA, 10j Europe).
+                </small>
+              </label>
+              <label style={{ gridColumn: '1 / -1' }}>
+                URL fournisseur (privé, admin only)
+                <input
+                  value={p.supplier_url || ''}
+                  onChange={e => upd('supplier_url', e.target.value)}
+                  placeholder="https://www.amazon.com/dp/..."
+                />
+                <small style={{ display: 'block', fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+                  Lien Amazon/Ulta/Sephora où YARAM commande. Non visible côté client.
+                </small>
+              </label>
+              <label>
+                Prix coûtant fournisseur (FCFA)
+                <input
+                  type="number"
+                  min="0"
+                  value={p.supplier_cost || ''}
+                  onChange={e => upd('supplier_cost', e.target.value)}
+                  placeholder="12000"
+                />
+                <small style={{ display: 'block', fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+                  Sert à calculer la marge nette dans les stats admin.
+                </small>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', borderRadius: 8, padding: 12 }}>
+                {p.supplier_cost && p.price && (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: '#6B6B6B', marginBottom: 4 }}>Marge nette estimée</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#1F8B4C' }}>
+                      {Math.round(((Number(p.price) - Number(p.supplier_cost)) / Number(p.price)) * 100)}%
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6B6B6B', marginTop: 2 }}>
+                      {(Number(p.price) - Number(p.supplier_cost)).toLocaleString('fr-FR')} FCFA / unité
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="adm-form-actions">

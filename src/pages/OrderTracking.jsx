@@ -2,14 +2,29 @@ import { useEffect, useState, useRef } from 'react';
 import { useNav } from '../App';
 import { supabase, sendWhatsApp } from '../lib/supabase';
 import { toast } from '../lib/toast';
+import { formatPrice } from '../lib/utils';
+import { formatArrivalDate, PREORDER_STATUS_LABELS, PREORDER_STATUS_ICONS } from '../lib/preorder';
 import SignedImage from '../components/SignedImage';
 import './OrderTracking.css';
 
-const STEPS = [
-  { id: 'paid', label: '✅ Payée' },
+// Flow classique (commande locale Dakar — J+1)
+const STEPS_LOCAL = [
+  { id: 'paid',      label: '✅ Payée' },
   { id: 'preparing', label: '📦 En préparation' },
-  { id: 'shipped', label: '🛵 En route' },
+  { id: 'shipped',   label: '🛵 En route' },
   { id: 'delivered', label: '🎉 Livrée' },
+];
+
+// Flow preorder (commande Import — 15j en moyenne)
+const STEPS_PREORDER = [
+  { id: 'pending_payment',   label: '💳 Acompte demandé' },
+  { id: 'paid',              label: '✅ Acompte reçu' },
+  { id: 'awaiting_supplier', label: '🛍️ Commande fournisseur' },
+  { id: 'in_transit_intl',   label: '✈️ En route vers Dakar' },
+  { id: 'arrived_local',     label: '🇸🇳 Arrivé à Dakar' },
+  { id: 'awaiting_balance',  label: '💰 Solde à régler' },
+  { id: 'shipped',           label: '🛵 Livraison' },
+  { id: 'delivered',         label: '🎉 Livrée' },
 ];
 
 export default function OrderTracking({ orderId }) {
@@ -90,6 +105,9 @@ export default function OrderTracking({ orderId }) {
 
   if (!order) return <div style={{ padding: 40 }}>Chargement…</div>;
 
+  // Choix du flow selon que la commande est preorder ou classique
+  const isPreorderOrder = order.is_preorder === true;
+  const STEPS = isPreorderOrder ? STEPS_PREORDER : STEPS_LOCAL;
   const currentStep = STEPS.findIndex(s => s.id === order.status);
   const hasGPS = tracking?.current_lat && order.status === 'shipped';
   const lastUpdate = tracking?.last_update ? new Date(tracking.last_update) : null;
@@ -118,6 +136,46 @@ export default function OrderTracking({ orderId }) {
             </div>
           ))}
         </div>
+
+        {isPreorderOrder && (
+          <div className="track-preorder-card">
+            <div className="track-preorder-head">
+              <span style={{ fontSize: 22 }}>✈️</span>
+              <div>
+                <strong>Commande Import</strong>
+                <p>Délai estimé : 15 jours</p>
+              </div>
+            </div>
+            <div className="track-preorder-rows">
+              <div className="track-preorder-row">
+                <span>💳 Acompte (50%)</span>
+                <strong style={{ color: order.deposit_paid_at ? '#1F8B4C' : '#0066CC' }}>
+                  {formatPrice(order.deposit_amount || 0)} FCFA
+                  {order.deposit_paid_at && ' ✓'}
+                </strong>
+              </div>
+              <div className="track-preorder-row">
+                <span>📦 Solde à régler (50%)</span>
+                <strong style={{ color: order.balance_paid_at ? '#1F8B4C' : 'var(--muted)' }}>
+                  {formatPrice(order.balance_amount || 0)} FCFA
+                  {order.balance_paid_at && ' ✓'}
+                </strong>
+              </div>
+              {order.expected_arrival_date && (
+                <div className="track-preorder-row">
+                  <span>📅 Arrivée prévue</span>
+                  <strong>{formatArrivalDate(order.expected_arrival_date)}</strong>
+                </div>
+              )}
+              {order.arrived_dakar_at && (
+                <div className="track-preorder-row">
+                  <span>🇸🇳 Arrivé le</span>
+                  <strong style={{ color: '#1F8B4C' }}>{new Date(order.arrived_dakar_at).toLocaleDateString('fr-FR')}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {hasGPS && (
           <div className="track-gps-card">

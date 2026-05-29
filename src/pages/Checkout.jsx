@@ -5,6 +5,7 @@ import { sendEmail, sendOrderEmail } from '../lib/emails';
 import { formatPrice, getShippingZone } from '../lib/utils';
 import { getPendingPromo, clearPendingPromo, getLoyaltyCredit, clearLoyaltyCredit } from '../lib/promoStorage';
 import { getCart, clearCart } from '../lib/cart';
+import { buildPreorderSummary } from '../lib/preorder';
 import { toast } from '../lib/toast';
 import './Checkout.css';
 
@@ -117,6 +118,17 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
   const loyaltyDiscount = useLoyaltyCredit ? Math.min(loyaltyCredit, subtotal + shipping - promoDiscount) : 0;
   const total = Math.max(0, subtotal + shipping - promoDiscount - loyaltyDiscount);
 
+  // ─── Preorder (Import) : détection + breakdown 50/50 ───
+  const preorderSummary = buildPreorderSummary(items, shipping);
+  const isPreorder = preorderSummary.isPreorder;
+  // Si preorder : on facture l'acompte 50% maintenant, le solde sera demandé à l'arrivée
+  const depositAmount = isPreorder
+    ? Math.round((total * 50) / 100)
+    : total;
+  const balanceAmount = isPreorder ? total - depositAmount : 0;
+  // Montant à PAYER LIVE = acompte (preorder) ou total (commande classique)
+  const amountToPayNow = isPreorder ? depositAmount : total;
+
   const grouped = items.reduce((acc, it) => {
     if (!acc[it.pharmacyId]) acc[it.pharmacyId] = it.pharmacyName;
     return acc;
@@ -182,6 +194,11 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
         total,
         promoCode: appliedPromo?.promo?.code || null,
         promoDiscount: promoDiscount || 0,
+        // ─── Preorder (Import) ───
+        isPreorder,
+        depositAmount: isPreorder ? depositAmount : null,
+        balanceAmount: isPreorder ? balanceAmount : null,
+        expectedArrivalDate: isPreorder ? preorderSummary.expectedArrival?.toISOString().slice(0, 10) : null,
       });
 
       if (order) {
@@ -517,6 +534,22 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
             </div>
           )}
           <div className="cart-row cart-row-total"><span>Total</span><strong>{formatPrice(total)} FCFA</strong></div>
+
+          {isPreorder && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--line)' }}>
+              <div className="cart-row" style={{ background: 'rgba(0,102,204,0.06)', padding: '6px 8px', borderRadius: 8, marginBottom: 6 }}>
+                <span>💳 <strong>À payer maintenant (50%)</strong></span>
+                <strong style={{ color: '#0066CC', fontSize: 16 }}>{formatPrice(depositAmount)} FCFA</strong>
+              </div>
+              <div className="cart-row" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                <span>📦 Solde à l'arrivée à Dakar (50%)</span>
+                <strong>{formatPrice(balanceAmount)} FCFA</strong>
+              </div>
+              <div className="cart-row" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                <span>✈️ Arrivée estimée : <strong>{preorderSummary.expectedArrivalFormatted}</strong></span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{height: 120}} />
@@ -524,7 +557,11 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
 
       <div className="check-cta">
         <button className="btn-primary" onClick={handleSubmit} disabled={submitting || !selectedAddr}>
-          {submitting ? 'Création...' : 'Confirmer · ' + formatPrice(total) + ' FCFA'}
+          {submitting
+            ? 'Création...'
+            : isPreorder
+              ? `Payer l'acompte · ${formatPrice(amountToPayNow)} FCFA`
+              : `Confirmer · ${formatPrice(total)} FCFA`}
         </button>
       </div>
     </div>

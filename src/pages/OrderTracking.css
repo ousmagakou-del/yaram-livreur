@@ -133,3 +133,49 @@
   font-weight: 700;
   cursor: pointer;
 }
+/* ═══ PREORDER (Import) ═══ */
+.track-preorder-card {
+  background: linear-gradient(135deg, rgba(0,102,204,0.06) 0%, rgba(0,102,204,0.02) 100%);
+  border: 1px solid rgba(0,102,204,0.2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 16px 12px;
+}
+.track-preorder-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed rgba(0,102,204,0.2);
+  margin-bottom: 10px;
+}
+.track-preorder-head strong {
+  display: block;
+  color: #0066CC;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.track-preorder-head p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.track-preorder-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.track-preorder-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.track-preorder-row span {
+  color: var(--ink);
+}
+.track-preorder-row strong {
+  font-weight: 700;
+  white-space: nowrap;
+}
