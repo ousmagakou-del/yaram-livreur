@@ -12,7 +12,8 @@ html, body, #root {
 .cc-header {
   background: linear-gradient(135deg, #1F8B4C 0%, #166635 100%);
   color: white;
-  padding: 16px 20px;
+  /* Safe-area-inset-top pour iOS/Android : éviter chevauchement avec status bar */
+  padding: calc(var(--safe-top, 14px) + 16px) 20px 16px;
   display: flex;
   align-items: center;
   gap: 12px;

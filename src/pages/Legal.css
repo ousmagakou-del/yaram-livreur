@@ -18,7 +18,9 @@
   z-index: 10;
   background: white;
   border-bottom: 1px solid #EFEFEF;
-  padding: 16px 20px;
+  /* Safe-area-inset-top : sur iOS/Android, sans ça le bouton retour est
+     sous la status bar (heure, batterie) et donc partiellement cliquable. */
+  padding: calc(var(--safe-top, 14px) + 16px) 20px 16px;
   display: flex;
   align-items: center;
   gap: 16px;
