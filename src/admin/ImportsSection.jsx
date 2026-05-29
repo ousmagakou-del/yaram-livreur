@@ -1,22 +1,71 @@
 // ════════════════════════════════════════════════════════
-// YARAM Admin — Section Imports (commandes preorder)
+// YARAM Admin — Section Imports (hub Boutique internationale)
 // ════════════════════════════════════════════════════════
-// Permet à l'admin de gérer le cycle de vie des commandes import :
-//   1. Acompte reçu (50%)
-//   2. Commande chez le fournisseur USA/EU
-//   3. Marqué "en transit"
-//   4. Arrivé à Dakar
-//   5. Demande de solde
-//   6. Solde reçu + livraison
+// Hub avec 2 onglets :
+//   1. Commandes : gestion des commandes preorder (acompte → import → solde → livraison)
+//   2. Produits : liste + ajout/édition des produits is_imported = true
 // ════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { toast } from '../lib/toast';
+import { toast, confirmDialog } from '../lib/toast';
 import { PREORDER_STATUS_LABELS, PREORDER_STATUS_ICONS, formatArrivalDate } from '../lib/preorder';
 import { notifyPreorderStatusChange } from '../lib/preorderNotify';
 
+const COUNTRIES = [
+  { code: 'US', flag: '🇺🇸', name: 'États-Unis' },
+  { code: 'FR', flag: '🇫🇷', name: 'France' },
+  { code: 'UK', flag: '🇬🇧', name: 'Royaume-Uni' },
+  { code: 'NG', flag: '🇳🇬', name: 'Nigeria' },
+  { code: 'GH', flag: '🇬🇭', name: 'Ghana' },
+  { code: 'ZA', flag: '🇿🇦', name: 'Afrique du Sud' },
+  { code: 'CI', flag: '🇨🇮', name: 'Côte d\'Ivoire' },
+  { code: 'KR', flag: '🇰🇷', name: 'Corée du Sud' },
+  { code: 'JP', flag: '🇯🇵', name: 'Japon' },
+];
+
 export default function ImportsSection() {
+  const [tab, setTab] = useState('orders'); // 'orders' | 'products'
+
+  return (
+    <div className="adm-section">
+      <header className="adm-header">
+        <div>
+          <h1>✈️ Boutique internationale</h1>
+          <p style={{ margin: 0, color: '#6B6B6B', fontSize: 13 }}>
+            Gestion complète : commandes preorder et catalogue produits import
+          </p>
+        </div>
+      </header>
+
+      {/* TABS */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px', borderBottom: '1px solid #E5E5E2', marginBottom: 14 }}>
+        <button
+          className={`adm-filter ${tab === 'orders' ? 'active' : ''}`}
+          onClick={() => setTab('orders')}
+          style={{ fontSize: 14, padding: '8px 16px' }}
+        >
+          🛒 Commandes
+        </button>
+        <button
+          className={`adm-filter ${tab === 'products' ? 'active' : ''}`}
+          onClick={() => setTab('products')}
+          style={{ fontSize: 14, padding: '8px 16px' }}
+        >
+          📦 Produits Import
+        </button>
+      </div>
+
+      {tab === 'orders' && <OrdersTab />}
+      {tab === 'products' && <ProductsTab />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// TAB 1 — COMMANDES PREORDER (existant)
+// ═══════════════════════════════════════════════
+function OrdersTab() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -50,7 +99,6 @@ export default function ImportsSection() {
     return true;
   });
 
-  // Stats
   const stats = orders.reduce((acc, o) => {
     acc.total++;
     if (o.deposit_paid_at) acc.depositsReceived += Number(o.deposit_amount) || 0;
@@ -71,18 +119,13 @@ export default function ImportsSection() {
       if (error) throw error;
       toast.success(`Commande ${orderId} → ${PREORDER_STATUS_LABELS[newStatus] || newStatus}`);
 
-      // ─── Notifs auto au client (push + WhatsApp) ───
-      // Skippé sur "cancelled" et si l'admin a coché "Pas de notif"
       if (newStatus !== 'cancelled' && !opts.skipNotify) {
         const order = orders.find(o => o.id === orderId);
         if (order) {
-          // Mise à jour locale pour avoir les bons champs (deposit_paid_at etc.)
           const updated = { ...order, ...update };
           const res = await notifyPreorderStatusChange(updated, newStatus);
           if (res.push?.ok) toast.success('🔔 Push envoyé au client');
-          else if (res.push?.error) console.warn('push failed:', res.push.error);
           if (res.whatsapp?.ok) toast.success('💬 WhatsApp envoyé au client');
-          else if (res.whatsapp?.error) console.warn('whatsapp failed:', res.whatsapp.error);
         }
       }
 
@@ -95,40 +138,19 @@ export default function ImportsSection() {
   const getNextAction = (order) => {
     switch (order.status) {
       case 'pending_payment':
-        return {
-          label: '✅ Acompte reçu',
-          handler: () => advance(order.id, 'paid', { deposit_paid_at: new Date().toISOString() }),
-        };
+        return { label: '✅ Acompte reçu', handler: () => advance(order.id, 'paid', { deposit_paid_at: new Date().toISOString() }) };
       case 'paid':
-        return {
-          label: '🛍️ Commander chez fournisseur',
-          handler: () => advance(order.id, 'awaiting_supplier', { supplier_order_date: new Date().toISOString() }),
-        };
+        return { label: '🛍️ Commander chez fournisseur', handler: () => advance(order.id, 'awaiting_supplier', { supplier_order_date: new Date().toISOString() }) };
       case 'awaiting_supplier':
-        return {
-          label: '✈️ Marquer en transit',
-          handler: () => advance(order.id, 'in_transit_intl'),
-        };
+        return { label: '✈️ Marquer en transit', handler: () => advance(order.id, 'in_transit_intl') };
       case 'in_transit_intl':
-        return {
-          label: '🇸🇳 Arrivé à Dakar',
-          handler: () => advance(order.id, 'arrived_local', { arrived_dakar_at: new Date().toISOString() }),
-        };
+        return { label: '🇸🇳 Arrivé à Dakar', handler: () => advance(order.id, 'arrived_local', { arrived_dakar_at: new Date().toISOString() }) };
       case 'arrived_local':
-        return {
-          label: '💰 Demander solde au client',
-          handler: () => advance(order.id, 'awaiting_balance'),
-        };
+        return { label: '💰 Demander solde au client', handler: () => advance(order.id, 'awaiting_balance') };
       case 'awaiting_balance':
-        return {
-          label: '✅ Solde reçu, livrer',
-          handler: () => advance(order.id, 'shipped', { balance_paid_at: new Date().toISOString() }),
-        };
+        return { label: '✅ Solde reçu, livrer', handler: () => advance(order.id, 'shipped', { balance_paid_at: new Date().toISOString() }) };
       case 'shipped':
-        return {
-          label: '🎉 Marquer livré',
-          handler: () => advance(order.id, 'delivered'),
-        };
+        return { label: '🎉 Marquer livré', handler: () => advance(order.id, 'delivered') };
       default:
         return null;
     }
@@ -137,17 +159,7 @@ export default function ImportsSection() {
   if (loading) return <div style={{ padding: 40 }}>Chargement…</div>;
 
   return (
-    <div className="adm-section">
-      <header className="adm-header">
-        <div>
-          <h1>✈️ Imports</h1>
-          <p style={{ margin: 0, color: '#6B6B6B', fontSize: 13 }}>
-            Gestion du cycle de vie des commandes preorder (Boutique internationale)
-          </p>
-        </div>
-      </header>
-
-      {/* STATS */}
+    <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, padding: '0 16px 14px' }}>
         <StatCard label="Total imports" value={stats.total} color="#0066CC" />
         <StatCard label="Acomptes encaissés" value={stats.depositsReceived.toLocaleString('fr-FR') + ' FCFA'} color="#1F8B4C" />
@@ -157,7 +169,6 @@ export default function ImportsSection() {
         <StatCard label="Arrivés à Dakar" value={stats.arrivedCount} color="#1F8B4C" highlight={stats.arrivedCount > 0} />
       </div>
 
-      {/* FILTRES */}
       <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', overflowX: 'auto' }}>
         {[
           { id: 'all',     label: 'Tous',       count: orders.length },
@@ -166,35 +177,23 @@ export default function ImportsSection() {
           { id: 'arrived', label: 'Arrivés',    count: orders.filter(o => ['arrived_local','awaiting_balance'].includes(o.status)).length },
           { id: 'done',    label: 'Terminés',   count: orders.filter(o => ['delivered','cancelled'].includes(o.status)).length },
         ].map(f => (
-          <button
-            key={f.id}
-            className={`adm-filter ${filter === f.id ? 'active' : ''}`}
-            onClick={() => setFilter(f.id)}
-          >
+          <button key={f.id} className={`adm-filter ${filter === f.id ? 'active' : ''}`} onClick={() => setFilter(f.id)}>
             {f.label} ({f.count})
           </button>
         ))}
       </div>
 
-      {/* LISTE */}
       <div style={{ padding: '0 16px' }}>
         {filtered.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: '#6B6B6B' }}>
             Aucune commande import {filter !== 'all' && 'dans cette catégorie'}.
           </div>
         )}
-
         {filtered.map(o => {
           const next = getNextAction(o);
           const phone = o.address?.phone;
           return (
-            <div key={o.id} style={{
-              background: '#fff',
-              border: '1px solid #E5E5E2',
-              borderRadius: 12,
-              padding: 14,
-              marginBottom: 10,
-            }}>
+            <div key={o.id} style={{ background: '#fff', border: '1px solid #E5E5E2', borderRadius: 12, padding: 14, marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div>
                   <code style={{ fontSize: 12, color: '#6B6B6B' }}>{o.id}</code>
@@ -202,70 +201,28 @@ export default function ImportsSection() {
                     {o.address?.name || 'Client inconnu'} · {Number(o.total).toLocaleString('fr-FR')} FCFA
                   </div>
                 </div>
-                <div style={{
-                  background: 'linear-gradient(135deg, #0066CC, #004999)',
-                  color: '#fff',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '4px 10px',
-                  borderRadius: 8,
-                }}>
+                <div style={{ background: 'linear-gradient(135deg, #0066CC, #004999)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8 }}>
                   {PREORDER_STATUS_ICONS[o.status] || ''} {PREORDER_STATUS_LABELS[o.status] || o.status}
                 </div>
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, fontSize: 12, color: '#6B6B6B', marginBottom: 10 }}>
-                <div>
-                  <strong style={{ color: '#1A1A1A' }}>Acompte (50%)</strong><br/>
-                  {Number(o.deposit_amount || 0).toLocaleString('fr-FR')} FCFA
-                  {o.deposit_paid_at && <span style={{ color: '#1F8B4C' }}> ✓</span>}
-                </div>
-                <div>
-                  <strong style={{ color: '#1A1A1A' }}>Solde (50%)</strong><br/>
-                  {Number(o.balance_amount || 0).toLocaleString('fr-FR')} FCFA
-                  {o.balance_paid_at && <span style={{ color: '#1F8B4C' }}> ✓</span>}
-                </div>
-                {o.expected_arrival_date && (
-                  <div>
-                    <strong style={{ color: '#1A1A1A' }}>Arrivée prévue</strong><br/>
-                    {formatArrivalDate(o.expected_arrival_date)}
-                  </div>
-                )}
-                <div>
-                  <strong style={{ color: '#1A1A1A' }}>Items</strong><br/>
-                  {(o.items || []).length} produit(s)
-                </div>
+                <div><strong style={{ color: '#1A1A1A' }}>Acompte (50%)</strong><br/>{Number(o.deposit_amount || 0).toLocaleString('fr-FR')} FCFA{o.deposit_paid_at && <span style={{ color: '#1F8B4C' }}> ✓</span>}</div>
+                <div><strong style={{ color: '#1A1A1A' }}>Solde (50%)</strong><br/>{Number(o.balance_amount || 0).toLocaleString('fr-FR')} FCFA{o.balance_paid_at && <span style={{ color: '#1F8B4C' }}> ✓</span>}</div>
+                {o.expected_arrival_date && <div><strong style={{ color: '#1A1A1A' }}>Arrivée prévue</strong><br/>{formatArrivalDate(o.expected_arrival_date)}</div>}
+                <div><strong style={{ color: '#1A1A1A' }}>Items</strong><br/>{(o.items || []).length} produit(s)</div>
               </div>
-
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {next && (
-                  <button className="adm-btn-pri" onClick={next.handler}>
-                    {next.label}
-                  </button>
-                )}
+                {next && <button className="adm-btn-pri" onClick={next.handler}>{next.label}</button>}
                 {phone && (
-                  <a
-                    href={`https://wa.me/${String(phone).replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, c'est YARAM concernant votre commande ${o.id}.`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="adm-btn-sec"
-                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                  >
+                  <a href={`https://wa.me/${String(phone).replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, c'est YARAM concernant votre commande ${o.id}.`)}`} target="_blank" rel="noopener noreferrer" className="adm-btn-sec" style={{ textDecoration: 'none' }}>
                     💬 WhatsApp client
                   </a>
                 )}
                 {o.status !== 'cancelled' && o.status !== 'delivered' && (
-                  <button
-                    className="adm-btn-sec"
-                    style={{ color: '#D9342B' }}
-                    onClick={() => {
-                      if (confirm(`Annuler la commande ${o.id} ?`)) {
-                        advance(o.id, 'cancelled');
-                      }
-                    }}
-                  >
-                    ❌ Annuler
-                  </button>
+                  <button className="adm-btn-sec" style={{ color: '#D9342B' }} onClick={async () => {
+                    const ok = await confirmDialog({ title: 'Annuler ?', message: `Annuler la commande ${o.id} ?` });
+                    if (ok) advance(o.id, 'cancelled');
+                  }}>❌ Annuler</button>
                 )}
               </div>
             </div>
@@ -276,6 +233,325 @@ export default function ImportsSection() {
   );
 }
 
+// ═══════════════════════════════════════════════
+// TAB 2 — PRODUITS IMPORT (nouveau)
+// ═══════════════════════════════════════════════
+function ProductsTab() {
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | 'new' | productId
+  const [filterCountry, setFilterCountry] = useState('all');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [pRes, cRes] = await Promise.all([
+        supabase
+          .from('products')
+          .select('id, name, brand, category, price, img, score, rating, active, is_imported, lead_time_days, origin_country, supplier_url, supplier_cost, created_at')
+          .eq('is_imported', true)
+          .order('created_at', { ascending: false }),
+        supabase.from('categories').select('id, slug, name').eq('active', true).order('display_order'),
+      ]);
+      if (pRes.error) throw pRes.error;
+      setProducts(pRes.data || []);
+      setCategories(cRes.data || []);
+    } catch (e) {
+      toast.error('Erreur chargement : ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = filterCountry === 'all'
+    ? products
+    : products.filter(p => p.origin_country === filterCountry);
+
+  const availableCountries = [...new Set(products.map(p => p.origin_country).filter(Boolean))];
+
+  // Stats
+  const totalValue = products.reduce((s, p) => s + Number(p.price || 0), 0);
+  const totalCost  = products.reduce((s, p) => s + Number(p.supplier_cost || 0), 0);
+  const avgMargin  = totalCost > 0 ? Math.round(((totalValue - totalCost) / totalValue) * 100) : 0;
+
+  if (editing !== null) {
+    return (
+      <ProductImportEditor
+        product={editing === 'new' ? null : products.find(p => p.id === editing)}
+        categories={categories}
+        onSave={async () => { setEditing(null); await load(); }}
+        onCancel={() => setEditing(null)}
+        onDelete={editing !== 'new' ? async () => {
+          const ok = await confirmDialog({ title: 'Supprimer ?', message: 'Cette action est irréversible.' });
+          if (!ok) return;
+          await supabase.from('products').delete().eq('id', editing);
+          toast.success('Produit supprimé');
+          setEditing(null);
+          await load();
+        } : null}
+      />
+    );
+  }
+
+  if (loading) return <div style={{ padding: 40 }}>Chargement…</div>;
+
+  return (
+    <div>
+      {/* STATS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, padding: '0 16px 14px' }}>
+        <StatCard label="Produits import" value={products.length} color="#0066CC" />
+        <StatCard label="Valeur catalogue" value={totalValue.toLocaleString('fr-FR') + ' FCFA'} color="#1F8B4C" />
+        <StatCard label="Coût fournisseur" value={totalCost.toLocaleString('fr-FR') + ' FCFA'} color="#E0A52D" />
+        <StatCard label="Marge moyenne" value={avgMargin + '%'} color="#9C27B0" highlight={avgMargin >= 30} />
+      </div>
+
+      {/* TOOLBAR */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="adm-btn-pri" onClick={() => setEditing('new')}>
+          + Nouveau produit import
+        </button>
+
+        <select
+          value={filterCountry}
+          onChange={e => setFilterCountry(e.target.value)}
+          style={{ padding: '8px 12px', border: '1px solid #E5E5E2', borderRadius: 8, fontSize: 13 }}
+        >
+          <option value="all">🌍 Tous les pays ({products.length})</option>
+          {availableCountries.map(code => {
+            const c = COUNTRIES.find(x => x.code === code) || { flag: '🌐', name: code };
+            const cnt = products.filter(p => p.origin_country === code).length;
+            return <option key={code} value={code}>{c.flag} {c.name} ({cnt})</option>;
+          })}
+        </select>
+      </div>
+
+      {/* LISTE PRODUITS */}
+      <div style={{ padding: '0 16px' }}>
+        {filtered.length === 0 && (
+          <div style={{ padding: 40, textAlign: 'center', color: '#6B6B6B' }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>📦</div>
+            <p>Aucun produit import {filterCountry !== 'all' && 'dans cette région'}.</p>
+            <button className="adm-btn-pri" onClick={() => setEditing('new')} style={{ marginTop: 12 }}>
+              + Ajouter le premier produit
+            </button>
+          </div>
+        )}
+
+        {filtered.map(p => {
+          const country = COUNTRIES.find(c => c.code === p.origin_country);
+          const margin = p.supplier_cost && p.price
+            ? Math.round(((Number(p.price) - Number(p.supplier_cost)) / Number(p.price)) * 100)
+            : null;
+          return (
+            <div key={p.id} style={{
+              display: 'flex',
+              gap: 12,
+              background: '#fff',
+              border: '1px solid #E5E5E2',
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 10,
+              alignItems: 'center',
+            }}>
+              {p.img ? (
+                <img src={p.img} alt={p.name} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: 56, height: 56, background: '#F4F4F2', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>📦</div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: '#6B6B6B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {p.brand} {country && <span>· {country.flag} {country.name}</span>}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, margin: '2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {p.name}
+                </div>
+                <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#6B6B6B', flexWrap: 'wrap' }}>
+                  <span><strong style={{ color: '#1A1A1A' }}>{Number(p.price).toLocaleString('fr-FR')} FCFA</strong></span>
+                  {margin !== null && <span>Marge : <strong style={{ color: margin >= 30 ? '#1F8B4C' : '#E0A52D' }}>{margin}%</strong></span>}
+                  <span>⏱️ {p.lead_time_days || 15}j</span>
+                  {!p.active && <span style={{ color: '#D9342B' }}>● Inactif</span>}
+                </div>
+              </div>
+              <button
+                className="adm-btn-sec"
+                onClick={() => setEditing(p.id)}
+                style={{ flexShrink: 0 }}
+              >
+                Modifier
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// Éditeur compact pour produit import
+// ═══════════════════════════════════════════════
+function ProductImportEditor({ product, categories, onSave, onCancel, onDelete }) {
+  const isNew = !product;
+  const [p, setP] = useState(product || {
+    name: '',
+    brand: '',
+    category: categories[0]?.slug || '',
+    price: '',
+    img: '',
+    score: 70,
+    rating: 4.5,
+    active: true,
+    is_imported: true,
+    lead_time_days: 15,
+    origin_country: 'US',
+    supplier_url: '',
+    supplier_cost: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const upd = (k, v) => setP({ ...p, [k]: v });
+
+  const handleSave = async () => {
+    if (!p.name?.trim() || !p.brand?.trim()) {
+      toast.error('Nom et marque requis');
+      return;
+    }
+    if (!p.price || Number(p.price) <= 0) {
+      toast.error('Prix requis');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        ...p,
+        price: Number(p.price) || 0,
+        score: Number(p.score) || 70,
+        rating: Number(p.rating) || 4.5,
+        lead_time_days: Number(p.lead_time_days) || 15,
+        supplier_cost: p.supplier_cost ? Number(p.supplier_cost) : null,
+        is_imported: true,
+      };
+      // Cleanup avant insert
+      delete payload.created_at;
+      if (isNew) delete payload.id;
+
+      const { error } = isNew
+        ? await supabase.from('products').insert(payload)
+        : await supabase.from('products').update(payload).eq('id', p.id);
+      if (error) throw error;
+      toast.success(isNew ? 'Produit créé ✅' : 'Produit modifié ✅');
+      onSave();
+    } catch (e) {
+      toast.error('Erreur : ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const margin = p.supplier_cost && p.price
+    ? Math.round(((Number(p.price) - Number(p.supplier_cost)) / Number(p.price)) * 100)
+    : null;
+
+  return (
+    <div style={{ padding: '0 16px' }}>
+      <header className="adm-header">
+        <div>
+          <button className="adm-link" onClick={onCancel}>← Retour à la liste</button>
+          <h1>{isNew ? '+ Nouveau produit import' : 'Modifier produit import'}</h1>
+        </div>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        {/* IDENTITÉ */}
+        <div className="adm-form-section">
+          <h3>Identité</h3>
+          <label>Nom du produit *<input value={p.name} onChange={e => upd('name', e.target.value)} placeholder="Fenty Beauty Pro Filt'r Foundation" /></label>
+          <label>Marque *<input value={p.brand} onChange={e => upd('brand', e.target.value)} placeholder="Fenty Beauty" /></label>
+          <label>Catégorie<select value={p.category} onChange={e => upd('category', e.target.value)}>
+            {categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+          </select></label>
+          <label>URL image<input value={p.img} onChange={e => upd('img', e.target.value)} placeholder="https://..." /></label>
+          <label className="adm-form-checkbox">
+            <input type="checkbox" checked={p.active} onChange={e => upd('active', e.target.checked)} />
+            <span>Produit actif (visible dans Boutique internationale)</span>
+          </label>
+        </div>
+
+        {/* PRIX & MARGE */}
+        <div className="adm-form-section">
+          <h3>Prix & Marge</h3>
+          <label>Prix de vente (FCFA) *<input type="number" value={p.price} onChange={e => upd('price', e.target.value)} placeholder="15000" /></label>
+          <label>Prix coûtant fournisseur (FCFA)<input type="number" value={p.supplier_cost} onChange={e => upd('supplier_cost', e.target.value)} placeholder="8000" /></label>
+
+          {margin !== null && (
+            <div style={{
+              background: margin >= 30 ? 'rgba(31,139,76,0.08)' : 'rgba(224,165,45,0.08)',
+              border: `1px solid ${margin >= 30 ? '#1F8B4C' : '#E0A52D'}`,
+              borderRadius: 8,
+              padding: 10,
+              marginTop: 8,
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 11, color: '#6B6B6B', marginBottom: 2 }}>Marge nette estimée</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: margin >= 30 ? '#1F8B4C' : '#E0A52D' }}>{margin}%</div>
+              <div style={{ fontSize: 11, color: '#6B6B6B' }}>
+                {(Number(p.price) - Number(p.supplier_cost)).toLocaleString('fr-FR')} FCFA / unité
+              </div>
+            </div>
+          )}
+
+          <label>Score YARAM<input type="number" min="0" max="100" value={p.score} onChange={e => upd('score', e.target.value)} /></label>
+          <label>Note moyenne<input type="number" step="0.1" min="0" max="5" value={p.rating} onChange={e => upd('rating', e.target.value)} /></label>
+        </div>
+
+        {/* IMPORT */}
+        <div className="adm-form-section" style={{ gridColumn: '1 / -1', background: 'rgba(0,102,204,0.04)', borderRadius: 12, padding: 14 }}>
+          <h3 style={{ color: '#0066CC' }}>✈️ Configuration import</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label>Pays d'origine
+              <select value={p.origin_country} onChange={e => upd('origin_country', e.target.value)}>
+                {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+              </select>
+            </label>
+            <label>Délai de livraison (jours) *
+              <input type="number" min="1" max="60" value={p.lead_time_days} onChange={e => upd('lead_time_days', e.target.value)} />
+              <small style={{ display: 'block', fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+                15j USA · 10j Europe · 7j Maghreb
+              </small>
+            </label>
+            <label style={{ gridColumn: '1 / -1' }}>URL fournisseur (admin only)
+              <input value={p.supplier_url} onChange={e => upd('supplier_url', e.target.value)} placeholder="https://www.amazon.com/dp/..." />
+              <small style={{ display: 'block', fontSize: 11, color: '#6B6B6B', marginTop: 4 }}>
+                Lien direct vers le produit chez ton fournisseur. Pas visible côté client.
+              </small>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* ACTIONS */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 20, padding: '12px 0', borderTop: '1px solid #E5E5E2', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="adm-btn-sec" onClick={onCancel}>Annuler</button>
+          <button className="adm-btn-pri" onClick={handleSave} disabled={saving}>
+            {saving ? 'Enregistrement...' : (isNew ? 'Créer' : 'Enregistrer')}
+          </button>
+        </div>
+        {onDelete && !isNew && (
+          <button className="adm-btn-sec" style={{ color: '#D9342B' }} onClick={onDelete}>
+            🗑 Supprimer
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// Composant StatCard partagé
+// ═══════════════════════════════════════════════
 function StatCard({ label, value, color, highlight }) {
   return (
     <div style={{
