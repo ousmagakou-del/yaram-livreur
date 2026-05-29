@@ -482,6 +482,12 @@ function ProductImportEditor({ product, categories, onSave, onCancel, onDelete }
         {/* PRIX & MARGE */}
         <div className="adm-form-section">
           <h3>Prix & Marge</h3>
+          <PriceCalculator
+            onApply={(supplierCost, suggestedPrice) => {
+              upd('supplier_cost', supplierCost);
+              upd('price', suggestedPrice);
+            }}
+          />
           <label>Prix de vente (FCFA) *<input type="number" value={p.price} onChange={e => upd('price', e.target.value)} placeholder="15000" /></label>
           <label>Prix coûtant fournisseur (FCFA)<input type="number" value={p.supplier_cost} onChange={e => upd('supplier_cost', e.target.value)} placeholder="8000" /></label>
 
@@ -545,6 +551,153 @@ function ProductImportEditor({ product, categories, onSave, onCancel, onDelete }
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// Mini-calculateur prix : USD → FCFA + frais import + marge
+// ═══════════════════════════════════════════════
+function PriceCalculator({ onApply }) {
+  // Valeurs persistées dans localStorage pour ne pas re-taper chaque fois
+  const [priceUSD, setPriceUSD] = useState('');
+  const [rate, setRate] = useState(() => {
+    try { return localStorage.getItem('yaram_import_rate') || '620'; } catch { return '620'; }
+  });
+  const [importFees, setImportFees] = useState(() => {
+    try { return localStorage.getItem('yaram_import_fees') || '20'; } catch { return '20'; }
+  });
+  const [targetMargin, setTargetMargin] = useState(() => {
+    try { return localStorage.getItem('yaram_import_margin') || '35'; } catch { return '35'; }
+  });
+  const [expanded, setExpanded] = useState(false);
+
+  // Persiste les réglages
+  useEffect(() => {
+    try { localStorage.setItem('yaram_import_rate', rate); } catch {}
+  }, [rate]);
+  useEffect(() => {
+    try { localStorage.setItem('yaram_import_fees', importFees); } catch {}
+  }, [importFees]);
+  useEffect(() => {
+    try { localStorage.setItem('yaram_import_margin', targetMargin); } catch {}
+  }, [targetMargin]);
+
+  const usd = Number(priceUSD) || 0;
+  const fx = Number(rate) || 620;
+  const fees = Number(importFees) || 0;
+  const margin = Number(targetMargin) || 0;
+
+  // supplier_cost = prix USD × taux + frais import (douane, transport, etc.)
+  const supplierCost = Math.round(usd * fx * (1 + fees / 100));
+  // prix de vente cible = supplier_cost / (1 - margin/100)
+  const suggestedPrice = margin < 100 ? Math.round(supplierCost / (1 - margin / 100)) : supplierCost;
+  // arrondir à la centaine supérieure pour faire plus propre (12 750 → 12 800)
+  const suggestedPriceRounded = Math.ceil(suggestedPrice / 100) * 100;
+
+  return (
+    <div style={{
+      background: 'rgba(0,102,204,0.05)',
+      border: '1px dashed rgba(0,102,204,0.3)',
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 12,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: expanded ? 10 : 0 }}>
+        <strong style={{ fontSize: 13, color: '#0066CC' }}>🧮 Calculateur USD → FCFA</strong>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          style={{ background: 'none', border: 'none', color: '#0066CC', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+        >
+          {expanded ? 'Réduire ▲' : 'Ouvrir ▼'}
+        </button>
+      </div>
+
+      {expanded && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <label style={{ fontSize: 11 }}>
+              Prix USD ($)
+              <input
+                type="number"
+                step="0.01"
+                value={priceUSD}
+                onChange={e => setPriceUSD(e.target.value)}
+                placeholder="29.99"
+                style={{ width: '100%', padding: 6, fontSize: 13 }}
+              />
+            </label>
+            <label style={{ fontSize: 11 }}>
+              Taux change (FCFA/$)
+              <input
+                type="number"
+                value={rate}
+                onChange={e => setRate(e.target.value)}
+                style={{ width: '100%', padding: 6, fontSize: 13 }}
+              />
+            </label>
+            <label style={{ fontSize: 11 }}>
+              Frais import (%)
+              <input
+                type="number"
+                value={importFees}
+                onChange={e => setImportFees(e.target.value)}
+                style={{ width: '100%', padding: 6, fontSize: 13 }}
+              />
+              <small style={{ fontSize: 10, color: '#6B6B6B' }}>Douane + transport + emballage</small>
+            </label>
+            <label style={{ fontSize: 11 }}>
+              Marge cible (%)
+              <input
+                type="number"
+                value={targetMargin}
+                onChange={e => setTargetMargin(e.target.value)}
+                style={{ width: '100%', padding: 6, fontSize: 13 }}
+              />
+              <small style={{ fontSize: 10, color: '#6B6B6B' }}>30-40% recommandé</small>
+            </label>
+          </div>
+
+          {usd > 0 && (
+            <div style={{
+              background: '#fff',
+              border: '1px solid #E5E5E2',
+              borderRadius: 8,
+              padding: 10,
+              fontSize: 12,
+              marginBottom: 8,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span>Prix achat Sam's :</span>
+                <strong>${usd.toFixed(2)} = {(usd * fx).toLocaleString('fr-FR')} FCFA</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span>+ Frais import ({fees}%) :</span>
+                <strong>{Math.round(usd * fx * fees / 100).toLocaleString('fr-FR')} FCFA</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px solid #E5E5E2' }}>
+                <span><strong>Coût total YARAM :</strong></span>
+                <strong style={{ color: '#E0A52D' }}>{supplierCost.toLocaleString('fr-FR')} FCFA</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span><strong>💰 Prix de vente suggéré :</strong></span>
+                <strong style={{ color: '#1F8B4C', fontSize: 14 }}>{suggestedPriceRounded.toLocaleString('fr-FR')} FCFA</strong>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="adm-btn-pri"
+            disabled={usd <= 0}
+            onClick={() => onApply(supplierCost, suggestedPriceRounded)}
+            style={{ width: '100%', fontSize: 13 }}
+          >
+            ⬇ Appliquer aux champs ci-dessous
+          </button>
+        </>
+      )}
     </div>
   );
 }
