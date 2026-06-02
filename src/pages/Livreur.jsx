@@ -121,10 +121,28 @@ export default function Livreur() {
     // (pickup_at, picked_at, etc.) — ils restent gerables uniquement via SQL direct si
     // besoin. Pour le moment seuls les champs principaux sont synchronises.
     const updates = { status: newStatus, last_update: new Date().toISOString(), ...extraFields };
-    await supabase.rpc('livreur_update_tracking', { p_token: token, p_patch: updates });
+
+    // ─── VÉRIF EXPLICITE du retour RPC ───
+    // Avant : on appelait .rpc() sans regarder error/data → si la RPC fail
+    // silencieuse (n'existe pas, RLS refuse, signature change), le statut ne
+    // changeait pas mais aucun feedback à l'utilisateur. Bouton "Je suis là"
+    // semble "ne rien faire". Maintenant on toast l'erreur visiblement.
+    const { data, error } = await supabase.rpc('livreur_update_tracking', { p_token: token, p_patch: updates });
+    if (error) {
+      console.error('[Livreur] updateStatus RPC error:', error);
+      toast.error('Erreur mise à jour : ' + (error.message || 'RPC en échec'));
+      return;
+    }
+    // Certaines RPC retournent { success: false, error: '...' } dans data
+    if (data && data.success === false) {
+      console.error('[Livreur] updateStatus RPC returned failure:', data);
+      toast.error('Refusé : ' + (data.error || 'opération non autorisée'));
+      return;
+    }
 
     if (newStatus === 'in_route' && order) {
-      await supabase.rpc('livreur_update_order', { p_token: token, p_patch: { status: 'shipped' } });
+      const { error: orderErr } = await supabase.rpc('livreur_update_order', { p_token: token, p_patch: { status: 'shipped' } });
+      if (orderErr) console.warn('[Livreur] update_order error (non-bloquant):', orderErr?.message);
       // Email cliente : "ton livreur est en route"
       sendOrderEmail(order.id, 'orderShipped').catch(e => console.warn('shipped email failed:', e?.message));
     }
