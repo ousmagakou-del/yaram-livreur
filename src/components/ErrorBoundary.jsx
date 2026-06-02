@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { captureException } from '../lib/sentry';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // <ErrorBoundary /> : capture les erreurs React qui blanchissent les pages.
@@ -10,7 +11,7 @@ import { Component } from 'react';
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -18,15 +19,27 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // Log dans la console iOS (visible via Safari Web Inspector) + Sentry plus tard
     console.error('[ErrorBoundary] Render crash:', error, info?.componentStack);
     try {
-      // Si Sentry est dispo
-      if (typeof window !== 'undefined' && window.Sentry) {
-        window.Sentry.captureException(error, { extra: info });
-      }
+      captureException(error, {
+        componentStack: info?.componentStack,
+        url: typeof window !== 'undefined' ? window.location.pathname : null,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      });
     } catch {}
+    // Stocke l'erreur pour affichage debug même en prod (controlled disclosure)
+    this.setState({ errorInfo: info });
   }
+
+  handleResetCart = () => {
+    try {
+      localStorage.removeItem('yaram_cart');
+      localStorage.removeItem('yaram_cart_last_added_at');
+      window.location.href = '/';
+    } catch {
+      window.location.reload();
+    }
+  };
 
   handleReload = () => {
     try {
@@ -99,17 +112,48 @@ class ErrorBoundary extends Component {
         >
           Retour à l'accueil
         </button>
-        {import.meta.env.DEV && this.state.error && (
-          <pre style={{
-            marginTop: 24,
-            fontSize: 11,
-            color: '#D9342B',
-            maxWidth: 360,
-            overflow: 'auto',
-            textAlign: 'left',
-          }}>
-            {String(this.state.error?.message || this.state.error)}
-          </pre>
+        {/* Bouton récupération : si crash sur Cart, vider localStorage et go Home */}
+        {typeof window !== 'undefined' && window.location.pathname.includes('cart') && (
+          <button
+            onClick={this.handleResetCart}
+            style={{
+              padding: '10px 20px',
+              borderRadius: 10,
+              background: 'transparent',
+              color: '#D9342B',
+              fontSize: 13,
+              border: '1px solid #D9342B',
+              cursor: 'pointer',
+              marginTop: 8,
+            }}
+          >
+            🗑 Vider mon panier et revenir
+          </button>
+        )}
+
+        {/* Affichage erreur EN PROD (controlled) — sinon impossible de débugger
+            sur TestFlight sans Web Inspector branché. Petite police, dépliable. */}
+        {this.state.error && (
+          <details style={{ marginTop: 32, maxWidth: 360, width: '100%', textAlign: 'left' }}>
+            <summary style={{ fontSize: 11, color: '#999', cursor: 'pointer' }}>
+              Détails techniques (capture d'écran SVP)
+            </summary>
+            <pre style={{
+              marginTop: 8,
+              padding: 10,
+              fontSize: 10,
+              color: '#D9342B',
+              background: '#FFF5F5',
+              borderRadius: 8,
+              maxHeight: 200,
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}>
+              {String(this.state.error?.message || this.state.error)}
+              {this.state.error?.stack && '\n\n' + this.state.error.stack.split('\n').slice(0, 5).join('\n')}
+            </pre>
+          </details>
         )}
       </div>
     );

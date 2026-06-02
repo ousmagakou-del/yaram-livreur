@@ -63,23 +63,43 @@ export default function Cart() {
     setItems(next);
   };
 
-  const grouped = items.reduce((acc, it) => {
-    if (!acc[it.pharmacyId]) acc[it.pharmacyId] = { name: it.pharmacyName, items: [] };
-    acc[it.pharmacyId].items.push(it);
-    return acc;
-  }, {});
+  // ─── BULLETPROOF compute : on isole tout le calcul dans un try/catch.
+  //     Si UN helper throw (libelle.js, utils.js cache settings…), on ne crash plus,
+  //     on continue avec des valeurs par défaut sûres. L'erreur est loggée en console
+  //     pour Sentry, l'utilisateur peut au moins voir et vider son panier.
+  let grouped = {};
+  let subtotal = 0;
+  let zone = { zone: 'Dakar', price: 1500, freeFrom: 30000 };
+  let shipping = 0;
+  let total = 0;
+  let preorderSummary = { isPreorder: false, breakdown: { depositAmount: 0, balanceAmount: 0 }, leadTimeDays: 1, expectedArrivalFormatted: '' };
+  let isPreorder = false;
+  let computeError = null;
 
-  // SAFETY : price ou qty peuvent être null/string ; éviter NaN qui propage partout
-  const subtotal = items.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
-  // Vraie zone de livraison (Dakar 1500, Thies 2500, autre Senegal 3500…)
-  // + gratuit au-dessus du seuil de la zone.
-  const zone = getShippingZone(defaultCity);
-  const shipping = subtotal > 0 && subtotal < zone.freeFrom ? zone.price : 0;
-  const total = subtotal + shipping;
+  try {
+    grouped = items.reduce((acc, it) => {
+      const pid = it?.pharmacyId || 'unknown';
+      if (!acc[pid]) acc[pid] = { name: it?.pharmacyName || 'Pharmacie', items: [] };
+      acc[pid].items.push(it);
+      return acc;
+    }, {});
 
-  // Detecte si la commande contient des produits import (preorder 50/50)
-  const preorderSummary = buildPreorderSummary(items, shipping);
-  const isPreorder = preorderSummary.isPreorder;
+    // SAFETY : price ou qty peuvent être null/string ; éviter NaN qui propage partout
+    subtotal = items.reduce((s, it) => s + ((Number(it?.price) || 0) * (Number(it?.qty) || 0)), 0);
+    // Vraie zone de livraison (Dakar 1500, Thies 2500, autre Senegal 3500…)
+    zone = getShippingZone(defaultCity) || zone;
+    shipping = subtotal > 0 && subtotal < (zone?.freeFrom || 0) ? (zone?.price || 0) : 0;
+    total = subtotal + shipping;
+
+    // Detecte si la commande contient des produits import (preorder 50/50)
+    preorderSummary = buildPreorderSummary(items, shipping) || preorderSummary;
+    isPreorder = !!preorderSummary?.isPreorder;
+  } catch (e) {
+    // Tout helper qui throw → on log mais on continue à render le panier
+    // avec des valeurs par défaut. Le user voit ses items, peut au moins les supprimer.
+    console.error('[Cart] compute error:', e);
+    computeError = e?.message || String(e);
+  }
 
   if (items.length === 0) {
     return (
