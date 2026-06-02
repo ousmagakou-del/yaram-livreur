@@ -84,55 +84,85 @@ export default function Payment({ orderId }) {
   const handlePay = async () => {
     setPaying(true);
     try {
-      // 1. Marque la commande comme payée
+      // 1. Marque la commande comme payée (SEULE opération bloquante).
+      //    Tout le reste (emails, broadcast) part en background pour que
+      //    l'UX soit instantanée : dès que le status est 'paid', on navigate.
       await updateOrderStatus(orderId, 'paid');
 
-      // 2. ─── NOTIFS post-paiement (déclenchées MAINTENANT, pas avant) ───
-      // Pourquoi : éviter que la pharmacie prépare une commande non payée.
-      // Une fois le user a cliqué "J'ai payé" → on lance toutes les notifs.
-      try {
-        // Email client de confirmation
-        if (user?.email) {
-          await sendEmail({
-            to: user.email,
-            template: 'orderConfirmed',
-            params: {
-              firstName: user.first_name || 'Toi',
-              order,
-            },
-          }).catch(e => console.warn('client email failed:', e?.message));
-        }
-        // Email pharmacie : nouvelle commande à préparer
-        await sendOrderEmail(orderId, 'pharmacyNewOrder')
-          .catch(e => console.warn('pharma email failed:', e?.message));
-
-        // Broadcast realtime : ping admin + pharmacies pour refresh instant
-        try {
-          const pharmaIds = [...new Set((order?.items || []).map(it => it.pharmacy_id || it.pharmacyId).filter(Boolean))];
-          await supabase.channel('yaram-new-orders').send({
-            type: 'broadcast',
-            event: 'new_order',
-            payload: {
-              order_id: orderId,
-              total: order?.total,
-              pharmacy_ids: pharmaIds,
-              created_at: order?.created_at,
-            },
-          });
-        } catch (e) {
-          console.warn('broadcast new_order failed:', e?.message);
-        }
-      } catch (notifErr) {
-        console.warn('[Payment] post-paid notifs failed (non-bloquant):', notifErr?.message);
-      }
-
+      // 2. Navigation immédiate vers le tracking — l'utilisateur voit
+      //    son écran de suivi en < 1s au lieu d'attendre 5-10s les notifs.
       toast.success('Paiement confirmé');
       navigate({ name: 'order_tracking', params: { orderId } });
+
+      // 3. ─── NOTIFS post-paiement FIRE-AND-FORGET ───
+      //    On NE FAIT PAS d'await ici. Si une notif fail/hang ça reste invisible
+      //    pour l'utilisateur. Les Promises continuent en background même après
+      //    le démontage du composant.
+      //    Précédent bug : supabase.channel(...).send() peut hang infini si le
+      //    channel n'est pas joined. await bloquait tout. Maintenant on s'en fout.
+      runPostPaidNotifications({ orderId, order, user }).catch(e => {
+        console.warn('[Payment] post-paid notifs swallowed error:', e?.message);
+      });
     } catch (e) {
       setPaying(false);
       toast.error('Erreur : ' + e.message);
     }
   };
+
+  // Helper isolé pour les notifs en background. Chaque op a son timeout pour
+  // ne JAMAIS hang indéfiniment, même si l'edge function est down.
+  const NOTIF_TIMEOUT_MS = 8000;
+  const withTimeout = (promise, label) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timeout`)), NOTIF_TIMEOUT_MS)),
+    ]);
+
+  async function runPostPaidNotifications({ orderId, order, user }) {
+    // On lance les 3 notifs EN PARALLÈLE (Promise.allSettled) avec timeout chacune.
+    // Même si une fail, les autres continuent. Aucune ne bloque l'autre.
+    const ops = [];
+
+    if (user?.email) {
+      ops.push(
+        withTimeout(
+          sendEmail({
+            to: user.email,
+            template: 'orderConfirmed',
+            params: { firstName: user.first_name || 'Toi', order },
+          }),
+          'client email'
+        ).catch(e => console.warn('client email:', e?.message))
+      );
+    }
+
+    ops.push(
+      withTimeout(sendOrderEmail(orderId, 'pharmacyNewOrder'), 'pharma email')
+        .catch(e => console.warn('pharma email:', e?.message))
+    );
+
+    // Broadcast : fire-and-forget pur. Pas d'await sur .send() qui peut hang.
+    // On wrap dans try synchrone juste pour catch un éventuel throw au build du channel.
+    try {
+      const pharmaIds = [...new Set((order?.items || []).map(it => it.pharmacy_id || it.pharmacyId).filter(Boolean))];
+      const ch = supabase.channel('yaram-new-orders');
+      // .send() retourne une Promise — on la lance sans await, avec timeout pour cleanup
+      ops.push(
+        withTimeout(
+          ch.send({
+            type: 'broadcast',
+            event: 'new_order',
+            payload: { order_id: orderId, total: order?.total, pharmacy_ids: pharmaIds, created_at: order?.created_at },
+          }),
+          'broadcast'
+        ).catch(e => console.warn('broadcast:', e?.message))
+      );
+    } catch (e) {
+      console.warn('broadcast setup failed:', e?.message);
+    }
+
+    await Promise.allSettled(ops);
+  }
 
   // ─── PayTech : intégration auto (cartes + wallets via redirection) ───
   const handlePayTech = async () => {
