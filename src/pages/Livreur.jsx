@@ -25,7 +25,42 @@ export default function Livreur() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [proofMethod, setProofMethod] = useState(null);
   const [confirming, setConfirming] = useState(false);
+  // ─── busyStep : quel bouton est en cours d'action ? ───
+  // Permet l'aria-busy + spinner CSS + désactivation pour empêcher le double-tap.
+  // Une seule étape active à la fois (lock optimiste).
+  const [busyStep, setBusyStep] = useState(null);
   const watchIdRef = useRef(null);
+
+  // ─── Haptique : feedback tactile sur Capacitor iOS/Android, fallback vibrate ───
+  const haptic = async (type = 'light') => {
+    try {
+      const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
+      if (type === 'success') await Haptics.notification({ type: NotificationType.Success });
+      else if (type === 'error') await Haptics.notification({ type: NotificationType.Error });
+      else if (type === 'medium') await Haptics.impact({ style: ImpactStyle.Medium });
+      else await Haptics.impact({ style: ImpactStyle.Light });
+    } catch {
+      // Web fallback
+      if (navigator.vibrate) navigator.vibrate(type === 'success' ? [40, 40, 80] : 40);
+    }
+  };
+
+  // ─── Helper RPC : check error/success + toast unique. Renvoie true si OK. ───
+  const rpcOk = (result, label) => {
+    if (result?.error) {
+      console.error(`[Livreur] ${label} RPC error:`, result.error);
+      toast.error(`${label} : ${result.error.message || 'RPC en échec'}`);
+      haptic('error');
+      return false;
+    }
+    if (result?.data && result.data.success === false) {
+      console.error(`[Livreur] ${label} RPC business error:`, result.data);
+      toast.error(`${label} refusé : ${result.data.error || 'opération non autorisée'}`);
+      haptic('error');
+      return false;
+    }
+    return true;
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -98,10 +133,15 @@ export default function Livreur() {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setCurrentPos({ lat, lng });
-        await supabase.rpc('livreur_update_tracking', {
+        // GPS push : log d'erreur non-bloquant (un tick toutes les 5s, on
+        // peut pas spammer le toast). La SQL accepte current_lat/lng OU
+        // livreur_lat/lng. Si la RPC fail, le livreur continue de partager
+        // localement, juste l'admin ne voit pas la position.
+        const { error: gpsErr } = await supabase.rpc('livreur_update_tracking', {
           p_token: token,
           p_patch: { current_lat: lat, current_lng: lng, last_update: new Date().toISOString() },
         });
+        if (gpsErr) console.warn('[Livreur] GPS push warn:', gpsErr.message);
       },
       (err) => { toast.error('Erreur GPS : ' + err.message); setSharingGPS(false); },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
@@ -116,37 +156,45 @@ export default function Livreur() {
     setSharingGPS(false);
   };
 
-  const updateStatus = async (newStatus, extraFields = {}) => {
-    // Note : la whitelist livreur_update_tracking n'inclut pas les timestamps de step
-    // (pickup_at, picked_at, etc.) — ils restent gerables uniquement via SQL direct si
-    // besoin. Pour le moment seuls les champs principaux sont synchronises.
+  // ─── updateStatus avec OPTIMISTIC UPDATE + ROLLBACK ───
+  // Pattern : on met à jour le state local IMMÉDIATEMENT, on lance la RPC,
+  // si elle fail on rollback. Résultat : l'UI réagit en < 50ms au lieu d'attendre
+  // 500-1000ms de RTT Supabase. Plus de "rien ne se passe quand je tape".
+  const updateStatus = async (newStatus, extraFields = {}, stepKey = null) => {
     const updates = { status: newStatus, last_update: new Date().toISOString(), ...extraFields };
+    const prevTracking = tracking;
 
-    // ─── VÉRIF EXPLICITE du retour RPC ───
-    // Avant : on appelait .rpc() sans regarder error/data → si la RPC fail
-    // silencieuse (n'existe pas, RLS refuse, signature change), le statut ne
-    // changeait pas mais aucun feedback à l'utilisateur. Bouton "Je suis là"
-    // semble "ne rien faire". Maintenant on toast l'erreur visiblement.
-    const { data, error } = await supabase.rpc('livreur_update_tracking', { p_token: token, p_patch: updates });
-    if (error) {
-      console.error('[Livreur] updateStatus RPC error:', error);
-      toast.error('Erreur mise à jour : ' + (error.message || 'RPC en échec'));
-      return;
-    }
-    // Certaines RPC retournent { success: false, error: '...' } dans data
-    if (data && data.success === false) {
-      console.error('[Livreur] updateStatus RPC returned failure:', data);
-      toast.error('Refusé : ' + (data.error || 'opération non autorisée'));
-      return;
+    if (stepKey) setBusyStep(stepKey);
+    haptic('light');
+
+    // 1. OPTIMISTIC : on patch le state local AVANT la RPC
+    setTracking(prev => prev ? { ...prev, ...updates } : prev);
+
+    // 2. RPC réelle
+    const result = await supabase.rpc('livreur_update_tracking', { p_token: token, p_patch: updates });
+
+    // 3. Rollback si fail
+    if (!rpcOk(result, 'Mise à jour')) {
+      setTracking(prevTracking);
+      if (stepKey) setBusyStep(null);
+      return false;
     }
 
+    // 4. Side-effect pour 'in_route' → on marque aussi l'order comme shipped
     if (newStatus === 'in_route' && order) {
-      const { error: orderErr } = await supabase.rpc('livreur_update_order', { p_token: token, p_patch: { status: 'shipped' } });
-      if (orderErr) console.warn('[Livreur] update_order error (non-bloquant):', orderErr?.message);
+      const orderResult = await supabase.rpc('livreur_update_order', { p_token: token, p_patch: { status: 'shipped' } });
+      if (orderResult?.error) console.warn('[Livreur] update_order error (non-bloquant):', orderResult.error?.message);
       // Email cliente : "ton livreur est en route"
       sendOrderEmail(order.id, 'orderShipped').catch(e => console.warn('shipped email failed:', e?.message));
     }
-    loadTracking(token);
+
+    // 5. Resync différé (300ms) pour récupérer les champs server-side (timestamps DB)
+    //    sans casser l'optimistic update si l'utilisateur clique entre-temps.
+    setTimeout(() => loadTracking(token), 300);
+
+    if (stepKey) setBusyStep(null);
+    haptic('success');
+    return true;
   };
 
   const uploadPhoto = async (file, type) => {
@@ -182,19 +230,29 @@ export default function Livreur() {
       delivery: 'delivery_photo_url',
     };
     const fieldName = fieldMap[type] || `${type}_photo_url`;
-    await supabase.rpc('livreur_update_tracking', {
+
+    // OPTIMISTIC : on affiche la miniature tout de suite
+    const prevTracking = tracking;
+    setTracking(prev => prev ? { ...prev, [fieldName]: url } : prev);
+
+    const result = await supabase.rpc('livreur_update_tracking', {
       p_token: token,
       p_patch: { [fieldName]: url },
     });
+    if (!rpcOk(result, 'Photo')) {
+      setTracking(prevTracking);
+      return;
+    }
+
     setShowPhotoCapture(null);
     if (type === 'delivery') {
       setProofMethod('photo');
-      loadTracking(token);
       toast.success('Photo enregistrée ! Confirme la livraison maintenant.');
     } else {
-      loadTracking(token);
       toast.success('Photo enregistrée');
     }
+    haptic('success');
+    setTimeout(() => loadTracking(token), 300);
   };
 
   const handleBarcodeScan = async (barcode) => {
@@ -203,48 +261,82 @@ export default function Livreur() {
       code: barcode,
       scanned_at: new Date().toISOString(),
     }];
-    
-    await supabase.rpc('livreur_update_tracking', {
+
+    // OPTIMISTIC : le compteur s'incrémente tout de suite
+    const prevTracking = tracking;
+    setTracking(prev => prev ? { ...prev, scanned_barcodes: newScanned } : prev);
+
+    const result = await supabase.rpc('livreur_update_tracking', {
       p_token: token,
       p_patch: { scanned_barcodes: newScanned },
     });
+    if (!rpcOk(result, 'Scan')) {
+      setTracking(prevTracking);
+      return;
+    }
 
-    loadTracking(token);
+    haptic('success');
+    setTimeout(() => loadTracking(token), 300);
 
     if (navigator.vibrate) navigator.vibrate(100);
     setShowBarcodeScanner(false);
   };
 
   const handleSignatureSubmit = async (signatureData) => {
-    await supabase.rpc('livreur_update_tracking', {
-      p_token: token,
-      p_patch: { delivery_signature: signatureData },
+    const prev = tracking;
+    setTracking(p => p ? { ...p, delivery_signature: signatureData } : p);
+
+    const result = await supabase.rpc('livreur_update_tracking', {
+      p_token: token, p_patch: { delivery_signature: signatureData },
     });
+    if (!rpcOk(result, 'Signature')) { setTracking(prev); return; }
+
     setShowSignature(false);
     setProofMethod('signature');
-    loadTracking(token);
+    haptic('success');
+    setTimeout(() => loadTracking(token), 300);
     toast.success('Signature enregistrée ! Confirme la livraison maintenant.');
   };
 
   const handlePinSubmit = async (pin) => {
-    await supabase.rpc('livreur_update_tracking', {
-      p_token: token,
-      p_patch: { delivery_pin: pin },
+    const prev = tracking;
+    setTracking(p => p ? { ...p, delivery_pin: pin } : p);
+
+    const result = await supabase.rpc('livreur_update_tracking', {
+      p_token: token, p_patch: { delivery_pin: pin },
     });
+    if (!rpcOk(result, 'PIN')) { setTracking(prev); return; }
+
     setShowPinEntry(false);
     setProofMethod('pin');
-    loadTracking(token);
+    haptic('success');
+    setTimeout(() => loadTracking(token), 300);
     toast.success('PIN enregistré ! Confirme la livraison maintenant.');
   };
 
   const markCashReceived = async () => {
-    await supabase.rpc('livreur_update_order', {
+    // CRITIQUE financier : si la RPC fail, on NE marque PAS cash_received
+    // côté UI. Sinon admin verrait commande livrée sans cash collecté = perte.
+    setBusyStep('cash');
+    const prevOrder = order;
+    setOrder(o => o ? { ...o, cash_received: true } : o);
+
+    const result = await supabase.rpc('livreur_update_order', {
       p_token: token,
       p_patch: { cash_received: true, cash_received_at: new Date().toISOString() },
     });
-    await updateStatus('cash_collected');
+    if (!rpcOk(result, 'Cash')) {
+      setOrder(prevOrder);
+      setBusyStep(null);
+      return;
+    }
+
+    const statusOk = await updateStatus('cash_collected', {}, 'cash');
+    if (!statusOk) { setOrder(prevOrder); setBusyStep(null); return; }
+
+    haptic('success');
     toast.success('Cash de ' + (order.total || 0).toLocaleString('fr-FR') + ' FCFA confirmé reçu.');
-    setOrder({ ...order, cash_received: true });
+    setBusyStep(null);
   };
 
   const confirmDelivery = async () => {
@@ -252,30 +344,46 @@ export default function Livreur() {
       toast.error('Tu dois fournir au moins une preuve : photo, signature ou PIN');
       return;
     }
-    
+
     if (order.payment_method === 'cod' && !order.cash_received) {
       toast.error('Tu dois d\'abord confirmer la réception du cash !');
       return;
     }
-    
+
     setConfirming(true);
-    
+
+    // 1. Génère et persiste le token confirmation si pas déjà fait
     let confirmToken = order.confirmation_token;
     if (!confirmToken) {
       confirmToken = generateConfirmToken();
-      await supabase.rpc('livreur_update_order', {
+      const tokRes = await supabase.rpc('livreur_update_order', {
         p_token: token,
         p_patch: { confirmation_token: confirmToken },
       });
+      if (!rpcOk(tokRes, 'Token confirmation')) {
+        setConfirming(false);
+        return;
+      }
     }
 
-    await supabase.rpc('livreur_update_order', {
+    // 2. Passe l'order en awaiting_confirm
+    const statusRes = await supabase.rpc('livreur_update_order', {
       p_token: token,
       p_patch: { status: 'awaiting_confirm', awaiting_confirm_at: new Date().toISOString() },
     });
-    
-    await updateStatus('proof_uploaded');
-    
+    if (!rpcOk(statusRes, 'Awaiting confirm')) {
+      setConfirming(false);
+      return;
+    }
+
+    // 3. Marque le tracking proof_uploaded
+    const trackOk = await updateStatus('proof_uploaded');
+    if (!trackOk) {
+      setConfirming(false);
+      return;
+    }
+
+    // 4. WhatsApp à la cliente avec lien de confirmation (token vraiment en DB maintenant)
     const confirmUrl = `${window.location.origin}/?confirm=${confirmToken}`;
     if (order.address?.phone) {
       const msg = order.payment_method === 'cod'
@@ -283,13 +391,31 @@ export default function Livreur() {
         : WhatsAppTemplates.orderAwaitingConfirm(order.address.name, order.id, confirmUrl);
       sendWhatsApp(order.address.phone, msg).then(r => console.log('Confirm WhatsApp:', r));
     }
-    
+
     stopGPS();
     setConfirming(false);
+    haptic('success');
     toast.success('Livraison signalée ! La cliente reçoit un WhatsApp pour confirmer. Merci pour ton service 💚', { duration: 5000 });
   };
 
-  if (loading) return <div className="liv-screen"><p style={{padding:40,textAlign:'center'}}>Chargement…</p></div>;
+  if (loading) {
+    return (
+      <div className="liv-screen">
+        <header className="liv-header">
+          <div className="liv-logo">D</div>
+          <div>
+            <strong>YARAM · Livraison</strong>
+            <p>Chargement de ta tournée…</p>
+          </div>
+        </header>
+        <main className="liv-main">
+          <div className="liv-skeleton" />
+          <div className="liv-skeleton" style={{ height: 120 }} />
+          <div className="liv-skeleton" style={{ height: 180 }} />
+        </main>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -306,9 +432,20 @@ export default function Livreur() {
   const isCash = order?.payment_method === 'cod';
   const clientWaUrl = order?.address?.phone ? 'https://wa.me/' + order.address.phone.replace(/\D/g, '') : null;
   const clientMapsUrl = order?.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address.line}, ${order.address.city}`)}` : null;
+  // ─── stepDone : check si une étape est franchie ───
+  // BUG FIX : avant, si tracking.status n'était pas dans ord (ex: 'pending',
+  // 'created', null, undefined), indexOf retournait -1 → -1 >= n est TOUJOURS
+  // false pour n >= 0 → toutes les étapes apparaissaient comme non franchies
+  // mais le livreur cliquait sur "Je suis là" qui demandait stepDone('picking')
+  // pour les suivantes — bloqué. Maintenant on traite null/inconnu comme 'assigned'.
   const stepDone = (s) => {
     const ord = ['assigned', 'picking', 'picked', 'in_route', 'arrived', 'cash_collected', 'proof_uploaded', 'delivered'];
-    return ord.indexOf(tracking?.status) >= ord.indexOf(s);
+    const status = tracking?.status || 'assigned';
+    const cur = ord.indexOf(status);
+    const target = ord.indexOf(s);
+    // Si status inconnu (cur=-1), on traite comme 'assigned' (cur=0), pas comme -1
+    const curSafe = cur < 0 ? 0 : cur;
+    return target >= 0 && curSafe >= target;
   };
 
   const isCompleted = ['awaiting_confirm', 'delivered'].includes(order?.status);
@@ -510,26 +647,46 @@ export default function Livreur() {
             <h2>✅ Étapes de livraison</h2>
             <div className="liv-steps-enriched">
               
-              <div className={`liv-step-card ${stepDone('picking') ? 'done' : ''}`}>
-                <div className="liv-step-num">1</div>
+              <div className={`liv-step-card ${stepDone('picking') ? 'done' : ''} ${busyStep === 'picking' ? 'loading' : ''}`} style={{'--i': 0}}>
+                <div className="liv-step-num">
+                  {stepDone('picking') ? (
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                    </svg>
+                  ) : '1'}
+                </div>
                 <div className="liv-step-content">
                   <strong>🏥 J'arrive à la pharmacie</strong>
                   <p>Photo de la pharmacie (preuve d'arrivée)</p>
-                  {tracking?.pickup_before_photo_url && <img src={tracking.pickup_before_photo_url} alt="" className="liv-thumb" />}
+                  {tracking?.pickup_before_photo_url && <img src={tracking.pickup_before_photo_url} alt="" className="liv-thumb liv-fade-in" />}
                   <div className="liv-step-actions">
-                    <button className="liv-mini-btn" onClick={() => setShowPhotoCapture('pickup_before')} disabled={stepDone('picked')}>
+                    <button
+                      className="liv-mini-btn"
+                      onClick={() => setShowPhotoCapture('pickup_before')}
+                      disabled={stepDone('picked') || busyStep === 'picking'}
+                    >
                       📷 Photo avant
                     </button>
-                    <button className={stepDone('picking') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
-                      onClick={() => updateStatus('picking')} disabled={stepDone('picking')}>
-                      {stepDone('picking') ? '✓ Confirmé' : 'Je suis là'}
+                    <button
+                      className={stepDone('picking') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
+                      onClick={() => updateStatus('picking', {}, 'picking')}
+                      disabled={stepDone('picking') || busyStep === 'picking'}
+                      aria-busy={busyStep === 'picking'}
+                    >
+                      {stepDone('picking') ? '✓ Confirmé' : busyStep === 'picking' ? 'Envoi…' : 'Je suis là'}
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className={`liv-step-card ${allScanned ? 'done' : ''}`}>
-                <div className="liv-step-num">2</div>
+              <div className={`liv-step-card ${allScanned ? 'done' : ''}`} style={{'--i': 1}}>
+                <div className="liv-step-num">
+                  {allScanned ? (
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                    </svg>
+                  ) : '2'}
+                </div>
                 <div className="liv-step-content">
                   <strong>📊 Vérifier les produits</strong>
                   <p>Scanne le code-barres de chaque produit</p>
@@ -578,15 +735,26 @@ export default function Livreur() {
                     <button 
                       className="liv-mini-btn"
                       onClick={async () => {
-                        if (await confirmDialog('Pas de code-barres sur certains produits ? On skip le scan ?')) {
-                          await supabase.rpc('livreur_update_tracking', {
-                            p_token: token,
-                            p_patch: { scanned_barcodes: [{ code: 'SKIPPED', scanned_at: new Date().toISOString() }] },
-                          });
-                          loadTracking(token);
-                        }
+                        if (!(await confirmDialog('Pas de code-barres sur certains produits ? On skip le scan ?'))) return;
+                        // BUG FIX : avant on injectait UN SEUL barcode 'SKIPPED' → si
+                        // totalProducts > 1, allScanned restait false donc "Tout pris"
+                        // restait gelé. Maintenant on injecte N entrées pour matcher.
+                        const skipPatch = Array.from({ length: Math.max(totalProducts, 1) }, (_, i) => ({
+                          code: 'SKIPPED',
+                          index: i,
+                          scanned_at: new Date().toISOString(),
+                        }));
+                        const prev = tracking;
+                        setTracking(p => p ? { ...p, scanned_barcodes: skipPatch } : p);
+                        const result = await supabase.rpc('livreur_update_tracking', {
+                          p_token: token,
+                          p_patch: { scanned_barcodes: skipPatch },
+                        });
+                        if (!rpcOk(result, 'Skip')) { setTracking(prev); return; }
+                        haptic('light');
+                        setTimeout(() => loadTracking(token), 300);
                       }}
-                      disabled={!stepDone('picking') || scannedCount > 0}
+                      disabled={!stepDone('picking') || scannedCount > 0 || busyStep === 'skip'}
                     >
                       Skip
                     </button>
@@ -594,44 +762,78 @@ export default function Livreur() {
                 </div>
               </div>
 
-              <div className={`liv-step-card ${stepDone('picked') ? 'done' : ''}`}>
-                <div className="liv-step-num">3</div>
+              <div className={`liv-step-card ${stepDone('picked') ? 'done' : ''} ${busyStep === 'picked' ? 'loading' : ''}`} style={{'--i': 2}}>
+                <div className="liv-step-num">
+                  {stepDone('picked') ? (
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                    </svg>
+                  ) : '3'}
+                </div>
                 <div className="liv-step-content">
                   <strong>📦 Produits récupérés</strong>
                   <p>Photo des produits avant de partir</p>
-                  {tracking?.pickup_after_photo_url && <img src={tracking.pickup_after_photo_url} alt="" className="liv-thumb" />}
+                  {tracking?.pickup_after_photo_url && <img src={tracking.pickup_after_photo_url} alt="" className="liv-thumb liv-fade-in" />}
                   <div className="liv-step-actions">
-                    <button className="liv-mini-btn" onClick={() => setShowPhotoCapture('pickup_after')} disabled={!allScanned || stepDone('in_route')}>
+                    <button
+                      className="liv-mini-btn"
+                      onClick={() => setShowPhotoCapture('pickup_after')}
+                      disabled={!allScanned || stepDone('in_route') || busyStep === 'picked'}
+                    >
                       📷 Photo après
                     </button>
-                    <button className={stepDone('picked') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
-                      onClick={() => updateStatus('picked')} disabled={!allScanned || stepDone('picked')}>
-                      {stepDone('picked') ? '✓ Récupéré' : 'Tout pris'}
+                    <button
+                      className={stepDone('picked') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
+                      onClick={() => updateStatus('picked', {}, 'picked')}
+                      disabled={!allScanned || stepDone('picked') || busyStep === 'picked'}
+                      aria-busy={busyStep === 'picked'}
+                    >
+                      {stepDone('picked') ? '✓ Récupéré' : busyStep === 'picked' ? 'Envoi…' : 'Tout pris'}
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className={`liv-step-card ${stepDone('in_route') ? 'done' : ''}`}>
-                <div className="liv-step-num">4</div>
+              <div className={`liv-step-card ${stepDone('in_route') ? 'done' : ''} ${busyStep === 'in_route' ? 'loading' : ''}`} style={{'--i': 3}}>
+                <div className="liv-step-num">
+                  {stepDone('in_route') ? (
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                    </svg>
+                  ) : '4'}
+                </div>
                 <div className="liv-step-content">
                   <strong>🛵 En route vers la cliente</strong>
                   <p>{sharingGPS ? 'GPS actif · cliente notifiée' : 'Active le GPS d\'abord'}</p>
-                  <button className={stepDone('in_route') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
-                    onClick={() => updateStatus('in_route')} disabled={!stepDone('picked') || stepDone('in_route')}>
-                    {stepDone('in_route') ? '✓ En route' : 'Je suis parti'}
+                  <button
+                    className={stepDone('in_route') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
+                    onClick={() => updateStatus('in_route', {}, 'in_route')}
+                    disabled={!stepDone('picked') || stepDone('in_route') || busyStep === 'in_route'}
+                    aria-busy={busyStep === 'in_route'}
+                  >
+                    {stepDone('in_route') ? '✓ En route' : busyStep === 'in_route' ? 'Envoi…' : 'Je suis parti'}
                   </button>
                 </div>
               </div>
 
-              <div className={`liv-step-card ${stepDone('arrived') ? 'done' : ''}`}>
-                <div className="liv-step-num">5</div>
+              <div className={`liv-step-card ${stepDone('arrived') ? 'done' : ''} ${busyStep === 'arrived' ? 'loading' : ''}`} style={{'--i': 4}}>
+                <div className="liv-step-num">
+                  {stepDone('arrived') ? (
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                    </svg>
+                  ) : '5'}
+                </div>
                 <div className="liv-step-content">
                   <strong>📍 Arrivé chez la cliente</strong>
                   <p>Devant la porte</p>
-                  <button className={stepDone('arrived') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
-                    onClick={() => updateStatus('arrived')} disabled={!stepDone('in_route') || stepDone('arrived')}>
-                    {stepDone('arrived') ? '✓ Arrivé' : 'Je suis arrivé'}
+                  <button
+                    className={stepDone('arrived') ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
+                    onClick={() => updateStatus('arrived', {}, 'arrived')}
+                    disabled={!stepDone('in_route') || stepDone('arrived') || busyStep === 'arrived'}
+                    aria-busy={busyStep === 'arrived'}
+                  >
+                    {stepDone('arrived') ? '✓ Arrivé' : busyStep === 'arrived' ? 'Envoi…' : 'Je suis arrivé'}
                   </button>
                 </div>
               </div>

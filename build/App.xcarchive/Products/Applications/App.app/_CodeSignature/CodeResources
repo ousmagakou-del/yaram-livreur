@@ -38,7 +38,7 @@
 		</data>
 		<key>Frameworks/Capacitor.framework/Capacitor</key>
 		<data>
-		OSKGdoTP+rSfcmVW3QsWnf0D1JQ=
+		swxI/x5pgCJuFr4SoKpJDF+ltUo=
 		</data>
 		<key>Frameworks/Capacitor.framework/Info.plist</key>
 		<data>
@@ -58,7 +58,7 @@
 		</data>
 		<key>Frameworks/Cordova.framework/Cordova</key>
 		<data>
-		rnErPQyCx87lMts09ZO73p8bKzw=
+		ryBXlAHrv94wCMls+Fu8gmwm+Qs=
 		</data>
 		<key>Frameworks/Cordova.framework/Info.plist</key>
 		<data>
@@ -144,65 +144,65 @@
 		<data>
 		sYBHoNBGgR19kawJGOPXP64nuOI=
 		</data>
-		<key>public/assets/Admin-DwdMjle1.js</key>
-		<data>
-		JcNLkNyZ/gFxdbiOV1/RFxVmObw=
-		</data>
 		<key>public/assets/Admin-YyIrFl_9.css</key>
 		<data>
 		vP+JSOspkJWgBh6RQRFsA9odjSE=
+		</data>
+		<key>public/assets/Admin-pnVD6uqc.js</key>
+		<data>
+		oHkzzPw1fhJuRvJgmSxXufZsW8c=
+		</data>
+		<key>public/assets/Checkout-B4MC03QI.js</key>
+		<data>
+		O7Xyv9569+q7/M8PasbDvB6MhPQ=
 		</data>
 		<key>public/assets/Checkout-D2F58-8G.css</key>
 		<data>
 		yZ+MNQzqxulGd5Z2tmDJcJ5UVmo=
 		</data>
-		<key>public/assets/Checkout-vhuSzxNO.js</key>
+		<key>public/assets/ClientConfirm-Bl2VYn4M.js</key>
 		<data>
-		maySlzPjCcIeqsf6rCNXW1pGP78=
-		</data>
-		<key>public/assets/ClientConfirm-DPE57d5m.js</key>
-		<data>
-		/Cd0CBtWCL4L7jEG5Pyp+4aAD5A=
+		WCMhzXhPjbnvWpmcIZuHYheTBbg=
 		</data>
 		<key>public/assets/ClientConfirm-DX62Fy1q.css</key>
 		<data>
 		YucjSuNQPJQRJ+rWIrz/pXtbsEs=
 		</data>
-		<key>public/assets/DeleteAccount-Cl-HlYIk.js</key>
+		<key>public/assets/DeleteAccount-CMwwwCtn.js</key>
 		<data>
-		/O+PWJJWgPw3xNd5fQt/gv3Hwxc=
+		0QHOnDH//uDtdPjEs7oExRp/GEY=
 		</data>
 		<key>public/assets/DeleteAccount-XdSIYDyN.css</key>
 		<data>
 		sQXlHfQUCpVZ9UX6vnhRAYJSLEg=
 		</data>
-		<key>public/assets/International-BnhpLwWA.js</key>
-		<data>
-		una08R0e71qaKa/ul4Keg2dF0Y0=
-		</data>
 		<key>public/assets/International-CZyFH0xq.css</key>
 		<data>
 		NWjH+W8boKhHKMbl/L9giJQiQYE=
 		</data>
-		<key>public/assets/Livreur-BRo3-Txz.js</key>
+		<key>public/assets/International-iEMhiV1z.js</key>
 		<data>
-		QFQn3esO/JxJqVfXpFTV24q+2ic=
+		Xt5zBY735mIWtkfhd4fJ1p+WbUc=
+		</data>
+		<key>public/assets/Livreur-BB7BmKjI.js</key>
+		<data>
+		hNdyF1GH4kgZVHb2LBOH0y3DIvM=
 		</data>
 		<key>public/assets/Livreur-TB-lWU_L.css</key>
 		<data>
 		3ki2UoaCqosL1mWu6KGUDZkxnLk=
 		</data>
-		<key>public/assets/OrderTracking-BbH6KD8j.js</key>
+		<key>public/assets/OrderTracking-BqFFRk5A.js</key>
 		<data>
-		V2bqVNl0nqVS4Q8vwPNHbduZU1k=
+		3leX4C4oPiCPwpow0afT5Z0OIHE=
 		</data>
 		<key>public/assets/OrderTracking-FQQVQ4RC.css</key>
 		<data>
 		YGtarsNs6kU0z/hcBIaTsZzsiRA=
 		</data>
-		<key>public/assets/Payment-lBDSbMkd.js</key>
+		<key>public/assets/Payment-fKR7sTwT.js</key>
 		<data>
-		8N/zgq8giQWia7H4RChR6TDT0Nc=
+		hhdjIBqoNI/Y3WKrVO0k/CVOOtk=
 		</data>
 		<key>public/assets/Payment-zNK6WOAB.css</key>
 		<data>
@@ -212,41 +212,41 @@
 		<data>
 		uNP4g/xoCEXzIvkJXSRt++XgJ/8=
 		</data>
-		<key>public/assets/Pharma-Bp7E8Omq.js</key>
+		<key>public/assets/Pharma-s9o5eHXH.js</key>
 		<data>
-		hgxM4xLjBcBFr+//4rZHm+zH5mA=
+		/uG1+jJ6RmfMGWKG1k5uBPcIfLU=
 		</data>
 		<key>public/assets/PiSpiTest-SU6SY3Po.js</key>
 		<data>
 		2xewP11sj88+vpvFRphaYQ5ZW70=
 		</data>
-		<key>public/assets/Privacy-D-97XNjA.js</key>
+		<key>public/assets/Privacy-ByOs81KJ.js</key>
 		<data>
-		k+l0Q1EoF/wj1eQKhsuiFirIUVI=
+		lmC1wG3KkPbO4O5drW6yeaugpgo=
 		</data>
 		<key>public/assets/Scan-BLI_FMF7.css</key>
 		<data>
 		cwr/7CRvul76BBveEkyGdRtJUxY=
 		</data>
-		<key>public/assets/Scan-macn2hYH.js</key>
+		<key>public/assets/Scan-D-q_0swQ.js</key>
 		<data>
-		0gQHCOLxB1EG1Z84fKkKK5hUQ/0=
+		AwPAfVa4cv/dx9J7GNi05k92BDE=
 		</data>
 		<key>public/assets/ScanHistory-BkH0aXTA.css</key>
 		<data>
 		1o1RzNbrSbxXlwrreDJYrrHiqeo=
 		</data>
-		<key>public/assets/ScanHistory-CFhHb6vW.js</key>
+		<key>public/assets/ScanHistory-BzzVnun0.js</key>
 		<data>
-		xSgmpWnfKEtAZKlEiN+awqcmuWU=
+		H9bUU8ljBwSxrtIGgMexRyNeHeU=
+		</data>
+		<key>public/assets/ScanResult-B0vXdSW8.js</key>
+		<data>
+		GPDTEuoDAzk5Tr4P7+pOv2rzDgU=
 		</data>
 		<key>public/assets/ScanResult-CjiGlgc5.css</key>
 		<data>
 		4gNzHeLAkxNKCa1gC2Ok1SFUVfU=
-		</data>
-		<key>public/assets/ScanResult-xg0WOqnc.js</key>
-		<data>
-		1WABTAYaXcCHJCsEpCrMWFr+QYg=
 		</data>
 		<key>public/assets/SignedImage-DTmjGITr.js</key>
 		<data>
@@ -256,13 +256,13 @@
 		<data>
 		cgwj7bsi3fX4PrVwTSWLXmSX+tY=
 		</data>
-		<key>public/assets/SkinQuiz-DcokTYr_.js</key>
+		<key>public/assets/SkinQuiz-CbJO7Fmm.js</key>
 		<data>
-		hn7xTruv0LyYH/doIEIPFjqL/v0=
+		f7kHPFgXhm8qf4AJJPgIGRwsl9Q=
 		</data>
-		<key>public/assets/Terms-CZ_Sh-YH.js</key>
+		<key>public/assets/Terms-DMNHu5MQ.js</key>
 		<data>
-		vywEO8eG7rHR2PF8TmSxJ93fc0A=
+		e/I313MUyYcru8CtCRUiF6/QDJw=
 		</data>
 		<key>public/assets/base-BQszkohI.js</key>
 		<data>
@@ -304,9 +304,9 @@
 		<data>
 		g/9ylDBBCoa63sPzku9Do3YO6/w=
 		</data>
-		<key>public/assets/index-CI-qeoC8.js</key>
+		<key>public/assets/index-SiirE4Kw.js</key>
 		<data>
-		p1xUOBp/4wHBcvPVoT2bWjsfNFc=
+		PWQwrElJGs4uZm3UqN89khptbuU=
 		</data>
 		<key>public/assets/index-qQYGl_6n.css</key>
 		<data>
@@ -426,7 +426,7 @@
 		</data>
 		<key>public/index.html</key>
 		<data>
-		8RE8U4aG7aVvGs9l/iSpIEvybcQ=
+		qUa3++b8WONl7fkmBaBTrXX727s=
 		</data>
 		<key>public/manifest.json</key>
 		<data>
@@ -519,7 +519,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			CFdZBp8Fmpz3b+lBDz2cN8JuL45kARi26vEiPsTLCoQ=
+			uIDnH3OMAXpa9emc3809JiUF9vrV/r7g7F7HKjTqIjQ=
 			</data>
 		</dict>
 		<key>Frameworks/Capacitor.framework/Info.plist</key>
@@ -554,7 +554,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			n33BF8dde4W5aQIwMviGn/4v/5yq9zmwB+zEDdQyPpQ=
+			EMbbHFXrKvujJwBSFL3KOR4Q1RNeXFBRKwCjZe7Od0A=
 			</data>
 		</dict>
 		<key>Frameworks/Cordova.framework/Info.plist</key>
@@ -690,18 +690,25 @@
 			q5EOBSGa2kDQWMAlnPCsTK5lclH/o1Lm2a7rvjipmeQ=
 			</data>
 		</dict>
-		<key>public/assets/Admin-DwdMjle1.js</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			KQhinvKQeQyK9YaxNBO57GDPEr1bOdnERRlDvxfEpSU=
-			</data>
-		</dict>
 		<key>public/assets/Admin-YyIrFl_9.css</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			v8njVYaUz45HOv58G/5A25n6R87EnUYUV8snxizw/k8=
+			</data>
+		</dict>
+		<key>public/assets/Admin-pnVD6uqc.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			MADNA8Er0p2S8U4WHf5JCiDMa9yKS4Gk3/SqcxoN8UY=
+			</data>
+		</dict>
+		<key>public/assets/Checkout-B4MC03QI.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Tpa7R79zbcXczfdrW+o4rLIsd0Va95/2rCjt8B5WDTg=
 			</data>
 		</dict>
 		<key>public/assets/Checkout-D2F58-8G.css</key>
@@ -711,18 +718,11 @@
 			1Q5iqWwMj37eerESygh3ZO5i5C+BiIKVGAbZ5bhk3+I=
 			</data>
 		</dict>
-		<key>public/assets/Checkout-vhuSzxNO.js</key>
+		<key>public/assets/ClientConfirm-Bl2VYn4M.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			pvnMhQiYCWL4sUXkEbVKj3Q71WICqQ2QPpELenAKzoo=
-			</data>
-		</dict>
-		<key>public/assets/ClientConfirm-DPE57d5m.js</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			zhAswx5Ix/OpdzMXtUB2z1xq4YNbG5tfl/EeK35MYDQ=
+			YvpzKqju9wAWrFrE0ZWDDPz5+JD4I0p2SS4H8YROPPU=
 			</data>
 		</dict>
 		<key>public/assets/ClientConfirm-DX62Fy1q.css</key>
@@ -732,11 +732,11 @@
 			lSowEQvv6Xce4rz/DzA+oqCVvr+d8dsAunLsye8eKiU=
 			</data>
 		</dict>
-		<key>public/assets/DeleteAccount-Cl-HlYIk.js</key>
+		<key>public/assets/DeleteAccount-CMwwwCtn.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ErcRW69PHQkojjNazs+AbVmqHTZNrCQXSsU8xP4yJlI=
+			469BW5nfa++O9VBKX3L16ILNY7acGRyKzY57H0FKa6o=
 			</data>
 		</dict>
 		<key>public/assets/DeleteAccount-XdSIYDyN.css</key>
@@ -746,13 +746,6 @@
 			nG6XLv9VqqyZxAskPbKm9s/a+bQm7nbD5onWpuabdxw=
 			</data>
 		</dict>
-		<key>public/assets/International-BnhpLwWA.js</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			47goN4QjWB/XuI8biQY+CqV1D1AQHfbQFYzizkGpbfg=
-			</data>
-		</dict>
 		<key>public/assets/International-CZyFH0xq.css</key>
 		<dict>
 			<key>hash2</key>
@@ -760,11 +753,18 @@
 			UOaShF7I62jNxNyr0fBzIbIf6fYaPbzHMhGcag7K8WU=
 			</data>
 		</dict>
-		<key>public/assets/Livreur-BRo3-Txz.js</key>
+		<key>public/assets/International-iEMhiV1z.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+2SaURBXO/ynX7w/Awgvwnwrcenwb4HEmWlE54ZK4m8=
+			IUFHWQvL+V562F7Q4jq3qxYXQ1Lz2jXxhLCl0pUyHrk=
+			</data>
+		</dict>
+		<key>public/assets/Livreur-BB7BmKjI.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			O2B9wXoY2bL81AylGfNfQX6iruds+tyVJIN0Q1cNs8Q=
 			</data>
 		</dict>
 		<key>public/assets/Livreur-TB-lWU_L.css</key>
@@ -774,11 +774,11 @@
 			x5UORNT6PObM5gIKw/qOqnwhGqnXQTdVu0/6bQDg+Gc=
 			</data>
 		</dict>
-		<key>public/assets/OrderTracking-BbH6KD8j.js</key>
+		<key>public/assets/OrderTracking-BqFFRk5A.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			923O8xbZ5PkYUb5SbMx2ezGyAZyrTGY1GSqbUYZCHC4=
+			uD0EXuxz0jo5qwbyHI4r3wr6+6CrUTip7kAdpyh5iEs=
 			</data>
 		</dict>
 		<key>public/assets/OrderTracking-FQQVQ4RC.css</key>
@@ -788,11 +788,11 @@
 			Jr2Oa8LiG/B16sXuF6UCX7/nuyO8q3B6qXS8HOeeisM=
 			</data>
 		</dict>
-		<key>public/assets/Payment-lBDSbMkd.js</key>
+		<key>public/assets/Payment-fKR7sTwT.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			fTiJHkZ3K6kqd6/pbNDA7BAFJh7d/OQlnHt6IDXZ1zY=
+			vv5WlyU/QHBbsDYinRsmvef4oUVm3I/d+t+rAAMM1Bk=
 			</data>
 		</dict>
 		<key>public/assets/Payment-zNK6WOAB.css</key>
@@ -809,11 +809,11 @@
 			IFWt9sdxcLUUYOqmHIXOJmnsViNzRVQgM4I8IVpM/Vk=
 			</data>
 		</dict>
-		<key>public/assets/Pharma-Bp7E8Omq.js</key>
+		<key>public/assets/Pharma-s9o5eHXH.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			SJE5WZYBrpyTUQWAGspVvYDKqlD0BYzP3LMaepyH7nk=
+			o66gl5qHSLkjFhlxBwOWQAwcjK06HhJ7waUmYWoE9gc=
 			</data>
 		</dict>
 		<key>public/assets/PiSpiTest-SU6SY3Po.js</key>
@@ -823,11 +823,11 @@
 			Ile6uCjY54JzBsko+PPb2aC7vVHN12UWdqUAkZZ3Mjs=
 			</data>
 		</dict>
-		<key>public/assets/Privacy-D-97XNjA.js</key>
+		<key>public/assets/Privacy-ByOs81KJ.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			yMtba6GvAh80uUwPjVpngRytr9SG32gWdLGh3MXKVIs=
+			TOz+u15L28uoabOHqbqE4WCBJBDKM7d2avD3i8Stv/k=
 			</data>
 		</dict>
 		<key>public/assets/Scan-BLI_FMF7.css</key>
@@ -837,11 +837,11 @@
 			hAXeMPJ3bP6JpyufEtbnrikNDOdPf8Hm7YJJIfenCdk=
 			</data>
 		</dict>
-		<key>public/assets/Scan-macn2hYH.js</key>
+		<key>public/assets/Scan-D-q_0swQ.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			c2AqG53dqPJkV8WvvnEsWUlIIRIkd9N7bp9nfHcOvuc=
+			1tpd4GhrjBcXO8y0CWPGO1QMUePgjCRe3DuV3d3o5PA=
 			</data>
 		</dict>
 		<key>public/assets/ScanHistory-BkH0aXTA.css</key>
@@ -851,11 +851,18 @@
 			woFZ3V2rl7o9LXT/Kos7/c91izHkww3sHZ2bHIv2Gqs=
 			</data>
 		</dict>
-		<key>public/assets/ScanHistory-CFhHb6vW.js</key>
+		<key>public/assets/ScanHistory-BzzVnun0.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9kF38jLhGLSI0UM8KZllBDWhpQGDd+uxZ74W0dd8Gio=
+			1eCtPgwA0O/vVDdpFMgXYq6AmW912m4ALIU+4uw82Jo=
+			</data>
+		</dict>
+		<key>public/assets/ScanResult-B0vXdSW8.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			nFB6M0Hhm/jEkZVdKyN7GzlW8CKAZLbf2jpc09QiE0k=
 			</data>
 		</dict>
 		<key>public/assets/ScanResult-CjiGlgc5.css</key>
@@ -863,13 +870,6 @@
 			<key>hash2</key>
 			<data>
 			0XGig643mjfr+J+yuKbrZOdeXF12PM5M2zSfS9m1muw=
-			</data>
-		</dict>
-		<key>public/assets/ScanResult-xg0WOqnc.js</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			8k6hcarRvo+92HWyF75b3LIr/nVKFv5Nr8JBHptPbxA=
 			</data>
 		</dict>
 		<key>public/assets/SignedImage-DTmjGITr.js</key>
@@ -886,18 +886,18 @@
 			j1eoSTbEcVwOwXI1zsjdcl2SA0TuLYfqvK+HwoY0cCI=
 			</data>
 		</dict>
-		<key>public/assets/SkinQuiz-DcokTYr_.js</key>
+		<key>public/assets/SkinQuiz-CbJO7Fmm.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			dZPYcdXoaw2jLqwjQf81DQTM4pJeN0U9hFCnS8ZLLfE=
+			ld2Ibcam015KDYfX7e2/aUHFVsEsRW/pVXT5vOqgtPo=
 			</data>
 		</dict>
-		<key>public/assets/Terms-CZ_Sh-YH.js</key>
+		<key>public/assets/Terms-DMNHu5MQ.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Eu9p4xAbS+5JxWlm40gf1BSBsfeox75nfPNh1UJutzM=
+			/877wl78pJGj24pSi+zxOriLVyxV3Z5Pe0/rqmyBCWc=
 			</data>
 		</dict>
 		<key>public/assets/base-BQszkohI.js</key>
@@ -970,11 +970,11 @@
 			l1wUnCX6zvUnJ81qN5vsPgXrV8qWEHzwkpscgv9Z/kw=
 			</data>
 		</dict>
-		<key>public/assets/index-CI-qeoC8.js</key>
+		<key>public/assets/index-SiirE4Kw.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			I0B5t08Ck5nRam9aLO8laFurXCk7FnlCKE5EEUDfJBQ=
+			DzYH4xfta8AttnSSQyu9ui7ZyTKmvQlnG5uj0HbMXbA=
 			</data>
 		</dict>
 		<key>public/assets/index-qQYGl_6n.css</key>
@@ -1184,7 +1184,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			LKvtM7p6L5c6bygVSEMfPrl2Vmngwf264t+zdZn1xkY=
+			ueb7FatRBGYC23oOHQ4K4fJeAnU34pL+YuXmd4H85N0=
 			</data>
 		</dict>
 		<key>public/manifest.json</key>

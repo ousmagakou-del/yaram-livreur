@@ -412,3 +412,176 @@ html, body, #root {
   font-weight: 700;
   margin-bottom: 8px;
 }
+/* ═══════════════════════════════════════════════════════════════════
+   YARAM LIVREUR v2 — REFONTE UX (juin 2026)
+   Timeline animée, optimistic feedback, boutons modernes 48px,
+   spinner aria-busy, stagger animations.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --liv-primary: #1F8B4C;
+  --liv-primary-dark: #166635;
+  --liv-primary-soft: #E8F5EC;
+  --liv-accent: #1DC8F2;
+  --liv-cash: #F4B53A;
+  --liv-cash-soft: #FEF6E5;
+  --liv-danger: #D9342B;
+  --liv-success: #16A34A;
+  --liv-idle: #E5E7EB;
+  --liv-disabled-bg: #F3F4F6;
+  --liv-disabled-fg: #9CA3AF;
+  --liv-text: #0F172A;
+  --liv-text-muted: #64748B;
+  --liv-surface: #FFFFFF;
+  --liv-bg: #F5F6F8;
+  --liv-shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+  --liv-shadow-md: 0 4px 12px rgba(15, 23, 42, .08);
+  --liv-shadow-glow: 0 0 0 4px rgba(31, 139, 76, .18);
+  --liv-radius: 14px;
+  --liv-ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ─── Step cards : stagger d'apparition + état done/loading ─── */
+.liv-step-card {
+  animation: livStepIn .45s var(--liv-ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+  transition: box-shadow .25s var(--liv-ease), background .35s var(--liv-ease), transform .25s var(--liv-ease);
+}
+@keyframes livStepIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.liv-step-card.loading {
+  box-shadow: var(--liv-shadow-glow);
+}
+.liv-step-card.done {
+  animation: livStepDone .55s var(--liv-ease) both, livStepIn .45s var(--liv-ease) both;
+  animation-delay: 0s, calc(var(--i, 0) * 70ms);
+}
+@keyframes livStepDone {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.015); background: #D1FAE5; }
+  100% { transform: scale(1); }
+}
+
+/* ─── liv-step-num : pastille numéro / checkmark ─── */
+.liv-step-card .liv-step-num {
+  width: 36px; height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 15px;
+  background: var(--liv-idle); color: var(--liv-text-muted);
+  transition: background .3s var(--liv-ease), color .3s var(--liv-ease), transform .3s var(--liv-ease);
+}
+.liv-step-card.done .liv-step-num {
+  background: var(--liv-primary);
+  color: white;
+  transform: scale(1.05);
+}
+.liv-step-card.loading .liv-step-num {
+  background: var(--liv-primary);
+  color: white;
+  animation: livPulse 1.2s ease-in-out infinite;
+}
+@keyframes livPulse {
+  50% { box-shadow: 0 0 0 6px rgba(31, 139, 76, .25); }
+}
+
+/* SVG checkmark animation (dessine le ✓) */
+.liv-checkmark {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: livDrawCheck .45s var(--liv-ease) .1s forwards;
+}
+@keyframes livDrawCheck {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ─── liv-mini-btn : modernisation (48px tactile, aria-busy spinner) ─── */
+.liv-mini-btn {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--liv-idle);
+  background: var(--liv-surface);
+  color: var(--liv-text);
+  cursor: pointer;
+  transition: transform .12s var(--liv-ease), box-shadow .2s var(--liv-ease), background .2s var(--liv-ease);
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.liv-mini-btn:not(:disabled):active { transform: scale(.97); }
+.liv-mini-btn:not(:disabled):hover { box-shadow: var(--liv-shadow-sm); }
+
+.liv-mini-btn.pri {
+  background: var(--liv-primary);
+  color: white;
+  border-color: transparent;
+}
+.liv-mini-btn.pri:not(:disabled):hover {
+  background: var(--liv-primary-dark);
+  box-shadow: var(--liv-shadow-md);
+}
+
+.liv-mini-btn.done {
+  background: var(--liv-primary-soft);
+  color: var(--liv-primary);
+  border-color: transparent;
+  cursor: default;
+}
+
+.liv-mini-btn:disabled {
+  background: var(--liv-disabled-bg) !important;
+  color: var(--liv-disabled-fg) !important;
+  border-color: transparent !important;
+  cursor: not-allowed;
+  filter: grayscale(1);
+  opacity: 1;
+}
+
+/* Spinner sur aria-busy : le texte devient transparent, spinner CSS pur */
+.liv-mini-btn[aria-busy="true"] {
+  color: transparent !important;
+  pointer-events: none;
+}
+.liv-mini-btn[aria-busy="true"]::after {
+  content: '';
+  position: absolute;
+  inset: 0; margin: auto;
+  width: 18px; height: 18px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: livSpin .6s linear infinite;
+  color: white;
+}
+.liv-mini-btn[aria-busy="true"]:not(.pri)::after { color: var(--liv-primary); }
+@keyframes livSpin { to { transform: rotate(360deg); } }
+
+/* ─── Thumbnail photo : fade-in ─── */
+.liv-fade-in {
+  animation: livFadeIn .35s var(--liv-ease) both;
+}
+@keyframes livFadeIn {
+  from { opacity: 0; transform: scale(.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ─── Badge status header : pulse subtil quand actif ─── */
+.liv-badge {
+  transition: background .3s var(--liv-ease), color .3s var(--liv-ease);
+}
+
+/* ─── Loading state initial : skeleton shimmer ─── */
+.liv-skeleton {
+  height: 60px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #eee 0%, #f5f5f5 50%, #eee 100%);
+  background-size: 200% 100%;
+  animation: livShimmer 1.2s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes livShimmer { to { background-position: -200% 0; } }
