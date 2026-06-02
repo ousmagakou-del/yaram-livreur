@@ -24,21 +24,39 @@ export default function ScanResult({ scanId }) {
   const [avoid, setAvoid] = useState([]);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
     (async () => {
-      const { data } = await supabase
-        .from('skin_scans')
-        .select('*')
-        .eq('id', scanId)
-        .single();
-      
-      if (data) {
-        setScan(data);
-        const { compatibles, avoid } = await getProductsForSkinDiagnosis(data.diagnosis || {});
-        setCompatibles(compatibles.slice(0, 10));
-        setAvoid(avoid.slice(0, 5));
+      try {
+        const { data, error } = await supabase
+          .from('skin_scans')
+          .select('*')
+          .eq('id', scanId)
+          .single();
+        if (cancelled) return;
+        if (error) {
+          console.warn('[ScanResult] fetch error:', error.message);
+        }
+        if (data) {
+          setScan(data);
+          try {
+            const { compatibles, avoid } = await getProductsForSkinDiagnosis(data.diagnosis || {});
+            if (cancelled) return;
+            setCompatibles(compatibles.slice(0, 10));
+            setAvoid(avoid.slice(0, 5));
+          } catch (innerErr) {
+            console.warn('[ScanResult] products diagnosis failed:', innerErr?.message);
+          }
+        }
+      } catch (e) {
+        console.warn('[ScanResult] load failed:', e?.message);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
+
+    return () => { cancelled = true; };
   }, [scanId]);
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Chargement…</div>;

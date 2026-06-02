@@ -13,17 +13,40 @@ export default function ReviewsSection({ productId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const [r, s] = await Promise.all([
+          getProductReviews(productId),
+          getReviewStats(productId),
+        ]);
+        if (cancelled) return;
+        setReviews(r || []);
+        setStats(s || { avg: 0, total: 0, distribution: [0,0,0,0,0] });
+      } catch (e) {
+        console.warn('[Reviews] fetch failed:', e?.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [productId]);
 
   const refresh = async () => {
-    const [r, s] = await Promise.all([
-      getProductReviews(productId),
-      getReviewStats(productId),
-    ]);
-    setReviews(r);
-    setStats(s);
-    setLoading(false);
+    // Refresh manuel (après submit review) — sans cancelled flag car appelé hors useEffect
+    try {
+      const [r, s] = await Promise.all([
+        getProductReviews(productId),
+        getReviewStats(productId),
+      ]);
+      setReviews(r || []);
+      setStats(s || { avg: 0, total: 0, distribution: [0,0,0,0,0] });
+    } catch (e) {
+      console.warn('[Reviews] refresh failed:', e?.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (data) => {

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>YARAM · Beauté pour ta peau africaine</title>
+
+    <!-- ═══ PWA META TAGS YARAM ═══ -->
+
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme color (barre de statut) -->
+    <meta name="theme-color" content="#1F8B4C" />
+    <meta name="background-color" content="#1F8B4C" />
+
+    <!-- iOS Safari : "Ajouter à l'écran d'accueil" -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="YARAM" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Splash screens iPhone -->
+    <link rel="apple-touch-startup-image" href="/splash-iphone.png"
+          media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash-iphone-se.png"
+          media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+
+    <!-- Description (Google search) -->
+    <meta name="description" content="YARAM · Marketplace beauté avec IA dermatologique pour la peau africaine. Diagnostic peau gratuit, produits adaptés, livraison rapide à Dakar." />
+
+    <!-- Google Merchant Center / Search Console site verification -->
+    <meta name="google-site-verification" content="1Vib98ypPCLl-fUfIXgzFWXw2soYfQwiRqs5yhGltPY" />
+
+    <!-- ════════════ Google Tag Manager ════════════
+         Conteneur unique qui gère tous les pixels (GA4, Meta, TikTok, etc.)
+         depuis l'interface GTM, sans toucher au code.
+         ID conteneur YARAM : GTM-T2SQVS7T -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-T2SQVS7T');</script>
+    <!-- End Google Tag Manager -->
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://yaram.app/" />
+
+    <!-- Open Graph (partage WhatsApp, Facebook, etc.) -->
+    <meta property="og:site_name" content="YARAM" />
+    <meta property="og:title" content="YARAM · Beauté pour ta peau africaine" />
+    <meta property="og:description" content="Scan IA peau gratuit · Produits adaptés · Livraison rapide à Dakar" />
+    <meta property="og:image" content="https://yaram.app/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:url" content="https://yaram.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_SN" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="YARAM · Beauté pour ta peau africaine" />
+    <meta name="twitter:description" content="Scan IA peau gratuit · Produits adaptés · Livraison rapide à Dakar" />
+    <meta name="twitter:image" content="https://yaram.app/icon-512.png" />
+
+    <!-- Schema.org Organization + WebSite (rich snippets Google) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://yaram.app/#org",
+          "name": "YARAM",
+          "url": "https://yaram.app/",
+          "logo": "https://yaram.app/icon-512.png",
+          "description": "Marketplace beauté avec IA dermatologique pour la peau africaine. Diagnostic peau gratuit, produits adaptés, livraison rapide à Dakar.",
+          "areaServed": { "@type": "Country", "name": "Sénégal" },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+221774388766",
+            "contactType": "customer support",
+            "availableLanguage": ["French"]
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://yaram.app/#website",
+          "url": "https://yaram.app/",
+          "name": "YARAM",
+          "publisher": { "@id": "https://yaram.app/#org" },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://yaram.app/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          },
+          "inLanguage": "fr-SN"
+        }
+      ]
+    }
+    </script>
+
+    <!-- ════════════ SPLASH INLINE ════════════
+         Visible des le 1er byte HTML (avant que React charge / parse / monte).
+         Sur 4G a Dakar : splash visible en ~50ms vs ~1500ms avant.
+         Retire automatiquement quand React monte le contenu dans #root (cf main.jsx). -->
+    <style>
+      #yaram-boot {
+        position: fixed; inset: 0; z-index: 10000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, #1F8B4C 0%, #166635 50%, #0D4D27 100%);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        overflow: hidden;
+        animation: yaramBootFadeIn 200ms ease-out;
+      }
+      #yaram-boot.gone {
+        opacity: 0;
+        transition: opacity 380ms ease-out;
+        pointer-events: none;
+      }
+      #yaram-boot::before {
+        content: ''; position: absolute;
+        top: -100px; right: -100px;
+        width: 320px; height: 320px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
+        filter: blur(40px);
+      }
+      #yaram-boot::after {
+        content: ''; position: absolute;
+        bottom: -150px; left: -50px;
+        width: 260px; height: 260px;
+        background: rgba(232,119,34,0.15);
+        border-radius: 50%;
+        filter: blur(50px);
+      }
+      #yaram-boot .yb-logo {
+        position: relative; z-index: 2;
+        width: 120px; height: 120px;
+        animation: yaramBootFadeUp 600ms cubic-bezier(.2,.9,.3,1.2) both;
+      }
+      #yaram-boot .yb-logo svg { width: 100%; height: 100%; display: block; }
+      #yaram-boot .yb-tag {
+        color: rgba(255,255,255,0.85);
+        font-size: 11px; font-weight: 600;
+        letter-spacing: 0.35em; text-transform: uppercase;
+        margin-top: 18px;
+        animation: yaramBootFadeUp 600ms ease-out 400ms both;
+      }
+      #yaram-boot .yb-progress {
+        position: absolute; bottom: 80px;
+        width: 100px; height: 3px;
+        background: rgba(255,255,255,0.18);
+        border-radius: 3px; overflow: hidden;
+        animation: yaramBootFadeUp 400ms ease-out 700ms both;
+      }
+      #yaram-boot .yb-progress::after {
+        content: ''; display: block;
+        width: 40%; height: 100%;
+        background: white; border-radius: 3px;
+        animation: yaramBootBar 1200ms ease-in-out infinite;
+      }
+      @keyframes yaramBootFadeIn { from { opacity: 0 } to { opacity: 1 } }
+      @keyframes yaramBootFadeUp {
+        from { opacity: 0; transform: translateY(12px) }
+        to   { opacity: 1; transform: translateY(0) }
+      }
+      @keyframes yaramBootBar {
+        0%   { transform: translateX(-100%) }
+        100% { transform: translateX(350%) }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-DGy-dzz4.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/preload-helper-DzyYoeor.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-zxing-B4kdi_5g.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-9SAPJn0b.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-GiBqsCLT.js">
+    <link rel="modulepreload" crossorigin href="/assets/dataCache-5i32xOKz.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-7MfAWSlN.js">
+    <link rel="modulepreload" crossorigin href="/assets/supabase-BTSCzGJb.js">
+    <link rel="modulepreload" crossorigin href="/assets/notifications-DtzYj2om.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-BqOT8Gca.css">
+  </head>
+  <body>
+    <!-- ════════════ Google Tag Manager (noscript) ════════════
+         Fallback pour les visiteurs qui ont désactivé JavaScript (rare mais Google le veut).
+         DOIT être le tout 1er élément du <body>. -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T2SQVS7T"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- Splash : retire des que React monte (cf main.jsx — window.__yaramHideBoot).
+         Le SVG est inline pour s'afficher en 50ms sans aucun fetch supplementaire. -->
+    <div id="yaram-boot" aria-hidden="true">
+      <div class="yb-logo">
+        <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+          <rect fill="rgba(255,255,255,0.1)" x="0" y="0" width="256" height="256" rx="40" ry="40"/>
+          <g transform="translate(-23 -36) scale(1.45)">
+            <path fill="#fff" d="M153.9,64.45l-20.93,30.57-21.02-30.57h-24.32l28.48,41.39v58.66h23.8v-60.88l26.87-39.16h-12.87Z"/>
+          </g>
+          <circle fill="#e94e1b" cx="206" cy="207" r="18"/>
+        </svg>
+      </div>
+      <div class="yb-tag">Beauté Sénégal</div>
+      <div class="yb-progress"></div>
+    </div>
+
+    <div id="root"></div>
+
+    <!-- Service Worker pour PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => console.log('✓ YARAM SW enregistré :', reg.scope))
+            .catch((err) => console.warn('⚠ YARAM SW échec :', err));
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -68,8 +68,33 @@ export default function PharmacyDetail({ pharmacyId }) {
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: '#F5F6F8', paddingBottom: 100, fontFamily: 'system-ui, sans-serif', WebkitOverflowScrolling: 'touch' }}>
       
-      <header style={{ position: 'relative', background: 'white', borderBottom: '1px solid #EEE', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => navigate(-1)} style={{ width: 36, height: 36, borderRadius: '50%', background: '#F4F4F2', border: 'none', cursor: 'pointer', fontSize: 18 }}>←</button>
+      <header style={{
+        position: 'relative',
+        background: 'white',
+        borderBottom: '1px solid #EEE',
+        padding: 'calc(var(--safe-top, 0px) + 12px) 16px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        zIndex: 10,
+      }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: '#F4F4F2',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+          aria-label="Retour"
+        >←</button>
         <div style={{ fontSize: 15, fontWeight: 700 }}>Détails pharmacie</div>
       </header>
 

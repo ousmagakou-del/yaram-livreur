@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase, signOut, updateProfile } from '../lib/supabase';
 import { toggleTheme, getTheme } from '../lib/theme';
-import { getWhatsAppNumber, getWhatsAppDisplay } from '../lib/utils';
+import { getWhatsAppNumber, getWhatsAppDisplay, safeFormatDate, safeNumber } from '../lib/utils';
 import { isIOSApp } from '../lib/platform';
 import { getMyAddresses } from '../lib/supabase';
 import { toast, confirmDialog, promptDialog } from '../lib/toast';
 import TabBar from '../components/TabBar';
+import PullToRefresh from '../components/PullToRefresh';
 import './Profile.css';
 
 export default function Profile() {
@@ -206,9 +207,29 @@ export default function Profile() {
     return 'var(--bad, #D9342B)';
   };
 
+  // Pull-to-refresh : refetch stats user + adresse + scan
+  const handlePullRefresh = async () => {
+    try {
+      if (user?.id) {
+        // Re-fetch user pour les données fraîches
+        await refreshUser();
+        // Re-fetch adresses (cache invalidé)
+        const { invalidateCache } = await import('../lib/supabase');
+        invalidateCache(`my_addresses_${user.id}`);
+        const list = await getMyAddresses();
+        const def = (list || []).find(a => a.is_default) || list?.[0] || null;
+        setDefaultAddr(def);
+      }
+      await new Promise(r => setTimeout(r, 300));
+    } catch (e) {
+      console.warn('[Profile] pull refresh failed:', e?.message);
+    }
+  };
+
   return (
     <div className="prof-screen page-anim">
       <div className="prof-scroll">
+      <PullToRefresh onRefresh={handlePullRefresh}>
         {/* Cover verte avec photo en blend */}
         <div className="prof-cover">
           <div className="prof-cover-overlay" />
@@ -346,7 +367,7 @@ export default function Profile() {
             <div className="prof-menu-icon">✨</div>
             <div className="prof-menu-text">
               <strong>Mon diagnostic peau</strong>
-              <span>{hasScan ? `Dernier scan : ${new Date(stats.lastScan.created_at).toLocaleDateString('fr-FR')}` : 'Refaire le scan'}</span>
+              <span>{hasScan ? `Dernier scan : ${safeFormatDate(stats.lastScan?.created_at)}` : 'Refaire le scan'}</span>
             </div>
             <span className="prof-menu-arrow">→</span>
           </button>
@@ -488,6 +509,7 @@ export default function Profile() {
         </div>
 
         <div style={{ height: 30 }} />
+      </PullToRefresh>
       </div>
       <TabBar active="profile" />
     </div>

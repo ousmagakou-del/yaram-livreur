@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getCachedSetting } from '../lib/supabase';
+import { getCachedSetting, supabase } from '../lib/supabase';
 import { adminListOrders, adminUpdateOrder } from '../lib/adminApi';
 import { confirmDialog, toast } from '../lib/toast';
 import { pushOrderStatus } from '../lib/pushAdmin';
@@ -130,7 +130,39 @@ export default function OrdersSection() {
             {totalPages > 1 && ` · page ${page + 1}/${totalPages}`}
           </p>
         </div>
-        <button className="adm-btn-sec" onClick={refresh}>🔄 Actualiser</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="adm-btn-sec"
+            onClick={async () => {
+              const ok = await confirmDialog(
+                'Annuler automatiquement toutes les commandes en attente de paiement depuis +24h ?',
+                { confirmLabel: 'Nettoyer', danger: false }
+              );
+              if (!ok) return;
+              try {
+                const { data, error } = await supabase.rpc('cleanup_stale_pending_orders');
+                if (error) {
+                  toast.error('Erreur : ' + error.message);
+                  return;
+                }
+                const row = Array.isArray(data) ? data[0] : data;
+                const count = row?.cancelled_count || 0;
+                if (count > 0) {
+                  toast.success(`${count} commande${count > 1 ? 's' : ''} annulée${count > 1 ? 's' : ''} (${row?.total_amount?.toLocaleString('fr-FR') || 0} FCFA)`);
+                  refresh();
+                } else {
+                  toast.success('Aucune commande à nettoyer ✨');
+                }
+              } catch (e) {
+                toast.error('Erreur : ' + e.message);
+              }
+            }}
+            title="Annule les commandes en pending_payment depuis +24h"
+          >
+            🧹 Nettoyer pending
+          </button>
+          <button className="adm-btn-sec" onClick={refresh}>🔄 Actualiser</button>
+        </div>
       </header>
 
       <input

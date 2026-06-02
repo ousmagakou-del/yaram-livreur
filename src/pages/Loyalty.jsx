@@ -54,14 +54,20 @@ export default function Loyalty() {
 
   const refreshTransactions = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('loyalty_transactions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(30);
-    if (!error) setTransactions(data || []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('loyalty_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (!error) setTransactions(data || []);
+    } catch (e) {
+      console.warn('[Loyalty] fetch failed:', e?.message);
+    } finally {
+      // Garantit que loading repasse à false même si erreur réseau / Supabase down
+      setLoading(false);
+    }
   };
 
   const showToast = (text) => {

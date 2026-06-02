@@ -28,6 +28,7 @@ import Toaster from './components/Toaster';
 import InterstitialPromo from './components/InterstitialPromo';
 import { getNextPromo, computeUserStats } from './lib/promos';
 import NetworkStatus from './components/NetworkStatus';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ─── Lazy-load : pages lourdes / rarement visitees par le client lambda ───
 // Ces chunks ne sont telecharges qu'au moment ou la page est demandee.
@@ -171,28 +172,128 @@ function ClientApp() {
     initPush().catch(() => { /* silent : push optionnel, ne doit pas bloquer */ });
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════
+  //  REPRISE APRÈS BACKGROUND (fix lenteur quand on revient sur l'app)
+  // ═══════════════════════════════════════════════════════════════════
+  // Quand iOS / Android mettent l'app en background pendant 5+ min :
+  //   - La JS context peut être gelée (fetches en attente bloqués)
+  //   - Le JWT Supabase expire (par défaut 1h)
+  //   - Les realtime channels sont coupés
+  // Au retour, l'app paraît "stuck" : les fetches relancés tombent sur des
+  // sessions périmées et hang sans erreur.
+  //
+  // Fix : on détecte la reprise, on refresh la session, et on dispatche un
+  // event que les pages peuvent écouter pour relancer leur loadData.
+  const [resumeCount, setResumeCount] = useState(0);
+  useEffect(() => {
+    let lastHiddenAt = null;
+    const RESUME_THRESHOLD_MS = 60 * 1000; // 1 min : si on revient après ça, on refresh
+
+    const handleVisibility = async () => {
+      if (document.hidden) {
+        lastHiddenAt = Date.now();
+        return;
+      }
+      // L'app revient au foreground
+      const awayDuration = lastHiddenAt ? Date.now() - lastHiddenAt : 0;
+      if (awayDuration < RESUME_THRESHOLD_MS) return; // <1 min : pas besoin
+
+      console.log('[App] Resume after', Math.round(awayDuration / 1000), 's away — refreshing...');
+      try {
+        // 1. Refresh la session Supabase (re-valide le JWT, refresh si expiré)
+        const { error } = await supabase.auth.refreshSession();
+        if (error) {
+          console.warn('[App] session refresh failed:', error.message);
+          if (error.message?.includes('refresh_token') || error.message?.includes('expired')) {
+            window.location.reload();
+            return;
+          }
+        }
+
+        // 2. Invalide les caches critiques qui peuvent être obsolètes
+        //    + purge les promises en-vol zombies (TCP fermé par iOS)
+        try {
+          const supabaseMod = await import('./lib/supabase');
+          // Invalide les caches data qui changent (produits, pharmas, brands, banners)
+          ['all_products', 'all_pharmacies', 'all_brands', 'all_banners', 'active_banners', 'site_settings']
+            .forEach(k => supabaseMod.invalidateCache?.(k));
+
+          // Purge les fetches en-vol zombies (>10s) qui bloqueraient les nouveaux appelants
+          const cacheMod = await import('./lib/dataCache');
+          cacheMod.purgeStaleInflight?.();
+        } catch { /* noop */ }
+
+        // 3. Dispatch event que les pages peuvent écouter pour reload
+        window.dispatchEvent(new CustomEvent('yaram-app-resumed', {
+          detail: { awayDuration },
+        }));
+
+        // 4. Force remount de la page courante en bumpant le compteur
+        // (inclus dans pageKey plus bas → toute la page se reload "from scratch")
+        setResumeCount(c => c + 1);
+      } catch (e) {
+        console.warn('[App] resume handler error:', e?.message);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) handleVisibility();
+    });
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
   useEffect(() => {
     const handlePopState = () => {
       const newRoute = pathToRoute(window.location.pathname, window.location.search);
+      // Scroll en haut + set route en même temps pour un retour fluide
+      if (typeof window !== 'undefined') window.scrollTo(0, 0);
       setRoute(newRoute);
 
       // ─── Auto-refresh sur retour iOS ───
-      // Sur iOS app native (Capacitor), les composants restent mounted en mémoire
-      // et leur cache local n'est PAS invalidé au popstate. Résultat : on revoit
-      // les vieilles données pendant 5-10s tant que le SW ne refresh pas.
-      // Solution : à chaque retour, on invalide les caches critiques + on dispatch
-      // un évènement custom que les pages écoutent pour relancer leur loadData.
+      // Note : avec le key={pageKey} dans <Suspense>, chaque navigation force
+      // un remount complet de la page, donc useEffect re-fetch les données auto.
+      // Le yaram-route-back reste utile pour les pages qui veulent un refresh
+      // sans remount complet (rare).
       try {
-        // Petit délai pour laisser React rendu finir avant le refetch
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('yaram-route-back', {
-            detail: { to: newRoute },
-          }));
-        }, 50);
+        window.dispatchEvent(new CustomEvent('yaram-route-back', {
+          detail: { to: newRoute },
+        }));
       } catch { /* ignore */ }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // ─── Universal Links iOS / App Links Android ───
+  // Quand un user clique sur https://yaram.app/order/XXX dans son email ou WhatsApp,
+  // iOS ouvre directement l'app YARAM (si AASA bien hébergé + entitlement OK)
+  // au lieu de Safari. On reçoit l'URL ici et on route vers la bonne page.
+  useEffect(() => {
+    let sub = null;
+    (async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        sub = await CapApp.addListener('appUrlOpen', ({ url }) => {
+          try {
+            console.log('[YARAM] appUrlOpen:', url);
+            const u = new URL(url);
+            const newRoute = pathToRoute(u.pathname, u.search);
+            window.history.pushState(null, '', u.pathname + u.search);
+            window.scrollTo(0, 0);
+            setRoute(newRoute);
+          } catch (e) {
+            console.warn('[YARAM] appUrlOpen parse error:', e?.message);
+          }
+        });
+      } catch {
+        // Web build : @capacitor/app pas disponible, on no-op
+      }
+    })();
+    return () => { try { sub?.remove?.(); } catch {} };
   }, []);
 
   useEffect(() => {
@@ -303,8 +404,12 @@ function ClientApp() {
     if (pushSetupRef.current) return;
     pushSetupRef.current = true;
 
+    // PERF : pre-charge les favoris du user dans le cache global immédiatement
+    // pour que tous les ProductTile soient instant sans queries individuelles.
+    import('./lib/supabase').then(mod => mod.preloadFavorites?.()).catch(() => {});
+
     const t = setTimeout(() => {
-      setupPushForUser(user).catch(() => { /* silent */ });
+      setupPushForUser(user).catch(() => { /* silent : push optionnel, ne doit pas bloquer */ });
     }, 3000);
     return () => clearTimeout(t);
   }, [authChecked, user?.id]);
@@ -346,11 +451,45 @@ function ClientApp() {
       if (path.startsWith('product/')) {
         newRoute = { name: 'product', params: { id: path.split('/')[1] } };
       } else {
-        const map = { '': 'home', search: 'search', cart: 'cart', profile: 'profile', orders: 'orders', pharmacies: 'pharmacies', scan: 'scan', promos: 'promos', loyalty: 'loyalty' };
-        newRoute = { name: map[path] || 'home', params: {} };
+        // Map exhaustif : couvre TOUTES les routes du switch principal
+        // (sinon route inconnue → fallback home silencieux, gros source de bugs)
+        const map = {
+          '': 'home',
+          home: 'home',
+          search: 'search',
+          cart: 'cart',
+          profile: 'profile',
+          orders: 'orders',
+          pharmacies: 'pharmacies',
+          scan: 'scan',
+          scan_history: 'scan_history',
+          scan_result: 'scan_result',
+          promos: 'promos',
+          loyalty: 'loyalty',
+          referral: 'referral',
+          addresses: 'addresses',
+          favorites: 'favorites',
+          payments: 'payments',
+          evolution: 'evolution',
+          categories: 'categories',
+          quiz: 'quiz',
+          notifications: 'notifications',
+          international: 'international',
+          privacy: 'privacy',
+          terms: 'terms',
+          delete_account: 'delete_account',
+        };
+        const routeName = map[path];
+        if (!routeName) {
+          console.warn('[nav] Route inconnue:', path, '→ fallback home');
+          newRoute = { name: 'home', params: {} };
+        } else {
+          newRoute = { name: routeName, params: {} };
+        }
       }
     } else if (typeof target === 'object') {
-      newRoute = target;
+      // Garantit params: {} si pas fourni (sinon key={pageKey} produit un key incohérent)
+      newRoute = { ...target, params: target.params || {} };
     } else {
       return;
     }
@@ -365,7 +504,27 @@ function ClientApp() {
   };
 
   const goBack = () => {
-    window.history.back();
+    // Si on est déjà sur Home (root), faire un back n'a aucun sens et peut
+    // bloquer iOS (history vide → rien). On gère le cas explicitement.
+    if (route?.name === 'home' || !route?.name) {
+      return; // déjà à la racine
+    }
+    // Si window.history a au moins 1 entry à revenir → back normal
+    if (window.history.length > 1) {
+      window.history.back();
+      // Fallback : si après 200ms popstate n'a pas fire (cas rare iOS),
+      // on force le navigate vers home pour ne pas laisser l'user bloqué.
+      const before = window.location.pathname;
+      setTimeout(() => {
+        if (window.location.pathname === before) {
+          // popstate n'a pas marché → on force le retour Home
+          navigate('/');
+        }
+      }, 200);
+    } else {
+      // Pas d'historique → navigate direct vers Home
+      navigate('/');
+    }
   };
 
   const refreshUser = async (directUser) => {
@@ -450,12 +609,23 @@ function ClientApp() {
     default: page = <Home />;
   }
 
+  // PERF/STABILITY : key unique par route force le remount complet de la page.
+  // Évite le bug "page ne se charge pas au retour" causé par du state React
+  // stuck d'un précédent rendu (loading=true jamais reset, fetch perdu, etc.)
+  // + Inclut resumeCount : après reprise du background avec session refresh,
+  //   la page se remount → tous les fetches repartent avec le nouveau JWT.
+  const pageKey = route.name + (route.params ? JSON.stringify(route.params) : '') + '-r' + resumeCount;
+
   return (
     <NavContext.Provider value={{ navigate, goBack, route }}>
       <UserContext.Provider value={{ user, refreshUser }}>
         <div className="desktop-only-tag">YARAM · Aperçu mobile</div>
         <div className="app-shell">
-          <Suspense fallback={<LazyFallback />}>{page}</Suspense>
+          {/* ErrorBoundary global : capture les exceptions de render et affiche
+              un fallback visible au lieu d'écran blanc silencieux. */}
+          <ErrorBoundary key={pageKey + '-eb'}>
+            <Suspense fallback={<LazyFallback />} key={pageKey}>{page}</Suspense>
+          </ErrorBoundary>
           <InstallPrompt />
           <WhatsAppButton />
         </div>

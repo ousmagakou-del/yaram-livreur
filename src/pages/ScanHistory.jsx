@@ -10,11 +10,21 @@ export default function ScanHistory() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
     (async () => {
-      const data = await getMySkinScans();
-      setScans(data);
-      setLoading(false);
+      try {
+        const data = await getMySkinScans();
+        if (!cancelled) setScans(data || []);
+      } catch (e) {
+        console.warn('[ScanHistory] fetch failed:', e?.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Chargement…</div>;

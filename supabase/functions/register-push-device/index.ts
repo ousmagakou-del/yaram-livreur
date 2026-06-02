@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════
-// YARAM — Edge function : register-push-device (v1)
+// YARAM — Edge function : register-push-device
 // ════════════════════════════════════════════════════════
 //
 // Reçoit un APNs device token depuis l'app iOS (via @capacitor/push-notifications)
@@ -15,7 +15,7 @@
 //   5. On stocke (user_id, player_id, device_token) dans user_devices
 //   6. On retourne { success: true, player_id } au client
 //
-// SECRETS requis (mêmes que send-push-notification) :
+// SECRETS requis :
 //   - ONESIGNAL_APP_ID
 //   - ONESIGNAL_REST_KEY
 // ════════════════════════════════════════════════════════
@@ -51,19 +51,26 @@ serve(async (req) => {
   // ─── Auth : Supabase JWT requis (user connecté) ─────────
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
   const authHeader = req.headers.get("authorization") || "";
   if (!authHeader.startsWith("Bearer ")) {
     return json({ success: false, error: "auth_required" }, 401);
   }
   const userJwt = authHeader.replace("Bearer ", "");
 
-  // Crée 2 clients : 1 service-role pour DB, 1 user pour vérifier le JWT
+  // ─── FIX : le user JWT ne doit PAS être passé comme apikey (2e arg).
+  // On crée un client avec l'ANON KEY (qui sert d'apikey) puis on passe le
+  // JWT user à getUser() pour valider l'identité.
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
-  const userClient = createClient(SUPABASE_URL, userJwt, { auth: { persistSession: false } });
+  const userClient = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
 
-  const { data: { user } } = await userClient.auth.getUser();
-  if (!user) {
-    return json({ success: false, error: "invalid_jwt" }, 401);
+  const { data: { user }, error: userErr } = await userClient.auth.getUser(userJwt);
+  if (userErr || !user) {
+    return json({
+      success: false,
+      error: "invalid_jwt",
+      detail: userErr?.message || 'getUser returned null',
+    }, 401);
   }
 
   // ─── Parse body ──────────────────────────────────────────
@@ -84,8 +91,7 @@ serve(async (req) => {
     return json({ success: false, error: "onesignal_credentials_missing" }, 500);
   }
 
-  // device_type pour OneSignal :
-  //   0 = iOS, 1 = Android, 11 = Safari, 17 = Web Push
+  // device_type pour OneSignal : 0 = iOS, 1 = Android, 17 = Web Push
   const deviceTypeMap: Record<string, number> = { ios: 0, android: 1, web: 17 };
   const deviceType = deviceTypeMap[body.platform || 'ios'] ?? 0;
 
@@ -95,7 +101,7 @@ serve(async (req) => {
     identifier: body.device_token,
     language: body.language || 'fr',
     timezone: body.timezone_offset ?? 0,
-    external_user_id: user.id, // lie le device au user Supabase
+    external_user_id: user.id,
   };
   if (body.device_model) onesignalPayload.device_model = body.device_model;
   if (body.app_version) onesignalPayload.game_version = body.app_version;
@@ -127,10 +133,7 @@ serve(async (req) => {
   const playerId = osResult.id!;
 
   // ─── Sauvegarde en DB ────────────────────────────────────
-  // Utilise la RPC register_device qu'on a déjà créée
-  // (mais on a besoin de passer aussi le device_token pour debug futur)
   try {
-    // On insert directement (RLS permet à user d'inserter ses propres devices)
     const { error: dbErr } = await admin
       .from("user_devices")
       .upsert({
@@ -148,7 +151,6 @@ serve(async (req) => {
 
     if (dbErr) {
       console.warn("[register-push] DB insert failed:", dbErr.message);
-      // On retourne quand même success car OneSignal est OK
       return json({
         success: true,
         player_id: playerId,

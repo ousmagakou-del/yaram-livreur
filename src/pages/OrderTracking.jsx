@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNav } from '../App';
 import { supabase, sendWhatsApp } from '../lib/supabase';
 import { toast } from '../lib/toast';
-import { formatPrice } from '../lib/utils';
+import { formatPrice, safeFormatDate, safeNumber } from '../lib/utils';
 import { formatArrivalDate, PREORDER_STATUS_LABELS, PREORDER_STATUS_ICONS } from '../lib/preorder';
 import SignedImage from '../components/SignedImage';
 import './OrderTracking.css';
@@ -123,7 +123,7 @@ export default function OrderTracking({ orderId }) {
         </button>
         <div>
           <h1>Commande {order.id}</h1>
-          <p>{new Date(order.created_at).toLocaleString('fr-FR')}</p>
+          <p>{safeFormatDate(order.created_at, { type: 'datetime' })}</p>
         </div>
       </div>
 
@@ -170,7 +170,7 @@ export default function OrderTracking({ orderId }) {
               {order.arrived_dakar_at && (
                 <div className="track-preorder-row">
                   <span>🇸🇳 Arrivé le</span>
-                  <strong style={{ color: '#1F8B4C' }}>{new Date(order.arrived_dakar_at).toLocaleDateString('fr-FR')}</strong>
+                  <strong style={{ color: '#1F8B4C' }}>{safeFormatDate(order.arrived_dakar_at)}</strong>
                 </div>
               )}
             </div>
@@ -226,7 +226,7 @@ export default function OrderTracking({ orderId }) {
             )}
             {tracking.delivered_at && (
               <p style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
-                Livré le {new Date(tracking.delivered_at).toLocaleString('fr-FR')}
+                Livré le {safeFormatDate(tracking.delivered_at, { type: 'datetime' })}
               </p>
             )}
           </div>
@@ -260,7 +260,7 @@ export default function OrderTracking({ orderId }) {
               <img src={it.img} alt="" />
               <div>
                 <strong>{it.name}</strong>
-                <span>{it.qty} × {it.price.toLocaleString('fr-FR')} FCFA</span>
+                <span>{safeNumber(it.qty, 1)} × {safeNumber(it.price).toLocaleString('fr-FR')} FCFA</span>
                 <small>🏥 {it.pharmacyName}</small>
               </div>
             </div>

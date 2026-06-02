@@ -5,11 +5,13 @@ import {
   getAllPharmacies,
   getAllBrands,
   getAllBanners,
+  getAllCategories,
   getMyAddresses,
   supabase,
 } from '../lib/supabase';
 import { getUserPosition, sortByDistance, formatDistance, getPermissionState } from '../lib/geo';
 import ProductTile from '../components/ProductTile';
+import PullToRefresh from '../components/PullToRefresh';
 import TabBar from '../components/TabBar';
 import BarcodeScannerClient from '../components/BarcodeScannerClient';
 import { usePageSEO } from '../lib/seo';
@@ -25,16 +27,30 @@ const DEFAULT_CATEGORY_PRESET = {
 // Avant : perdu au refresh → écran vide + 8 fetch au boot
 // Apres : restaure depuis sessionStorage si < 5 min, refresh en arriere-plan
 const HOME_CACHE_KEY = 'yaram-home-cache-v1';
-const HOME_CACHE_TTL = 5 * 60 * 1000;
+const HOME_CACHE_TTL = 5 * 60 * 1000;        // sessionStorage = 5 min (frais)
+const HOME_LS_FALLBACK_TTL = 24 * 60 * 60 * 1000; // localStorage fallback = 24h (afficher OLD au resume)
 
 function loadHomeCacheFromStorage() {
   try {
+    // 1. sessionStorage (frais < 5 min) — priorité
     const raw = sessionStorage.getItem(HOME_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.loadedAt) return null;
-    if (Date.now() - parsed.loadedAt > HOME_CACHE_TTL) return null;
-    return parsed;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.loadedAt && Date.now() - parsed.loadedAt < HOME_CACHE_TTL) {
+        return parsed;
+      }
+    }
+    // 2. localStorage fallback (peut être OLD 24h) — pour afficher INSTANT au resume
+    // L'app affiche les vieilles données pendant que le refresh BG se fait
+    const lsRaw = localStorage.getItem(HOME_CACHE_KEY);
+    if (lsRaw) {
+      const parsed = JSON.parse(lsRaw);
+      if (parsed?.loadedAt && Date.now() - parsed.loadedAt < HOME_LS_FALLBACK_TTL && parsed?.products?.length > 0) {
+        console.log('[Home] Restored from localStorage (age:', Math.round((Date.now() - parsed.loadedAt) / 1000), 's)');
+        return parsed;
+      }
+    }
+    return null;
   } catch { return null; }
 }
 
@@ -52,7 +68,15 @@ const homeDataCache = restored || {
 
 function persistHomeCache() {
   try {
-    sessionStorage.setItem(HOME_CACHE_KEY, JSON.stringify(homeDataCache));
+    const json = JSON.stringify(homeDataCache);
+    sessionStorage.setItem(HOME_CACHE_KEY, json);
+    // Persist aussi en localStorage pour survivre ferme/réouvre app
+    // (vital pour iOS post-background : affiche old data INSTANT au lieu de loader)
+    try {
+      if (json.length < 2 * 1024 * 1024) { // 2 MB max
+        localStorage.setItem(HOME_CACHE_KEY, json);
+      }
+    } catch { /* quota plein, on s'en moque */ }
   } catch { /* ignore quota errors */ }
 }
 
@@ -101,7 +125,11 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const selectedAddr = addresses.find(a => a.id === selectedAddrId) || addresses.find(a => a.is_default) || addresses[0] || null;
+  // SAFETY : addresses peut être null/undefined avant le fetch initial
+  const selectedAddr = addresses?.find(a => a.id === selectedAddrId)
+    || addresses?.find(a => a.is_default)
+    || addresses?.[0]
+    || null;
 
   const switchAddress = (id) => {
     setSelectedAddrId(id);
@@ -167,18 +195,21 @@ export default function Home() {
 
     // SAFETY : timeout global 12 sec. Au-dela on relache fetchingRef pour
     // pas figer l'app, meme si une promise pend infiniment.
+    // Safety 25s : réseau africain 3G lent peut prendre 15-20s
     const safetyTimeout = setTimeout(() => {
       console.warn('[Home] loadData safety timeout, releasing fetchingRef');
       fetchingRef.current = false;
       setLoading(false);
-    }, 12000);
+    }, 25000);
 
     try {
       // ═══ PHASE 1 : ESSENTIEL (affiche la page le plus vite possible) ═══
-      // Products + categories en parallele. Quand prets → setState + page utilisable.
+      // Products + categories en parallele AVEC CACHE SWR.
+      // Avant : categories query directe → 200-500ms à chaque retour Home.
+      // Maintenant : cached → instant si déjà chargé.
       const phase1 = Promise.all([
         getAllProducts(),
-        supabase.from('categories').select('*').eq('active', true).order('display_order', { ascending: true }).then(r => r?.data || []),
+        getAllCategories(),
       ]);
 
       const [p, catData] = await phase1;
@@ -237,11 +268,16 @@ export default function Home() {
 
         // Banners (filtre par dates)
         const now = new Date();
-        const activeBn = (bn || []).filter(b =>
-          b.active !== false && (!b.end_date || new Date(b.end_date) > now)
-        );
+        const activeBn = (bn || []).filter(b => {
+          if (b.active === false) return false;
+          if (!b.end_date) return true;
+          const d = new Date(b.end_date);
+          return !isNaN(d.getTime()) && d > now;
+        });
         setBanners(activeBn);
         homeDataCache.banners = activeBn;
+        // PERSIST Phase 2 dans sessionStorage + localStorage
+        persistHomeCache();
       }).catch(e => console.warn('[Home] phase 2 enrichissement failed (non-bloquant):', e?.message));
 
       // ═══ PHASE 3 : USER-SPECIFIC (favorites, last scan, best sellers RPC) ═══
@@ -471,9 +507,21 @@ export default function Home() {
     );
   }
 
+  // Handler pull-to-refresh : force le refetch + petite pause pour montrer le spinner
+  const handlePullRefresh = async () => {
+    try {
+      await loadData(true);
+      // Petite pause pour que l'user voit le feedback visuel (sinon le spinner disparaît trop vite si data en cache)
+      await new Promise(r => setTimeout(r, 300));
+    } catch (e) {
+      console.warn('[Home] pull refresh failed:', e?.message);
+    }
+  };
+
   return (
     <div className="yhome-screen page-anim">
       <div className="yhome-scroll">
+      <PullToRefresh onRefresh={handlePullRefresh}>
 
         {/* ════════ HEADER VERT YARAM ════════ */}
         <header className="yhome-hero">
@@ -942,6 +990,7 @@ export default function Home() {
         )}
 
         <div style={{ height: 40 }} />
+      </PullToRefresh>
       </div>
 
       <TabBar active="home" />

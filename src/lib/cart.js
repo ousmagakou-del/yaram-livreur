@@ -4,9 +4,33 @@
 const KEY = 'yaram_cart';
 const LAST_ADDED_KEY = 'yaram_cart_last_added_at';
 
+// Sanitize : un cart hérité d'avant les nouveaux champs (is_imported, pharmacyName…)
+// pouvait être malformé et planter `grouped.reduce` ou `buildPreorderSummary`,
+// ce qui blanchissait la page Cart (React 19 unmount silencieux sans ErrorBoundary).
+// On filtre tout item incomplet et on garantit des valeurs par défaut sûres.
+function sanitizeCartItems(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((it) => it && typeof it === 'object' && it.productId && it.pharmacyId)
+    .map((it) => ({
+      productId: it.productId,
+      pharmacyId: it.pharmacyId,
+      pharmacyName: it.pharmacyName || 'Pharmacie',
+      name: it.name || 'Produit',
+      brand: it.brand || '',
+      img: it.img || '',
+      price: Number(it.price) || 0,
+      qty: Math.max(1, Number(it.qty) || 1),
+      is_imported: !!it.is_imported,
+      lead_time_days: Number(it.lead_time_days) || 1,
+      origin_country: it.origin_country || 'SN',
+    }));
+}
+
 export function getCart() {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || '[]');
+    const raw = JSON.parse(localStorage.getItem(KEY) || '[]');
+    return sanitizeCartItems(raw);
   } catch {
     return [];
   }

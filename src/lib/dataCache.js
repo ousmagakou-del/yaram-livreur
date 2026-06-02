@@ -15,13 +15,15 @@
 
 // ⚠️ INCRÉMENTER ce numéro à chaque deploy qui change le format des données
 // Ça force la purge du cache localStorage côté client → fini les vieilles données
-// v7 : purge les caches vides crees par le bug PRODUCT_LIST_COLUMNS de la 1.0(2)
-const CACHE_VERSION = 'v7';
+// v8 : ajout de la déduplication in-flight + getAllCategories + Home localStorage
+const CACHE_VERSION = 'v8';
 
 const memCache = new Map(); // { key: { data, time } }
+const inflightPromises = new Map(); // key → { promise, startTime } — déduplication
+const INFLIGHT_TIMEOUT = 25000; // 25s : abandon une promise qui hang depuis trop longtemps
 
 const LS_PREFIX = `yaram_cache_${CACHE_VERSION}_`;
-const OLD_PREFIXES = ['yaram_cache_', 'yaram_cache_v5_', 'yaram_cache_v6_']; // À nettoyer
+const OLD_PREFIXES = ['yaram_cache_', 'yaram_cache_v5_', 'yaram_cache_v6_', 'yaram_cache_v7_']; // À nettoyer
 
 // Default TTL = 5 minutes
 const DEFAULT_TTL = 5 * 60 * 1000;
@@ -63,6 +65,7 @@ const HARD_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Wrapper autour d'une fonction async qui ajoute un cache stale-while-revalidate
+ * + déduplication des fetches en-vol : si 3 pages appellent au même moment, on fait 1 seule requête
  */
 export async function cachedFetch(key, fetchFn, opts = {}) {
   const ttl = opts.ttl ?? DEFAULT_TTL;
@@ -89,22 +92,61 @@ export async function cachedFetch(key, fetchFn, opts = {}) {
     } catch {}
   }
 
-  // 3. Stale-while-revalidate
+  // 3. Stale-while-revalidate (mem stale mais existe)
   if (memHit) {
     refreshInBackground(key, fetchFn, persistLS);
     return memHit.data;
   }
 
-  // 4. Pas de cache → fetch direct
-  const data = await fetchFn();
-  saveToCache(key, data, persistLS);
-  return data;
+  // 4. Vérifie si un fetch est déjà en cours pour cette key (déduplication)
+  const inFlight = inflightPromises.get(key);
+  if (inFlight && (Date.now() - inFlight.startTime) < INFLIGHT_TIMEOUT) {
+    // Réutilise la promise existante au lieu de relancer un fetch
+    return inFlight.promise;
+  }
+
+  // 5. Pas de cache → fetch direct + enregistre la promise en cours
+  const promise = (async () => {
+    try {
+      const data = await fetchFn();
+      saveToCache(key, data, persistLS);
+      return data;
+    } finally {
+      inflightPromises.delete(key);
+    }
+  })();
+  inflightPromises.set(key, { promise, startTime: Date.now() });
+  return promise;
 }
 
 function refreshInBackground(key, fetchFn, persistLS) {
+  // Évite de relancer un refresh BG si déjà en cours
+  if (inflightPromises.has(key)) return;
+
   setTimeout(() => {
-    fetchFn().then(data => saveToCache(key, data, persistLS)).catch(() => {});
+    if (inflightPromises.has(key)) return;
+    const promise = fetchFn()
+      .then(data => { saveToCache(key, data, persistLS); return data; })
+      .catch(e => { console.warn('[cache] BG refresh failed for', key, ':', e?.message); })
+      .finally(() => { inflightPromises.delete(key); });
+    inflightPromises.set(key, { promise, startTime: Date.now() });
   }, 100);
+}
+
+/**
+ * Purge les promises en-vol périmées (à appeler au resume après background)
+ * Évite que des promises zombies bloquent les futurs appelants.
+ */
+export function purgeStaleInflight() {
+  const now = Date.now();
+  let purged = 0;
+  for (const [key, { startTime }] of inflightPromises.entries()) {
+    if (now - startTime > 10000) { // > 10s = présumé zombie
+      inflightPromises.delete(key);
+      purged++;
+    }
+  }
+  if (purged > 0) console.log(`[cache] purged ${purged} stale inflight promises`);
 }
 
 function saveToCache(key, data, persistLS) {

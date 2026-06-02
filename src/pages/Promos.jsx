@@ -125,7 +125,9 @@ export default function Promos() {
 
   const daysLeft = (p) => {
     if (!p.expires_at) return null;
-    const diff = new Date(p.expires_at) - new Date();
+    const expDate = new Date(p.expires_at);
+    if (isNaN(expDate.getTime())) return null;
+    const diff = expDate - new Date();
     if (diff < 0) return null;
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
     if (days === 0) return "Expire aujourd'hui";

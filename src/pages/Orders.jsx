@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNav } from '../App';
-import { getMyOrders } from '../lib/supabase';
+import { getMyOrders, invalidateCache } from '../lib/supabase';
+import { safeFormatDate } from '../lib/utils';
 import TabBar from '../components/TabBar';
+import PullToRefresh from '../components/PullToRefresh';
 import './Orders.css';
 
 export default function Orders() {
@@ -9,9 +11,32 @@ export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const load = async () => {
+    try {
+      const data = await getMyOrders();
+      setOrders(data || []);
+    } catch (e) {
+      console.warn('[Orders] load failed:', e?.message);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Pull-to-refresh : invalide cache + reload
+  const handlePullRefresh = async () => {
+    try {
+      const { supabase } = await import('../lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
+      await load();
+      await new Promise(r => setTimeout(r, 300));
+    } catch { /* silent */ }
+  };
+
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    (async () => {
       try {
         const data = await getMyOrders();
         if (!cancelled) setOrders(data || []);
@@ -21,8 +46,7 @@ export default function Orders() {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    };
-    load();
+    })();
 
     // Auto-refresh sur retour navigation (popstate iOS)
     const handleRouteBack = (e) => {
@@ -50,6 +74,7 @@ export default function Orders() {
       </div>
 
       <div className="orders-scroll">
+        <PullToRefresh onRefresh={handlePullRefresh}>
         {loading ? (
           <div style={{padding: 40, textAlign: 'center'}}>Chargement…</div>
         ) : orders.length === 0 ? (
@@ -84,7 +109,7 @@ export default function Orders() {
               </div>
               <div className="order-card-body">
                 <span>{o.items.length} articles · {o.total.toLocaleString('fr-FR')} FCFA</span>
-                <span>{new Date(o.created_at).toLocaleString('fr-FR')}</span>
+                <span>{safeFormatDate(o.created_at, { type: 'datetime' })}</span>
               </div>
               {o.is_preorder && o.expected_arrival_date && (
                 <div style={{
@@ -96,7 +121,7 @@ export default function Orders() {
                   display: 'flex',
                   justifyContent: 'space-between',
                 }}>
-                  <span>📅 Arrivée prévue : {new Date(o.expected_arrival_date).toLocaleDateString('fr-FR')}</span>
+                  <span>📅 Arrivée prévue : {safeFormatDate(o.expected_arrival_date)}</span>
                   <span style={{ color: '#0066CC', fontWeight: 600 }}>
                     {o.deposit_paid_at ? '✓ Acompte payé' : '⏳ Acompte en attente'}
                   </span>
@@ -105,6 +130,7 @@ export default function Orders() {
             </button>
           ))
         )}
+        </PullToRefresh>
       </div>
       <TabBar />
     </div>

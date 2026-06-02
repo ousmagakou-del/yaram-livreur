@@ -12,26 +12,31 @@ export default function Referral() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    console.log('Referral: user =', user);
     if (!user || !user.id) {
       setLoading(false);
       return;
     }
+    let cancelled = false;
+    setLoading(true);
+
     (async () => {
       try {
-        console.log('Referral: fetching code for', user.id);
         const [c, s] = await Promise.all([
           getOrCreateReferralCode(user.id),
           getReferralStats(user.id),
         ]);
-        console.log('Referral: got code', c, 'stats', s);
+        if (cancelled) return;
         setCode(c || 'ERROR');
-        setStats(s);
+        setStats(s || { count: 0, bonusEarned: 0, list: [] });
       } catch (e) {
-        console.error('Referral error:', e);
+        console.warn('[Referral] fetch failed:', e?.message);
+      } finally {
+        // Garantit setLoading(false) même si une promise reject
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
+
+    return () => { cancelled = true; };
   }, [user]);
 
   // Si pas connecté

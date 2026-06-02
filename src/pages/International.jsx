@@ -36,10 +36,11 @@ export default function International() {
 
     const load = async () => {
       if (mounted) setLoading(true);
-      // Safety timeout : sort du loading après 8s même si fetch tarde
+      // Safety timeout : sort du loading après 15s même si fetch tarde
+      // (réseau africain instable, 8s parfois trop court)
       const safetyTimeout = setTimeout(() => {
         if (mounted) setLoading(false);
-      }, 8000);
+      }, 15000);
       try {
         const { data, error } = await supabase
           .from('products')

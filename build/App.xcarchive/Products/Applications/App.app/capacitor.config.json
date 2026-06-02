@@ -1,0 +1,11 @@
+{
+	"appId": "app.yaram",
+	"appName": "YARAM",
+	"webDir": "dist",
+	"packageClassList": [
+		"BiometricAuthNative",
+		"SecureStorage",
+		"PushNotificationsPlugin",
+		"CAPBrowserPlugin"
+	]
+}

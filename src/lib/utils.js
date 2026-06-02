@@ -10,6 +10,47 @@
 // Pour CHANGER le numéro : admin → Paramètres → champ "WhatsApp" → Save.
 // Aucun deploy nécessaire (les composants relisent à chaque render).
 
+// ─── SAFE HELPERS — évitent les crashs sur null/undefined/invalid ───
+
+/**
+ * Parse une date safely. Retourne null si invalide (au lieu de "Invalid Date").
+ */
+export function safeDate(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
+/**
+ * Formate une date pour affichage. Retourne fallback si invalide.
+ */
+export function safeFormatDate(value, opts = {}) {
+  const d = safeDate(value);
+  if (!d) return opts.fallback || '—';
+  const locale = opts.locale || 'fr-FR';
+  if (opts.type === 'datetime') return d.toLocaleString(locale);
+  if (opts.type === 'time') return d.toLocaleTimeString(locale);
+  return d.toLocaleDateString(locale);
+}
+
+/**
+ * Convertit une valeur en nombre safe (jamais NaN).
+ * Utile pour les calculs prix*qty où une des deux valeurs peut être null.
+ */
+export function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  if (isNaN(n) || n === null || n === undefined) return fallback;
+  return n;
+}
+
+/**
+ * Multiplication safe. Si l'un des opérandes est null/undefined/NaN, retourne 0.
+ */
+export function safeMultiply(...values) {
+  return values.reduce((acc, v) => acc * safeNumber(v, 0), 1);
+}
+
 const WHATSAPP_FALLBACK_INTL = '+221774388766';
 
 /**

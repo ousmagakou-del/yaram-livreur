@@ -41,16 +41,44 @@ export default function Livreur() {
   }, []);
 
   const loadTracking = async (t) => {
-    // Vague 10 : passe par RPC livreur_load_delivery (SECURITY DEFINER).
-    // Plus de SELECT direct sur orders => "Anyone can read all orders" pourra etre droppe.
+    // RPC livreur_load_delivery (SECURITY DEFINER) — v2 retourne errors dans data
+    // au lieu de raise exception, pour debug facile.
     const { data, error } = await supabase.rpc('livreur_load_delivery', { p_token: t });
-    if (error || !data) {
-      setError(error?.message?.includes('tracking_not_found') ? 'Lien invalide ou expiré' : 'Erreur de chargement');
+
+    // Erreur de transport (réseau, RPC absente, etc.)
+    if (error) {
+      console.error('[Livreur] RPC transport error:', error);
+      const msg = error.message || '';
+      setError(
+        msg.includes('does not exist')
+          ? 'Service livreur indisponible — contacte l\'admin'
+          : msg.includes('tracking_not_found')
+            ? 'Lien invalide ou expiré'
+            : `Erreur de chargement : ${msg.slice(0, 120) || 'inconnue'}`
+      );
+      setLoading(false);
+      return;
+    }
+
+    // RPC a répondu mais signale une erreur métier dans le body
+    if (!data || data.error) {
+      console.error('[Livreur] RPC business error:', data);
+      setError(
+        data?.error === 'tracking_not_found'
+          ? 'Lien invalide ou expiré'
+          : `Erreur : ${data?.error || 'donnée vide'} ${data?.error_code ? `(${data.error_code})` : ''}`
+      );
       setLoading(false);
       return;
     }
 
     const tr = data.tracking || null;
+    if (!tr) {
+      setError('Lien invalide ou expiré');
+      setLoading(false);
+      return;
+    }
+
     setTracking(tr);
     setOrder(data.order || null);
     setPharmacies(Array.isArray(data.pharmacies) ? data.pharmacies : []);

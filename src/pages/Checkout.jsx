@@ -35,6 +35,20 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
   const [addresses, setAddresses] = useState([]);
   const [selectedAddrId, setSelectedAddrId] = useState(null);
   const [payment, setPayment] = useState(paymentMethod || 'wave');
+
+  // Force payment fallback à 'wave' si la sélection actuelle n'est plus disponible
+  // (ex: l'user avait choisi 'cod' puis a ajouté un produit import qui rend cod invalide)
+  useEffect(() => {
+    const stillValid = ALL_PAYMENT_METHODS.find(m => m.id === payment);
+    if (!stillValid || !stillValid.enabled) {
+      setPayment('wave');
+      return;
+    }
+    if (isPreorder && !stillValid.preorderOk) {
+      setPayment('wave');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPreorder, payment]);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -109,8 +123,10 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
     );
   }
 
-  const selectedAddr = addresses.find(a => a.id === selectedAddrId);
-  const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
+  // SAFETY : addresses peut être null/empty ; selectedAddrId peut être undefined
+  const selectedAddr = addresses?.find(a => a.id === selectedAddrId) || addresses?.[0] || null;
+  // SAFETY : price/qty peuvent être null ; éviter NaN
+  const subtotal = items.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
   const zone = getShippingZone(selectedAddr?.city || 'Dakar');
   const shipping = subtotal >= zone.freeFrom ? 0 : zone.price;
 
@@ -207,44 +223,60 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
         }
         if (loyaltyDiscount > 0) clearLoyaltyCredit();
 
-        // Email confirmation commande (non-bloquant)
-        if (user?.email) {
-          sendEmail({
-            to: user.email,
-            template: 'orderConfirmed',
-            params: {
-              firstName: user.first_name || selectedAddr.name?.split(' ')[0] || 'Toi',
-              order,
-            },
-          }).catch(e => console.warn('order email failed:', e?.message));
+        // ─── NE PAS envoyer les notifs maintenant ───
+        // Avant : on envoyait emails client + pharmacie + broadcast dès création.
+        // Maintenant : on attend que l'user clique "J'ai payé" (statut → paid).
+        // Raison : éviter que la pharmacie prépare une commande non payée.
+        // Les notifs sont déclenchées par Payment.jsx → handlePay() (statut paid).
+        //
+        // Exception COD (cash à la livraison) : on envoie directement les notifs
+        // car il n'y a pas d'étape paiement préalable (le user paye au livreur).
+        const isCashOnDelivery = payment === 'cod';
+        if (isCashOnDelivery) {
+          // Email client
+          if (user?.email) {
+            sendEmail({
+              to: user.email,
+              template: 'orderConfirmed',
+              params: {
+                firstName: user.first_name || selectedAddr.name?.split(' ')[0] || 'Toi',
+                order,
+              },
+            }).catch(e => console.warn('order email failed:', e?.message));
+          }
+          // Email pharmacie
+          sendOrderEmail(order.id, 'pharmacyNewOrder')
+            .catch(e => console.warn('pharma email failed:', e?.message));
+          // Broadcast realtime
+          try {
+            const pharmaIds = [...new Set((items || []).map(it => it.pharmacyId).filter(Boolean))];
+            await supabase.channel('yaram-new-orders').send({
+              type: 'broadcast',
+              event: 'new_order',
+              payload: {
+                order_id: order.id,
+                total: order.total,
+                pharmacy_ids: pharmaIds,
+                created_at: order.created_at,
+              },
+            });
+          } catch (e) {
+            console.warn('broadcast new_order failed:', e?.message);
+          }
         }
-        // Notif email a CHAQUE pharmacie de l'order (resolu serveur-side)
-        sendOrderEmail(order.id, 'pharmacyNewOrder')
-          .catch(e => console.warn('pharma email failed:', e?.message));
-
-        // Vague E — Realtime broadcast : ping admin + pharmas concernees pour
-        // declencher leur refresh instant (au lieu d'attendre le polling 10-20s).
-        try {
-          const pharmaIds = [...new Set((items || []).map(it => it.pharmacyId).filter(Boolean))];
-          await supabase.channel('yaram-new-orders').send({
-            type: 'broadcast',
-            event: 'new_order',
-            payload: {
-              order_id: order.id,
-              total: order.total,
-              pharmacy_ids: pharmaIds,
-              created_at: order.created_at,
-            },
-          });
-        } catch (e) {
-          console.warn('broadcast new_order failed:', e?.message);
-        }
+        // Pour Wave/PayTech/etc : les notifs partiront DANS Payment.jsx
+        // quand l'user confirme le paiement.
 
         // Vide le panier via lib/cart -> dispatch yaram-cart-updated -> badge TabBar a jour
         clearCart();
         clearPendingPromo();
 
-        navigate({ name: 'payment', params: { orderId: order.id } });
+        if (isCashOnDelivery) {
+          // Cash : skip directement la page payment, va sur tracking
+          navigate({ name: 'order_tracking', params: { orderId: order.id } });
+        } else {
+          navigate({ name: 'payment', params: { orderId: order.id } });
+        }
       } else {
         toast.error('Erreur création commande');
       }
@@ -255,13 +287,29 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
     }
   };
 
-  // ─── Méthodes de paiement (avec logos officiels + fallback emoji) ───
-  const PAYMENT_METHODS = [
-    { id: 'wave', name: 'Wave',                 logoUrl: WAVE_LOGO, fallbackIcon: '🌊' },
-    { id: 'om',   name: 'Orange Money',         logoUrl: OM_LOGO,   fallbackIcon: '🟠' },
-    { id: 'cod',  name: 'Cash à la livraison',  fallbackIcon: '💵' },
-    { id: 'card', name: 'Carte bancaire',       fallbackIcon: '💳' },
+  // ─── Méthodes de paiement (logos officiels + fallback emoji) ───
+  // ⚠️ Configuration actuelle (juin 2026) :
+  //   - Wave : actif (paiement direct + lien manuel)
+  //   - Cash : actif UNIQUEMENT pour les commandes locales (PAS preorder import)
+  //     → Les imports nécessitent l'acompte 50% à la commande, donc pas de cash possible.
+  //   - Orange Money : DÉSACTIVÉ pour l'instant (sera réactivé quand intégré proprement)
+  //   - PayTech : DÉSACTIVÉ pour l'instant (sera réactivé en option auto-confirmation)
+  //   - Carte : non activée (à venir via PayTech)
+  //
+  // Pour réactiver une option : décommente la ligne dans ALL_PAYMENT_METHODS
+  // et adapte le filtre ci-dessous.
+  const ALL_PAYMENT_METHODS = [
+    { id: 'wave', name: 'Wave',                 logoUrl: WAVE_LOGO, fallbackIcon: '🌊', enabled: true,  preorderOk: true  },
+    { id: 'cod',  name: 'Cash à la livraison',  fallbackIcon: '💵',                     enabled: true,  preorderOk: false },
+    { id: 'om',   name: 'Orange Money',         logoUrl: OM_LOGO,   fallbackIcon: '🟠', enabled: false, preorderOk: true  },
+    { id: 'paytech', name: 'PayTech (Wave + OM + Carte)', fallbackIcon: '🔒',           enabled: false, preorderOk: true  },
+    { id: 'card', name: 'Carte bancaire',       fallbackIcon: '💳',                     enabled: false, preorderOk: true  },
   ];
+  const PAYMENT_METHODS = ALL_PAYMENT_METHODS.filter(m => {
+    if (!m.enabled) return false;
+    if (isPreorder && !m.preorderOk) return false; // cash impossible sur preorder import
+    return true;
+  });
 
   return (
     <div className="check-screen page-anim">

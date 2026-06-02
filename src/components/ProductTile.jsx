@@ -10,7 +10,13 @@ export default function ProductTile({ product, size = 'normal' }) {
   const [fav, setFav] = useState(false);
 
   useEffect(() => {
-    (async () => setFav(await isFavorite(product.id)))();
+    // SAFETY : cancelled flag pour éviter "setState on unmounted component" warning
+    // si user scroll vite (tile démontée avant que isFavorite résolve).
+    let cancelled = false;
+    isFavorite(product.id).then(fav => {
+      if (!cancelled) setFav(fav);
+    }).catch(() => { /* silent : favori = false par défaut */ });
+    return () => { cancelled = true; };
   }, [product.id]);
 
   const handleFav = async (e) => {

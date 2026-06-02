@@ -69,7 +69,8 @@ export default function Cart() {
     return acc;
   }, {});
 
-  const subtotal = items.reduce((s, it) => s + (it.price * it.qty), 0);
+  // SAFETY : price ou qty peuvent être null/string ; éviter NaN qui propage partout
+  const subtotal = items.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
   // Vraie zone de livraison (Dakar 1500, Thies 2500, autre Senegal 3500…)
   // + gratuit au-dessus du seuil de la zone.
   const zone = getShippingZone(defaultCity);

@@ -8,6 +8,7 @@ import { toast } from '../lib/toast';
 import { usePageSEO, useJsonLd } from '../lib/seo';
 import ProductTile from '../components/ProductTile';
 import ReviewsSection from '../components/ReviewsSection';
+import PullToRefresh from '../components/PullToRefresh';
 import './Product.css';
 
 // Skeleton qui matche la structure de la fiche produit pour eviter le flash
@@ -220,7 +221,9 @@ export default function Product({ id }) {
   };
 
   const addToCart = () => {
-    if (!selectedPh) {
+    // Pour les produits import : pas besoin de sélectionner une pharmacie,
+    // c'est expédié par YARAM directement après import.
+    if (!product.is_imported && !selectedPh) {
       toast.error('Sélectionne une pharmacie');
       return;
     }
@@ -228,7 +231,9 @@ export default function Product({ id }) {
     // + set le timestamp pour la notif WhatsApp "panier abandonne" (24h).
     const result = cartAddToCart({
       product,
-      pharmacy: selectedPh.pharmacy,
+      pharmacy: product.is_imported
+        ? { id: 'yaram-import', name: 'YARAM (import direct)', city: 'Dakar' }
+        : selectedPh.pharmacy,
       qty,
     });
     if (!result.success) {
@@ -261,7 +266,9 @@ export default function Product({ id }) {
   }
 
   const sc = scoreClass(product.score);
-  const hasStock = pharmacies.length > 0;
+  // Pour les produits IMPORT (preorder) : pas besoin de stock local, c'est commandé sur demande.
+  // Pour les produits classiques : doit être dispo dans au moins 1 pharmacie.
+  const hasStock = product.is_imported ? true : pharmacies.length > 0;
   const waUrl = `https://wa.me/${getWhatsAppNumber()}?text=` + encodeURIComponent("Bonjour, j'ai une question sur " + product.name);
   
   // Badge si nouveau / top vente
@@ -288,6 +295,25 @@ export default function Product({ id }) {
       </span>
     );
   });
+
+  // Pull-to-refresh : refetch produit + dispos pharmacies + avis
+  const handlePullRefresh = async () => {
+    try {
+      const { data: p } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (p) {
+        setProduct(p);
+        const av = await getProductAvailability(p.id).catch(() => []);
+        setPharmacies(av || []);
+      }
+      await new Promise(r => setTimeout(r, 300));
+    } catch (e) {
+      console.warn('[Product] pull refresh failed:', e?.message);
+    }
+  };
 
   return (
     <div className="prod-screen page-anim">
@@ -368,6 +394,7 @@ export default function Product({ id }) {
       </div>
 
       <div className="prod-scroll">
+        <PullToRefresh onRefresh={handlePullRefresh}>
         <div className="prod-image" style={{ position: 'relative' }}>
           <img src={product.img} alt={product.name} />
           <div className={`prod-score ${sc}`}>
@@ -588,9 +615,10 @@ export default function Product({ id }) {
           )}
         </div>
         <div style={{ height: 160 }} />
+        </PullToRefresh>
       </div>
 
-      {/* TOAST "Ajouté au panier" */}
+      {/* TOAST "Ajouté au panier" (top-level, fixed position) */}
       {showCartToast && (
         <div style={{
           position: 'fixed',
@@ -619,7 +647,7 @@ export default function Product({ id }) {
         </div>
       )}
 
-      {/* CTA avec quantité */}
+      {/* CTA avec quantité (HORS prod-scroll : reste fixe en bas) */}
       <div className="prod-cta">
         {hasStock && (
           <div style={{ 
@@ -686,7 +714,11 @@ export default function Product({ id }) {
         )}
         
         <button className="btn-primary" onClick={addToCart} disabled={!hasStock}>
-          {hasStock ? `Ajouter au panier · ${formatPrice(product.price * qty)} FCFA` : 'Indisponible'}
+          {!hasStock
+            ? 'Indisponible'
+            : product.is_imported
+              ? `✈️ Précommander · ${formatPrice(product.price * qty)} FCFA`
+              : `Ajouter au panier · ${formatPrice(product.price * qty)} FCFA`}
         </button>
       </div>
     </div>

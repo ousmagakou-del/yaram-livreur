@@ -1,0 +1,30 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["6779DNV7Y5.app.yaram"],
+        "components": [
+          {
+            "/": "/order/*",
+            "comment": "Order tracking — ouvre l'app YARAM si installée"
+          },
+          {
+            "/": "/checkout",
+            "comment": "Reprise checkout"
+          },
+          {
+            "/": "/cart",
+            "comment": "Reprise panier"
+          },
+          {
+            "/": "/promos/*",
+            "comment": "Liens promo email/SMS"
+          }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["6779DNV7Y5.app.yaram"]
+  }
+}

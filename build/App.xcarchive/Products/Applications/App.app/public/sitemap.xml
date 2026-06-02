@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sitemap INDEX : reference les sous-sitemaps.
+  - /sitemap-static.xml      : pages statiques principales (/, /search, /scan, /pharmacies, ...)
+  - /sitemap-products.xml    : genere par Cloudflare Function depuis Supabase
+  - /sitemap-pharmacies.xml  : genere par Cloudflare Function depuis Supabase
+-->
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://yaram.app/sitemap-static.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://yaram.app/sitemap-products.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://yaram.app/sitemap-pharmacies.xml</loc>
+  </sitemap>
+</sitemapindex>

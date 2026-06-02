@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════
-// YARAM — Edge function : send-push-notification (v1)
+// YARAM — Edge function : send-push-notification (OneSignal)
 // ════════════════════════════════════════════════════════
 //
 // Envoie une push notification via OneSignal REST API.
@@ -14,11 +14,12 @@
 //
 // AUTH :
 // - Token admin (admin_sessions) pour les broadcasts manuels
-// - Service role uniquement pour les pushs auto (déclenchés par les hooks DB)
+// - Internal secret pour les pushs auto (déclenchés par les hooks DB)
 //
 // SECRETS Supabase requis :
 //   - ONESIGNAL_APP_ID    : ID de l'app OneSignal
 //   - ONESIGNAL_REST_KEY  : REST API Key OneSignal (commence par os_v2_app_...)
+//   - INTERNAL_PUSH_SECRET
 // ════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -37,25 +38,16 @@ const json = (body: unknown, status = 200) =>
   });
 
 type PushBody = {
-  // Auth : soit token admin, soit appel interne (service role via x-internal-secret)
   token?: string;
   internal_secret?: string;
-
-  // Type de notif (pour logs analytics)
   type?: 'manual' | 'order_status' | 'replenishment' | 'reengagement' | 'anniversary' | 'scan_refresh' | 'welcome';
-
-  // Ciblage : soit user_id (1 user), soit broadcast (tous)
   user_id?: string;
   broadcast?: boolean;
-
-  // Filtres pour broadcast (optionnels)
   filters?: Array<{ field: string; relation: string; value: string }>;
-
-  // Contenu
   title: string;
   message: string;
   url?: string;
-  data?: Record<string, unknown>;  // payload custom passé à l'app
+  data?: Record<string, unknown>;
 };
 
 serve(async (req) => {
@@ -85,12 +77,9 @@ serve(async (req) => {
   let authMethod: 'admin' | 'internal' | null = null;
   let actorEmail = 'system';
 
-  // Internal call (depuis une autre edge function / trigger DB)
   if (body.internal_secret && INTERNAL_SECRET && body.internal_secret === INTERNAL_SECRET) {
     authMethod = 'internal';
-  }
-  // Admin call (depuis l'admin UI broadcast)
-  else if (body.token) {
+  } else if (body.token) {
     const { data: session } = await admin
       .from("admin_sessions")
       .select("admin_email, expires_at")
@@ -113,37 +102,30 @@ serve(async (req) => {
     return json({ success: false, error: "ONESIGNAL_credentials_missing" }, 500);
   }
 
-  // Construction du payload OneSignal selon les docs
-  // https://documentation.onesignal.com/reference/create-notification
   const payload: Record<string, unknown> = {
     app_id: APP_ID,
     headings: { en: body.title, fr: body.title },
     contents: { en: body.message, fr: body.message },
   };
 
-  // Données custom passées à l'app (deeplink, productId, etc.)
   if (body.url || body.data) {
     payload.data = { ...(body.data || {}), url: body.url || null };
   }
 
-  // URL d'ouverture par défaut au tap sur notif
   if (body.url) {
     payload.url = body.url;
-    payload.app_url = body.url;  // pour les apps natives
+    payload.app_url = body.url;
   }
 
   // ─── Ciblage ──────────────────────────────────────────
   let playerIdsForLog: string[] = [];
 
   if (body.broadcast) {
-    // Broadcast à tous les devices (avec filtres optionnels)
     payload.included_segments = ["Subscribed Users"];
-
     if (body.filters && body.filters.length > 0) {
       payload.filters = body.filters;
     }
   } else {
-    // Ciblage par user_id → fetch tous ses player_ids actifs
     const { data: devices } = await admin
       .from("user_devices")
       .select("onesignal_player_id")
@@ -152,7 +134,6 @@ serve(async (req) => {
 
     const playerIds = (devices || []).map(d => d.onesignal_player_id).filter(Boolean);
     if (playerIds.length === 0) {
-      // Pas de device → log skipped, retour OK (pas une vraie erreur)
       await admin.from("push_logs").insert({
         user_id: body.user_id || null,
         type: body.type || 'manual',
@@ -208,7 +189,6 @@ serve(async (req) => {
       status: 'sent',
     });
   } else {
-    // 1 log par player_id pour analytics fines
     const rows = playerIdsForLog.map(pid => ({
       user_id: body.user_id,
       player_id: pid,

@@ -14,6 +14,11 @@
 //     Capacitor SPM modern (header OneSignalLiveActivities-Swift.h not found).
 //   → @capacitor/push-notifications est officiel, à jour, sans compatibility issue.
 //
+// Pourquoi pas Firebase iOS SDK direct ?
+//   → Le SDK Firebase iOS pèse ~150 MB et explose le temps de build SPM.
+//     Pour de simples push notifs, l'API APNs native via Capacitor + OneSignal
+//     (qui parle APNs en backend) suffit largement.
+//
 // No-op sur web (le plugin ne fonctionne que sur iOS/Android natif).
 // ════════════════════════════════════════════════════════
 
@@ -69,19 +74,15 @@ export async function initPush() {
     // ─── Listener : push reçu pendant que l'app est en foreground ───
     PushNotifications.addListener('pushNotificationReceived', (notif) => {
       console.log('[push] notification received (foreground):', notif.title, notif.body);
-      // On pourrait afficher un toast custom ici si on veut
     });
 
     // ─── Listener : tap sur push notif (app ouverte ou fermée) ───
     PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
       console.log('[push] tap notif:', action.notification.data);
-      // Si la notif contient une URL custom, naviguer vers cette page
       const url = action.notification.data?.url;
       if (url && typeof window !== 'undefined') {
-        // Deep link vers la route correspondante
         try {
           const u = new URL(url);
-          // Si l'URL est yaram.app, on la traite comme route interne
           if (u.hostname === 'yaram.app') {
             window.location.assign(u.pathname + u.search);
           } else {
@@ -123,17 +124,14 @@ export async function requestPushPermission() {
       return { ok: false, error: 'permission_denied', state: permResult.receive };
     }
 
-    // Step 2 : register avec APNs (déclenche le listener 'registration' où
-    // on enverra le token à OneSignal via notre edge function)
+    // Step 2 : register avec APNs (déclenche le listener 'registration')
     await PushNotifications.register();
 
-    // Le device_token et player_id arrivent de manière asynchrone via le listener.
+    // Le token et player_id arrivent de manière asynchrone via le listener.
     // On attend max 5 sec qu'ils soient là.
     const playerId = await waitForPlayerId(5000);
 
     if (!playerId) {
-      // Le register est lancé mais pas encore retourné. Pas grave, le listener
-      // fera son boulot en arrière-plan.
       return { ok: true, pending: true };
     }
 
@@ -144,9 +142,6 @@ export async function requestPushPermission() {
   }
 }
 
-/**
- * Helper : attend que le player_id soit récupéré (max timeoutMs).
- */
 function waitForPlayerId(timeoutMs = 5000) {
   return new Promise((resolve) => {
     const start = Date.now();
@@ -162,17 +157,13 @@ function waitForPlayerId(timeoutMs = 5000) {
   });
 }
 
-/**
- * Envoie le device token à notre edge function register-push-device.
- * Notre backend appelle OneSignal pour créer le player + sauve en DB.
- */
 async function sendTokenToBackend(deviceToken) {
   try {
     const { data, error } = await supabase.functions.invoke('register-push-device', {
       body: {
         device_token: deviceToken,
         platform: getPlatform(),
-        app_version: '1.0.2',
+        app_version: '1.0.3',
         device_model: navigator.userAgent || null,
         language: navigator.language?.split('-')[0] || 'fr',
         timezone_offset: -new Date().getTimezoneOffset() * 60,
@@ -188,24 +179,14 @@ async function sendTokenToBackend(deviceToken) {
   }
 }
 
-/**
- * Récupère le player_id OneSignal courant si dispo.
- */
 export async function getPlayerId() {
   return cachedPlayerId;
 }
 
-/**
- * Récupère le device token APNs courant si dispo.
- */
 export async function getDeviceToken() {
   return cachedDeviceToken;
 }
 
-/**
- * Désactive les push pour ce device.
- * On flag push_enabled = false en DB pour ne plus envoyer depuis send-push-notification.
- */
 export async function setPushEnabled(enabled) {
   if (!isNativeApp()) {
     return { skipped: true };
@@ -242,3 +223,7 @@ export async function setupPushForUser(user) {
   const permRes = await requestPushPermission();
   return permRes;
 }
+
+// Aliases pour compatibilité avec le code FCM transitoire
+export const getFcmToken = getDeviceToken;
+export const getRegistrationId = getPlayerId;

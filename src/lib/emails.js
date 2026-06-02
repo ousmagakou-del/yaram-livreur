@@ -103,28 +103,72 @@ export const EmailTemplates = {
     }),
   }),
 
-  orderConfirmed: ({ firstName, order }) => ({
-    subject: `Commande ${order.id} confirmée ✓`,
-    html: layout({
-      title: 'Commande confirmée',
-      preheader: `Ta commande ${order.id} est en cours de préparation.`,
-      body: `
-        <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:${BRAND_GREEN};">Merci ${firstName} 🎉</h1>
-        <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#444;">
-          Ta commande <strong>${order.id}</strong> est confirmée. Tu recevras un WhatsApp + email à chaque étape.
+  orderConfirmed: ({ firstName, order }) => {
+    // Distinction commande standard vs preorder import
+    const isPreorder = order.is_preorder === true;
+    const leadDays = order.lead_time_days || 15;
+
+    // Détails du paiement spécifique au preorder (acompte + solde)
+    const paymentBlock = isPreorder ? `
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F0F7FF;border-left:3px solid #0066CC;border-radius:10px;padding:16px;margin:16px 0;">
+        <tr><td style="font-size:13px;color:#0066CC;font-weight:700;padding-bottom:8px;">💳 Acompte payé maintenant (50%)</td></tr>
+        <tr><td style="font-size:22px;font-weight:800;color:#0066CC;">${fcfa(order.deposit_amount || order.total / 2)}</td></tr>
+        <tr><td style="font-size:13px;color:#6B6B6B;padding:12px 0 6px;border-top:1px dashed #C7D7E8;margin-top:12px;">Solde à payer à l'arrivée (50%)</td></tr>
+        <tr><td style="font-size:18px;font-weight:700;color:#444;">${fcfa(order.balance_amount || order.total / 2)}</td></tr>
+        <tr><td style="font-size:12px;color:#888;padding-top:8px;">Paiement acompte : ${(order.payment_method || '').toUpperCase()}</td></tr>
+      </table>
+    ` : `
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F9FAFB;border-radius:10px;padding:16px;margin:16px 0;">
+        <tr><td style="font-size:13px;color:#6B6B6B;padding-bottom:8px;">Montant total</td></tr>
+        <tr><td style="font-size:24px;font-weight:800;color:${BRAND_GREEN};">${fcfa(order.total)}</td></tr>
+        <tr><td style="font-size:12px;color:#888;padding-top:4px;">Paiement : ${(order.payment_method || '').toUpperCase()}</td></tr>
+      </table>
+    `;
+
+    // Texte de livraison adapté
+    const deliveryBlock = isPreorder ? `
+      <div style="background:#FFF5E6;border-left:3px solid ${BRAND_ORANGE};padding:14px 16px;border-radius:8px;margin:16px 0;">
+        <div style="font-size:13px;font-weight:700;color:${BRAND_ORANGE};margin-bottom:6px;">✈️ Import direct YARAM</div>
+        <p style="margin:0;font-size:14px;color:#444;line-height:1.5;">
+          On commande ton produit pour toi à l'international. Délai d'arrivée à Dakar : <strong>~${leadDays} jours</strong>.
         </p>
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F9FAFB;border-radius:10px;padding:16px;margin:16px 0;">
-          <tr><td style="font-size:13px;color:#6B6B6B;padding-bottom:8px;">Montant total</td></tr>
-          <tr><td style="font-size:24px;font-weight:800;color:${BRAND_GREEN};">${fcfa(order.total)}</td></tr>
-          <tr><td style="font-size:12px;color:#888;padding-top:4px;">Paiement : ${(order.payment_method || '').toUpperCase()}</td></tr>
-        </table>
-        <p style="margin:16px 0 24px;font-size:14px;color:#444;line-height:1.6;">
-          Livraison estimée : <strong>24h ouvrées</strong> à l'adresse renseignée.
+        <p style="margin:8px 0 0;font-size:13px;color:#6B6B6B;line-height:1.5;">
+          Tu seras notifié·e à chaque étape :<br>
+          • Commande passée chez le fournisseur<br>
+          • Produit en transit international<br>
+          • Arrivé à Dakar — solde à payer<br>
+          • En livraison vers toi
         </p>
-        <div style="margin:24px 0;">${btn('Suivre ma commande', `${APP_URL}/tracking/${order.id}`)}</div>
-      `,
-    }),
-  }),
+      </div>
+    ` : `
+      <p style="margin:16px 0 24px;font-size:14px;color:#444;line-height:1.6;">
+        Livraison estimée : <strong>24h ouvrées</strong> à l'adresse renseignée.
+      </p>
+    `;
+
+    return {
+      subject: isPreorder
+        ? `✈️ Précommande ${order.id} confirmée — livraison sous ${leadDays}j`
+        : `Commande ${order.id} confirmée ✓`,
+      html: layout({
+        title: isPreorder ? 'Précommande confirmée' : 'Commande confirmée',
+        preheader: isPreorder
+          ? `Ta précommande arrive sous ${leadDays} jours. Tu paies le solde à la réception.`
+          : `Ta commande ${order.id} est en cours de préparation.`,
+        body: `
+          <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:${BRAND_GREEN};">Merci ${firstName} 🎉</h1>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#444;">
+            ${isPreorder
+              ? `Ta précommande <strong>${order.id}</strong> est confirmée. Tu recevras un WhatsApp + email à chaque étape de l'import.`
+              : `Ta commande <strong>${order.id}</strong> est confirmée. Tu recevras un WhatsApp + email à chaque étape.`}
+          </p>
+          ${paymentBlock}
+          ${deliveryBlock}
+          <div style="margin:24px 0;">${btn(isPreorder ? 'Suivre ma précommande' : 'Suivre ma commande', `${APP_URL}/order/${order.id}`)}</div>
+        `,
+      }),
+    };
+  },
 
   orderShipped: ({ firstName, order }) => ({
     subject: `🛵 Commande ${order.id} en route`,
@@ -139,7 +183,7 @@ export const EmailTemplates = {
         <p style="margin:16px 0;font-size:14px;color:#444;">
           💵 Paiement à la livraison : <strong>${fcfa(order.total)}</strong>
         </p>
-        <div style="margin:24px 0;">${btn('Suivre en temps réel', `${APP_URL}/tracking/${order.id}`)}</div>
+        <div style="margin:24px 0;">${btn('Suivre en temps réel', `${APP_URL}/order/${order.id}`)}</div>
       `,
     }),
   }),
@@ -157,7 +201,7 @@ export const EmailTemplates = {
         <p style="margin:16px 0;font-size:14px;color:#444;">
           Ça te dit de partager ton avis ? Ça nous aide énormément à améliorer le service et fait gagner 50 points fidélité 🎁
         </p>
-        <div style="margin:24px 0;">${btn('Noter ma livraison', `${APP_URL}/tracking/${order.id}`)}</div>
+        <div style="margin:24px 0;">${btn('Noter ma livraison', `${APP_URL}/order/${order.id}`)}</div>
       `,
     }),
   }),
