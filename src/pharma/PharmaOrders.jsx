@@ -37,32 +37,52 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
     }
   };
 
+  // ─── Helper : check si le retour RPC indique succès. Sinon toast erreur. ───
+  // Important : on ne fait QUE les notifs (WhatsApp à client + admin) si la RPC
+  // a réellement réussi. Avant : on envoyait le WhatsApp même si la RPC fail,
+  // donc l'admin recevait "commande prête" pour une commande qui ne l'était pas.
+  const rpcSucceeded = (result, opLabel) => {
+    if (result?.error) {
+      console.error(`[Pharma] ${opLabel} RPC error:`, result.error);
+      toast.error(`Erreur ${opLabel} : ${result.error.message || 'RPC en échec'}`);
+      return false;
+    }
+    if (result?.data?.success === false) {
+      console.error(`[Pharma] ${opLabel} RPC returned failure:`, result.data);
+      toast.error(`Refusé : ${result.data.error || 'opération non autorisée'}`);
+      return false;
+    }
+    return true;
+  };
+
   const handleAccept = async (order) => {
     if (!(await confirmDialog(`Accepter cette commande ${order.id} ?`, { confirmLabel: 'Accepter' }))) return;
-    await acceptOrder(order.id, pharmacyId);
-    
-    // WhatsApp à la cliente
+    const result = await acceptOrder(order.id, pharmacyId);
+    if (!rpcSucceeded(result, 'acceptation')) return;
+
+    // WhatsApp à la cliente (uniquement si RPC OK)
     if (order.address?.phone) {
       const msg = `Salut ${order.address.name} 💚\n\nTa commande ${order.id} a été acceptée par ${pharmacyName} et est en préparation. On te tient au courant !\n\nYARAM`;
       sendWhatsApp(order.address.phone, msg).then(r => console.log('Accept notif:', r));
     }
-    
+
     setSelectedOrder(null);
     refresh();
   };
 
   const handleRefuse = async (order, reason) => {
-    await refuseOrder(order.id, reason);
-    
+    const result = await refuseOrder(order.id, reason);
+    if (!rpcSucceeded(result, 'refus')) return;
+
     // WhatsApp à la cliente
     if (order.address?.phone) {
       const msg = `Salut ${order.address.name}\n\nMalheureusement ${pharmacyName} ne peut pas honorer ta commande ${order.id} : ${reason}.\n\nYARAM va te rembourser et te proposer une autre pharmacie. On te recontacte rapidement.\n\nYARAM 💚`;
       sendWhatsApp(order.address.phone, msg).then(r => console.log('Refuse notif:', r));
     }
-    
+
     // WhatsApp à YARAM admin
     sendWhatsApp(getWhatsAppIntl(), `⚠️ REFUS YARAM\n\n${pharmacyName} a refusé la commande ${order.id}\nMotif : ${reason}\n\nClient : ${order.address?.name} · ${order.address?.phone}\nMontant : ${order.total?.toLocaleString('fr-FR')} FCFA`);
-    
+
     setRefusing(null);
     setSelectedOrder(null);
     refresh();
@@ -70,11 +90,12 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
 
   const handleReady = async (order) => {
     if (!(await confirmDialog('Marquer cette commande prête à livrer ?', { confirmLabel: 'Prête' }))) return;
-    await markOrderReady(order.id);
-    
-    // WhatsApp à YARAM admin pour assigner livreur
+    const result = await markOrderReady(order.id);
+    if (!rpcSucceeded(result, 'marquage prêt')) return;
+
+    // WhatsApp à YARAM admin pour assigner livreur (uniquement si RPC OK)
     sendWhatsApp(getWhatsAppIntl(), `✅ Commande ${order.id} prête chez ${pharmacyName}\n\nClient : ${order.address?.name}\n📍 ${order.address?.line}, ${order.address?.city}\n💰 ${order.total?.toLocaleString('fr-FR')} FCFA${order.payment_method === 'cod' ? ' (Cash)' : ''}\n\n👉 Assigne un livreur !`);
-    
+
     refresh();
   };
 
