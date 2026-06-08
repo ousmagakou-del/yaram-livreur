@@ -84,40 +84,61 @@ export default function Payment({ orderId }) {
   const handlePay = async () => {
     setPaying(true);
     try {
-      // 1. Marque la commande comme payée (SEULE opération bloquante).
-      //    Timeout 12s : si la RPC Supabase hang (réseau africain capricieux),
-      //    on plante proprement au lieu de bloquer "Confirmation..." à l'infini.
-      const UPDATE_TIMEOUT_MS = 12000;
-      const updatePromise = updateOrderStatus(orderId, 'paid');
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Réseau lent — réessaie dans un instant')), UPDATE_TIMEOUT_MS)
-      );
-      const result = await Promise.race([updatePromise, timeoutPromise]);
+      // ─── 1. Marque la commande payée — avec timeout généreux + retry auto ───
+      // 30s par tentative × 2 tentatives = 60s max. Réseau LTE sénégalais peut
+      // mettre 15-25s sur une RPC Supabase un jour de surcharge tour télécom.
+      // Avant : 12s → trop court, le user voyait "Réseau lent" alors que la
+      // requête aurait fini si on avait juste attendu un peu plus.
+      const UPDATE_TIMEOUT_MS = 30000;
+      const MAX_ATTEMPTS = 2;
+
+      const callWithTimeout = () => {
+        const p = updateOrderStatus(orderId, 'paid');
+        const t = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), UPDATE_TIMEOUT_MS)
+        );
+        return Promise.race([p, t]);
+      };
+
+      let result, lastErr;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          result = await callWithTimeout();
+          lastErr = null;
+          break; // succès, on sort de la boucle
+        } catch (e) {
+          lastErr = e;
+          console.warn(`[Payment] attempt ${attempt}/${MAX_ATTEMPTS} failed:`, e?.message);
+          if (attempt < MAX_ATTEMPTS) {
+            // Petit délai avant retry (laisse la connexion respirer)
+            await new Promise(r => setTimeout(r, 1500));
+          }
+        }
+      }
+
+      if (lastErr) {
+        // Les 2 tentatives ont échoué — on affiche un message clair
+        throw new Error('Réseau trop lent. Réessaie dans 30 secondes ou contacte-nous WhatsApp.');
+      }
 
       // updateOrderStatus retourne { error } ou { data } — pas un throw.
-      // Faut explicitement vérifier sinon on continue silencieusement sur erreur.
       if (result?.error) {
         throw new Error(result.error.message || 'Échec de la confirmation');
       }
 
-      // 2. Navigation immédiate vers le tracking — l'utilisateur voit
-      //    son écran de suivi en < 1s au lieu d'attendre 5-10s les notifs.
+      // ─── 2. Navigation immédiate vers le tracking ───
       toast.success('Paiement confirmé');
-      // Reset paying AVANT navigate (sinon si nav échoue silencieuse, on reste bloqué)
       setPaying(false);
       navigate({ name: 'order_tracking', params: { orderId } });
 
-      // 3. ─── NOTIFS post-paiement FIRE-AND-FORGET ───
-      //    On NE FAIT PAS d'await ici. Si une notif fail/hang ça reste invisible
-      //    pour l'utilisateur. Les Promises continuent en background même après
-      //    le démontage du composant.
+      // ─── 3. Notifs post-paiement FIRE-AND-FORGET ───
       runPostPaidNotifications({ orderId, order, user }).catch(e => {
         console.warn('[Payment] post-paid notifs swallowed error:', e?.message);
       });
     } catch (e) {
       console.error('[Payment] handlePay error:', e);
       setPaying(false);
-      toast.error('Erreur : ' + (e?.message || 'inconnue'));
+      toast.error(e?.message || 'Erreur inconnue');
     }
   };
 
