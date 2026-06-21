@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSiteSettings, updateSiteSettings } from '../lib/supabase';
+import { getSiteSettings, updateSiteSettings, uploadBannerImage } from '../lib/supabase';
 import { toast, confirmDialog } from '../lib/toast';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,12 +50,44 @@ const DEFAULTS = {
   heroSubColor: '#4A1B0C',
   heroCtaLabel: 'Découvrir les promos',
   heroCtaRoute: 'promos',
+  // ─── Cycles d'animation (3 phrases séparées par | pour chaque ligne) ───
+  heroLine1Cycle: 'ZÉRO|100%|LIVRAISON',
+  heroLine2Cycle: 'FRAIS DE|AUTHENTIQUE|EN 1H30',
+  heroLine3Cycle: 'SERVICE|MARQUES|CHRONO',
+  // ─── Boutique internationale ───
+  intlBgImage: '',
 };
 
 export default function SettingsSection() {
   const [settings, setSettings] = useState(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingIntl, setUploadingIntl] = useState(false);
+
+  // ─── Upload image fond pour Boutique internationale ───
+  const handleIntlBgUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingIntl(true);
+    try {
+      const url = await uploadBannerImage(file);
+      if (url) {
+        setSettings(s => ({ ...s, intlBgImage: url }));
+        toast.success('Image uploadée — clique sur Enregistrer pour appliquer');
+      }
+    } catch (err) {
+      toast.error('Upload échoué : ' + (err?.message || 'erreur'), { duration: 7000 });
+    } finally {
+      setUploadingIntl(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleIntlBgClear = async () => {
+    if (!(await confirmDialog('Retirer l\'image de fond ?', { confirmLabel: 'Retirer' }))) return;
+    setSettings(s => ({ ...s, intlBgImage: '' }));
+    toast.success('Image retirée — clique sur Enregistrer pour appliquer');
+  };
 
   useEffect(() => {
     (async () => {
@@ -224,6 +256,103 @@ export default function SettingsSection() {
                 </select>
               </label>
             </div>
+
+            {/* ────── ANIMATION : 3 lignes qui cyclent toutes les 2.6s ────── */}
+            <div style={{
+              marginTop: 18,
+              padding: 14,
+              background: '#FFFBEB',
+              border: '1.5px dashed #F4B53A',
+              borderRadius: 12,
+            }}>
+              <h4 style={{ margin: '0 0 6px', fontSize: 14 }}>✨ Animation des 3 lignes (cycle)</h4>
+              <p style={{ fontSize: 12, color: '#6B6B6B', margin: '0 0 10px', lineHeight: 1.5 }}>
+                Sépare les phrases par <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 4 }}>|</code>.
+                Chaque ligne cycle indépendamment toutes les 2,6 s.
+                Exemple : <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 4 }}>ZÉRO|100%|LIVRAISON</code>
+              </p>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label>Ligne 1 — cycle
+                  <input
+                    value={settings.heroLine1Cycle || ''}
+                    onChange={e => setSettings({ ...settings, heroLine1Cycle: e.target.value })}
+                    placeholder="ZÉRO|100%|LIVRAISON"
+                  />
+                </label>
+                <label>Ligne 2 — cycle
+                  <input
+                    value={settings.heroLine2Cycle || ''}
+                    onChange={e => setSettings({ ...settings, heroLine2Cycle: e.target.value })}
+                    placeholder="FRAIS DE|AUTHENTIQUE|EN 1H30"
+                  />
+                </label>
+                <label>Ligne 3 — cycle
+                  <input
+                    value={settings.heroLine3Cycle || ''}
+                    onChange={e => setSettings({ ...settings, heroLine3Cycle: e.target.value })}
+                    placeholder="SERVICE|MARQUES|CHRONO"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* ════════ BLOC : Boutique internationale ════════ */}
+          <div className="adm-form-section">
+            <h3>🌍 Boutique internationale</h3>
+            <p style={{ fontSize: 13, color: '#6B6B6B', margin: '0 0 14px' }}>
+              Image de fond personnalisée pour la card "Boutique internationale" sur Home.
+              Si vide, gradient bleu nuit par défaut.
+            </p>
+
+            <div style={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '16 / 9',
+              borderRadius: 14,
+              overflow: 'hidden',
+              background: settings.intlBgImage
+                ? `url(${settings.intlBgImage}) center/cover`
+                : 'linear-gradient(155deg, #002F66 0%, #003F88 30%, #00498A 60%, #002a5c 100%)',
+              marginBottom: 12,
+              border: '1px solid #E2E2E0',
+            }}>
+              {!settings.intlBgImage && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}>Aucune image · gradient par défaut</div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label className="adm-btn-sec" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {uploadingIntl ? '⏳ Upload…' : '📤 Uploader une image'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleIntlBgUpload}
+                  disabled={uploadingIntl}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              {settings.intlBgImage && (
+                <button className="adm-btn-sec" onClick={handleIntlBgClear} type="button">
+                  🗑 Retirer
+                </button>
+              )}
+            </div>
+
+            <p style={{ fontSize: 11, color: '#999', margin: '10px 0 0' }}>
+              Recommandé : 1200×675px ou plus, format paysage 16:9, JPG/PNG.
+              L'image est compressée automatiquement à 1200px max côté long.
+            </p>
           </div>
 
           <div className="adm-form-section">

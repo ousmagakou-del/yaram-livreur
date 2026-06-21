@@ -1,7 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNav } from '../App';
 import { getCachedSetting, subscribeSettings, getAllPharmacies } from '../lib/supabase';
 import './HeroBanner.css';
+
+// ─── Cycle interval : combien de temps chaque trio reste affiché ───
+const CYCLE_INTERVAL_MS = 2600;
+
+// ─── Parse "Phrase 1|Phrase 2|Phrase 3" → ['Phrase 1', 'Phrase 2', 'Phrase 3']
+function parseCycle(raw, fallbackArr) {
+  if (!raw) return fallbackArr;
+  if (Array.isArray(raw)) return raw.filter(Boolean);
+  return String(raw).split('|').map(s => s.trim()).filter(Boolean);
+}
 
 // ─── Hero banner Home — éditable depuis Admin → Settings → Hero ───────
 // Lit les 12 clés heroXxx dans site_settings (fallback ds SETTINGS_FALLBACK).
@@ -27,11 +37,18 @@ const SPARKS = [
 export default function HeroBanner({ showPharmaCards = true }) {
   const { navigate } = useNav();
   const [tick, setTick] = useState(0); // force re-render quand settings change
+  const [cycleIdx, setCycleIdx] = useState(0); // index des phrases qui cyclent
   const [pharmas, setPharmas] = useState([]);
 
   // ─── Live update : si l'admin save le hero, on re-render ───
   useEffect(() => {
     return subscribeSettings(() => setTick(t => t + 1));
+  }, []);
+
+  // ─── Tick anim 3 lignes : chaque ligne change toutes les 2.6s ───
+  useEffect(() => {
+    const t = setInterval(() => setCycleIdx(i => i + 1), CYCLE_INTERVAL_MS);
+    return () => clearInterval(t);
   }, []);
 
   // ─── Charger les 4 premières pharmacies actives pour les cards promo ───
@@ -57,6 +74,26 @@ export default function HeroBanner({ showPharmaCards = true }) {
   const line2    = getCachedSetting('heroLine2');
   const line3    = getCachedSetting('heroLine3');
   const sub      = getCachedSetting('heroSubtext');
+
+  // ─── Cycles d'animation des 3 lignes ───
+  // Si l'admin n'a pas configuré, on cycle quand même entre la valeur statique
+  // (heroLine1/2/3) et 2 autres phrases par défaut → toujours animé.
+  const cycle1 = useMemo(() => {
+    const raw = getCachedSetting('heroLine1Cycle');
+    return parseCycle(raw, [line1 || 'ZÉRO', '100%', 'LIVRAISON']);
+  }, [line1, tick]);
+  const cycle2 = useMemo(() => {
+    const raw = getCachedSetting('heroLine2Cycle');
+    return parseCycle(raw, [line2 || 'FRAIS DE', 'AUTHENTIQUE', 'EN 1H30']);
+  }, [line2, tick]);
+  const cycle3 = useMemo(() => {
+    const raw = getCachedSetting('heroLine3Cycle');
+    return parseCycle(raw, [line3 || 'SERVICE', 'MARQUES', 'CHRONO']);
+  }, [line3, tick]);
+
+  const curr1 = cycle1[cycleIdx % cycle1.length];
+  const curr2 = cycle2[cycleIdx % cycle2.length];
+  const curr3 = cycle3[cycleIdx % cycle3.length];
   const bg       = getCachedSetting('heroBackground');
   const c1       = getCachedSetting('heroLine1Color');
   const c2       = getCachedSetting('heroLineColor');
@@ -97,17 +134,35 @@ export default function HeroBanner({ showPharmaCards = true }) {
         </span>
       ))}
 
-      {/* Contenu */}
+      {/* Contenu — 3 lignes XXL avec animation cyclique (key change = remount + anim) */}
       <div className="yhero-content">
-        {line1 && (
-          <div className="yhero-line yhero-line-1" style={{ color: c1 }}>{line1}</div>
-        )}
-        {line2 && (
-          <div className="yhero-line yhero-line-2" style={{ color: c2 }}>{line2}</div>
-        )}
-        {line3 && (
-          <div className="yhero-line yhero-line-3" style={{ color: c2 }}>{line3}</div>
-        )}
+        <div className="yhero-line-slot">
+          <div
+            key={`l1-${cycleIdx}`}
+            className="yhero-line yhero-line-1 yhero-line-anim"
+            style={{ color: c1 }}
+          >
+            {curr1}
+          </div>
+        </div>
+        <div className="yhero-line-slot">
+          <div
+            key={`l2-${cycleIdx}`}
+            className="yhero-line yhero-line-2 yhero-line-anim"
+            style={{ color: c2, animationDelay: '0.15s' }}
+          >
+            {curr2}
+          </div>
+        </div>
+        <div className="yhero-line-slot">
+          <div
+            key={`l3-${cycleIdx}`}
+            className="yhero-line yhero-line-3 yhero-line-anim"
+            style={{ color: c2, animationDelay: '0.30s' }}
+          >
+            {curr3}
+          </div>
+        </div>
         {sub && (
           <div
             className="yhero-sub"

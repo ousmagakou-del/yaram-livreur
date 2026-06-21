@@ -39,6 +39,48 @@
 .yhero-line-2 { font-size: 52px; }
 .yhero-line-3 { font-size: 52px; }
 
+/* ─── Slot qui contient la ligne animée (clip pour effet rideau) ───── */
+.yhero-line-slot {
+  position: relative;
+  overflow: hidden;
+  margin-top: 2px;
+  /* hauteur calée sur la font-size de la ligne enfant */
+}
+
+/* ─── Animation 3 lignes : slide-up + reveal "rideau" ─── */
+.yhero-line-anim {
+  display: block;
+  animation:
+    yhero-line-slide 0.65s cubic-bezier(0.22, 1, 0.36, 1) both,
+    yhero-line-glow  0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes yhero-line-slide {
+  0% {
+    transform: translateY(110%);
+    opacity: 0;
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes yhero-line-glow {
+  0%, 90% { text-shadow: none; }
+  50%     { text-shadow: 0 0 18px rgba(255, 255, 255, 0.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yhero-line-anim { animation: none; }
+}
+
 .yhero-sub {
   display: inline-block;
   margin-top: 14px;

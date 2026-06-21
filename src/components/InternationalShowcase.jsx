@@ -7,7 +7,9 @@
    • Shine effect qui passe une fois toutes les 6s
    ═══════════════════════════════════════════════════════════════════ */
 
+import { useEffect, useState } from 'react';
 import { useNav } from '../App';
+import { getCachedSetting, subscribeSettings } from '../lib/supabase';
 import './InternationalShowcase.css';
 
 const SHOWCASE_BRANDS = [
@@ -23,6 +25,13 @@ const SHOWCASE_BRANDS = [
 
 export default function InternationalShowcase() {
   const { navigate } = useNav();
+  const [, forceRender] = useState(0);
+
+  // ─── Live update sur changement de settings (image fond admin) ───
+  useEffect(() => subscribeSettings(() => forceRender(t => t + 1)), []);
+
+  const bgImage = getCachedSetting('intlBgImage');
+  const hasCustomBg = bgImage && String(bgImage).trim().length > 0;
 
   const handleOpen = () => {
     if (navigator.vibrate) navigator.vibrate(30);
@@ -31,16 +40,17 @@ export default function InternationalShowcase() {
 
   return (
     <section className="yhome-section">
-      <button className="intl-card" onClick={handleOpen} aria-label="Boutique internationale">
-        {/* Backdrop décoratif (aurora gradient + globe géant) */}
+      <button
+        className={`intl-card ${hasCustomBg ? 'intl-card--has-bg' : ''}`}
+        onClick={handleOpen}
+        aria-label="Boutique internationale"
+        style={hasCustomBg ? { backgroundImage: `url(${bgImage})` } : undefined}
+      >
+        {/* Backdrop décoratif (aurora gradient + globe géant — visible si pas d'image) */}
         <div className="intl-aurora" aria-hidden />
         <div className="intl-globe" aria-hidden>🌍</div>
-
-        {/* Header pill : nouveau service */}
-        <div className="intl-pill">
-          <span className="intl-pill-dot" />
-          <span>Nouveau service · disponible</span>
-        </div>
+        {/* Overlay sombre pour garder la lisibilité quand image custom */}
+        {hasCustomBg && <div className="intl-bg-overlay" aria-hidden />}
 
         {/* Titre + sous-titre */}
         <h2 className="intl-title">

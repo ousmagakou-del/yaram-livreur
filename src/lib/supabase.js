@@ -73,6 +73,14 @@ const SETTINGS_FALLBACK = {
   heroSubColor: '#4A1B0C',
   heroCtaLabel: 'Découvrir les promos',
   heroCtaRoute: 'promos',
+  // ─── Hero — cycles d'animation des 3 lignes (phrases séparées par |) ───
+  // Si rempli, chaque ligne cycle entre ces phrases (2.6s par cycle).
+  // Format : "Phrase 1|Phrase 2|Phrase 3"
+  heroLine1Cycle: 'ZÉRO|100%|LIVRAISON',
+  heroLine2Cycle: 'FRAIS DE|AUTHENTIQUE|EN 1H30',
+  heroLine3Cycle: 'SERVICE|MARQUES|CHRONO',
+  // ─── Boutique internationale — image de fond éditable (URL Supabase) ──
+  intlBgImage: '',
 };
 let settingsCache = { ...SETTINGS_FALLBACK };
 const settingsListeners = new Set();

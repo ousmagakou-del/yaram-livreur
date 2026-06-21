@@ -29,6 +29,29 @@
   transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ─── Variante avec image custom uploadée par l'admin ─── */
+.intl-card--has-bg {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Overlay sombre + gradient pour garder lisibilité texte/CTA blanc */
+.intl-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(155deg,
+    rgba(0, 31, 66, 0.72) 0%,
+    rgba(0, 47, 102, 0.62) 40%,
+    rgba(0, 30, 70, 0.78) 100%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Si image custom, on attenue l'aurora pour pas avoir un mix visuellement chargé */
+.intl-card--has-bg .intl-aurora { opacity: 0.35; }
+.intl-card--has-bg .intl-globe  { opacity: 0.06; }
+
 .intl-card:active {
   transform: scale(0.985);
 }

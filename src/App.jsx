@@ -25,7 +25,9 @@ import Notifications from './pages/Notifications';
 import Promos from './pages/Promos';
 import Help from './pages/Help';
 import InstallPrompt from './components/InstallPrompt';
-import WhatsAppButton from './components/WhatsAppButton';
+// FAB WhatsApp retiré (juin 2026) — le contact WhatsApp est accessible
+// depuis Profile → Support → "WhatsApp YARAM" et page Help.
+// import WhatsAppButton from './components/WhatsAppButton';
 import Toaster from './components/Toaster';
 import InterstitialPromo from './components/InterstitialPromo';
 import { getNextPromo, computeUserStats } from './lib/promos';
@@ -594,7 +596,6 @@ function ClientApp() {
           <div className="app-shell">
             <Onboarding onComplete={refreshUser} />
             <InstallPrompt />
-            <WhatsAppButton />
           </div>
           <Toaster />
         </UserContext.Provider>
@@ -612,7 +613,6 @@ function ClientApp() {
               <SkinQuiz onComplete={refreshUser} />
             </Suspense>
             <InstallPrompt />
-            <WhatsAppButton />
           </div>
           <Toaster />
         </UserContext.Provider>
@@ -674,7 +674,6 @@ function ClientApp() {
             <Suspense fallback={<LazyFallback />} key={pageKey}>{page}</Suspense>
           </ErrorBoundary>
           <InstallPrompt />
-          <WhatsAppButton />
         </div>
         <NetworkStatus />
         <Toaster />
