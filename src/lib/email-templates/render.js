@@ -32,6 +32,7 @@ async function loadTemplates() {
     'payment-received': mod.paymentReceivedHtml,
     shipping: mod.shippingHtml,
     delivered: mod.deliveredHtml,
+    'newsletter-products': mod.newsletterProductsHtml,
   };
   return _cachedTemplates;
 }

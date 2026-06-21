@@ -15,6 +15,7 @@ import { onboardingD30Email } from './email-templates/onboarding-d30';
 // Les versions legacy `welcome`, `orderConfirmed` restent dispo pour compat.
 import { renderEmail } from './email-templates/render';
 import { schemaOrderConfirmation, schemaDelivered, schemaShippingUpdate } from './email-templates/schema';
+import { renderProductsGrid } from './email-templates/productsGrid';
 
 const APP_URL = 'https://yaram.app';
 const BRAND_GREEN = '#1F8B4C';

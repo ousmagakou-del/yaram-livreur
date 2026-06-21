@@ -6,6 +6,8 @@ import {
   sendNewsletter,
 } from '../lib/newsletterAdmin';
 import { adminLogAction } from '../lib/adminApi';
+import { buildNewsletterHtml } from '../lib/email-templates/buildNewsletter';
+import { supabase } from '../lib/supabase';
 
 // ─── Templates prêts-à-l'emploi (style YARAM, vert #1F8B4C) ────
 const TEMPLATES = [
@@ -112,6 +114,98 @@ export default function NewsletterSection() {
   const [sending, setSending]     = useState(false);
   const [preview, setPreview]     = useState(false);
   const [lastResult, setLastResult] = useState(null);
+
+  // ─── STUDIO MODE ────────────────────────────────────
+  // Permet à l'admin de composer une newsletter VISUELLEMENT au lieu
+  // d'écrire du HTML : choix produits + form sections, on génère le HTML.
+  const [mode, setMode] = useState('studio'); // 'studio' | 'html'
+  const [studio, setStudio] = useState({
+    eyebrow: 'CETTE SEMAINE CHEZ YARAM',
+    title: 'Nos coups de cœur',
+    intro: "Une sélection chinée pour toi, validée par nos dermatos.",
+    heroCtaLabel: 'Faire mon scan IA peau',
+    heroCtaUrl: 'https://yaram.app/?route=scan',
+    productsEyebrow: 'SÉLECTION DU MOMENT',
+    productsTitle: '6 produits à découvrir',
+    shopCtaLabel: 'Tout le catalogue →',
+    shopCtaUrl: 'https://yaram.app',
+    outro: "À très vite,\nL'équipe YARAM 💚",
+  });
+  const [studioProducts, setStudioProducts] = useState([]);
+  const [productPicker, setProductPicker] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [generatingPreview, setGeneratingPreview] = useState(false);
+
+  // ─── Studio: récupère le catalogue de produits actifs au mount ───
+  useEffect(() => {
+    if (!productPicker) return;
+    let cancel = false;
+    (async () => {
+      setProductsLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, brand, price, score, img, image_url, old_price')
+        .eq('active', true)
+        .eq('status', 'approved')
+        .order('score', { ascending: false, nullsFirst: false })
+        .limit(120);
+      if (cancel) return;
+      if (error) toast.error('Catalogue : ' + error.message);
+      setAvailableProducts(data || []);
+      setProductsLoading(false);
+    })();
+    return () => { cancel = true; };
+  }, [productPicker]);
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearch.trim()) return availableProducts;
+    const q = productSearch.toLowerCase();
+    return availableProducts.filter(p =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.brand || '').toLowerCase().includes(q)
+    );
+  }, [availableProducts, productSearch]);
+
+  const toggleStudioProduct = (p) => {
+    setStudioProducts(prev => {
+      const exists = prev.some(x => x.id === p.id);
+      if (exists) return prev.filter(x => x.id !== p.id);
+      if (prev.length >= 6) {
+        toast.error('Max 6 produits par newsletter');
+        return prev;
+      }
+      return [...prev, p];
+    });
+  };
+
+  // ─── Génère le HTML de la newsletter studio + injecte dans le composeur ───
+  const generateFromStudio = async () => {
+    if (studioProducts.length === 0) return toast.error('Sélectionne au moins 1 produit');
+    setGeneratingPreview(true);
+    try {
+      const { html: generated } = await buildNewsletterHtml({
+        eyebrow: studio.eyebrow,
+        title: studio.title,
+        intro: studio.intro,
+        products: studioProducts,
+        heroCta: { label: studio.heroCtaLabel, url: studio.heroCtaUrl },
+        shopCta: { label: studio.shopCtaLabel, url: studio.shopCtaUrl },
+        productsEyebrow: studio.productsEyebrow,
+        productsTitle: studio.productsTitle,
+        outro: studio.outro,
+      });
+      setHtml(generated);
+      if (!subject.trim()) setSubject(studio.title);
+      setPreview(true);
+      toast.success('✓ Aperçu généré');
+    } catch (e) {
+      toast.error('Erreur génération : ' + (e?.message || 'inconnue'));
+    } finally {
+      setGeneratingPreview(false);
+    }
+  };
 
   // ─── Load stats au mount + après envoi ───
   const refreshStats = async () => {
@@ -330,7 +424,195 @@ export default function NewsletterSection() {
       {tab === 'compose' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }}>
           <div>
-            {/* Templates */}
+            {/* Mode switch : Studio (premium) vs HTML brut (legacy) */}
+            <div style={{
+              display: 'flex', gap: 4, marginBottom: 16, padding: 4,
+              background: '#F4F4F2', borderRadius: 10, width: 'fit-content',
+            }}>
+              <button
+                onClick={() => setMode('studio')}
+                style={{
+                  padding: '8px 16px', fontSize: 13, fontWeight: 700,
+                  background: mode === 'studio' ? 'white' : 'transparent',
+                  color: mode === 'studio' ? '#1F8B4C' : '#666',
+                  border: 'none', borderRadius: 8, cursor: 'pointer',
+                  boxShadow: mode === 'studio' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                🎨 Studio premium
+              </button>
+              <button
+                onClick={() => setMode('html')}
+                style={{
+                  padding: '8px 16px', fontSize: 13, fontWeight: 700,
+                  background: mode === 'html' ? 'white' : 'transparent',
+                  color: mode === 'html' ? '#1F8B4C' : '#666',
+                  border: 'none', borderRadius: 8, cursor: 'pointer',
+                  boxShadow: mode === 'html' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                ✏️ HTML brut
+              </button>
+            </div>
+
+            {/* ─── STUDIO ────────────────────────────────────── */}
+            {mode === 'studio' && (
+              <div style={{ background: 'white', borderRadius: 14, padding: 18, border: '1px solid #EFEFEF', marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#888', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  ① Contenu
+                </div>
+                <input
+                  type="text"
+                  value={studio.eyebrow}
+                  onChange={e => setStudio({ ...studio, eyebrow: e.target.value })}
+                  placeholder="Petit eyebrow (CETTE SEMAINE…)"
+                  style={{ width: '100%', padding: 10, fontSize: 13, border: '1px solid #DDD', borderRadius: 8, marginBottom: 8, boxSizing: 'border-box' }}
+                />
+                <input
+                  type="text"
+                  value={studio.title}
+                  onChange={e => setStudio({ ...studio, title: e.target.value })}
+                  placeholder="Grand titre H1"
+                  style={{ width: '100%', padding: 10, fontSize: 15, fontWeight: 700, border: '1px solid #DDD', borderRadius: 8, marginBottom: 8, boxSizing: 'border-box' }}
+                />
+                <textarea
+                  value={studio.intro}
+                  onChange={e => setStudio({ ...studio, intro: e.target.value })}
+                  placeholder="Intro courte (1-2 phrases)"
+                  rows={2}
+                  style={{ width: '100%', padding: 10, fontSize: 13, border: '1px solid #DDD', borderRadius: 8, marginBottom: 8, boxSizing: 'border-box', resize: 'vertical' }}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    value={studio.heroCtaLabel}
+                    onChange={e => setStudio({ ...studio, heroCtaLabel: e.target.value })}
+                    placeholder="Label CTA principal"
+                    style={{ padding: 10, fontSize: 12, border: '1px solid #DDD', borderRadius: 8, boxSizing: 'border-box' }}
+                  />
+                  <input
+                    type="text"
+                    value={studio.heroCtaUrl}
+                    onChange={e => setStudio({ ...studio, heroCtaUrl: e.target.value })}
+                    placeholder="URL CTA principal"
+                    style={{ padding: 10, fontSize: 12, border: '1px solid #DDD', borderRadius: 8, boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#888', margin: '16px 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  ② Produits ({studioProducts.length}/6)
+                </div>
+                {studioProducts.length === 0 ? (
+                  <div style={{ padding: 24, background: '#FAFAFA', border: '2px dashed #DDD', borderRadius: 10, textAlign: 'center', color: '#999', fontSize: 13 }}>
+                    Aucun produit sélectionné
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                    {studioProducts.map(p => (
+                      <div key={p.id} style={{
+                        position: 'relative', background: 'white', border: '1px solid #EFEFEF',
+                        borderRadius: 10, overflow: 'hidden',
+                      }}>
+                        <img src={p.img || p.image_url || '/icon-192.png'} alt={p.name}
+                          style={{ width: '100%', aspectRatio: '1', objectFit: 'cover' }} />
+                        <div style={{ padding: 6 }}>
+                          <div style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>{p.brand}</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.2 }}>{p.name?.slice(0, 30)}</div>
+                          <div style={{ fontSize: 11, color: '#1F8B4C', fontWeight: 700, marginTop: 2 }}>{Number(p.price || 0).toLocaleString('fr-FR')} F</div>
+                        </div>
+                        <button
+                          onClick={() => toggleStudioProduct(p)}
+                          style={{
+                            position: 'absolute', top: 4, right: 4,
+                            width: 22, height: 22, borderRadius: 11,
+                            background: 'rgba(217, 52, 43, 0.95)', color: 'white',
+                            border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                          aria-label="Retirer"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => setProductPicker(true)}
+                  style={{
+                    width: '100%', marginTop: 10, padding: 12, fontSize: 13, fontWeight: 700,
+                    background: '#1F8B4C', color: 'white', border: 'none',
+                    borderRadius: 10, cursor: 'pointer',
+                  }}
+                >
+                  + Ajouter des produits
+                </button>
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#888', margin: '20px 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  ③ Section produits
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <input
+                    type="text"
+                    value={studio.productsEyebrow}
+                    onChange={e => setStudio({ ...studio, productsEyebrow: e.target.value })}
+                    placeholder="Eyebrow"
+                    style={{ padding: 10, fontSize: 12, border: '1px solid #DDD', borderRadius: 8, boxSizing: 'border-box' }}
+                  />
+                  <input
+                    type="text"
+                    value={studio.productsTitle}
+                    onChange={e => setStudio({ ...studio, productsTitle: e.target.value })}
+                    placeholder="Titre"
+                    style={{ padding: 10, fontSize: 12, border: '1px solid #DDD', borderRadius: 8, boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#888', margin: '20px 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  ④ Fin de mail
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    value={studio.shopCtaLabel}
+                    onChange={e => setStudio({ ...studio, shopCtaLabel: e.target.value })}
+                    placeholder="Label CTA secondaire"
+                    style={{ padding: 10, fontSize: 12, border: '1px solid #DDD', borderRadius: 8, boxSizing: 'border-box' }}
+                  />
+                  <input
+                    type="text"
+                    value={studio.shopCtaUrl}
+                    onChange={e => setStudio({ ...studio, shopCtaUrl: e.target.value })}
+                    placeholder="URL CTA secondaire"
+                    style={{ padding: 10, fontSize: 12, border: '1px solid #DDD', borderRadius: 8, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <textarea
+                  value={studio.outro}
+                  onChange={e => setStudio({ ...studio, outro: e.target.value })}
+                  placeholder="Signature / outro"
+                  rows={2}
+                  style={{ width: '100%', padding: 10, fontSize: 12, border: '1px solid #DDD', borderRadius: 8, boxSizing: 'border-box', resize: 'vertical' }}
+                />
+
+                <button
+                  onClick={generateFromStudio}
+                  disabled={generatingPreview || studioProducts.length === 0}
+                  style={{
+                    width: '100%', marginTop: 16, padding: 14,
+                    background: generatingPreview || studioProducts.length === 0
+                      ? '#999'
+                      : 'linear-gradient(135deg,#1F8B4C 0%,#0E5B33 100%)',
+                    color: 'white', border: 'none',
+                    borderRadius: 10, fontWeight: 800, cursor: 'pointer',
+                    fontSize: 15, boxShadow: '0 4px 12px rgba(31,139,76,0.25)',
+                  }}
+                >
+                  {generatingPreview ? 'Génération…' : '🎨 Générer l\'aperçu HTML'}
+                </button>
+              </div>
+            )}
+
+            {/* Templates rapides (mode HTML brut uniquement) */}
+            {mode === 'html' && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Templates rapides
@@ -355,6 +637,7 @@ export default function NewsletterSection() {
                 ))}
               </div>
             </div>
+            )}
 
             {/* Sujet */}
             <label style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -639,6 +922,99 @@ export default function NewsletterSection() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ════════════ MODALE SÉLECTION PRODUITS (Studio) ════════════ */}
+      {productPicker && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setProductPicker(false); }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+            zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div style={{
+            background: 'white', borderRadius: 16, width: '100%', maxWidth: 880,
+            maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ padding: 20, borderBottom: '1px solid #EFEFEF', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Choisir des produits</h2>
+                <p style={{ fontSize: 12, color: '#888', margin: '4px 0 0' }}>
+                  {studioProducts.length}/6 sélectionnés · Clique pour ajouter/retirer
+                </p>
+              </div>
+              <input
+                type="text"
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                placeholder="🔍 Recherche…"
+                style={{
+                  padding: '8px 12px', fontSize: 13,
+                  border: '1px solid #DDD', borderRadius: 8, minWidth: 220,
+                }}
+              />
+              <button
+                onClick={() => setProductPicker(false)}
+                style={{
+                  padding: '8px 16px', fontSize: 13, fontWeight: 700,
+                  background: '#1F8B4C', color: 'white', border: 'none',
+                  borderRadius: 8, cursor: 'pointer',
+                }}
+              >Terminé</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+              {productsLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>Chargement du catalogue…</div>
+              ) : filteredProducts.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>Aucun produit trouvé</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                  {filteredProducts.map(p => {
+                    const selected = studioProducts.some(x => x.id === p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => toggleStudioProduct(p)}
+                        style={{
+                          position: 'relative', background: 'white',
+                          border: selected ? '3px solid #1F8B4C' : '1px solid #EFEFEF',
+                          borderRadius: 12, overflow: 'hidden', cursor: 'pointer',
+                          padding: 0, textAlign: 'left',
+                          boxShadow: selected ? '0 4px 12px rgba(31,139,76,0.2)' : 'none',
+                          transform: selected ? 'scale(0.98)' : 'scale(1)',
+                          transition: 'transform 120ms ease',
+                        }}
+                      >
+                        <div style={{ background: '#FAFAFA', aspectRatio: '1' }}>
+                          <img src={p.img || p.image_url || '/icon-192.png'}
+                            alt={p.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        </div>
+                        <div style={{ padding: 8 }}>
+                          <div style={{ fontSize: 9, color: '#888', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{p.brand}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.3, marginTop: 2, minHeight: 30, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
+                          <div style={{ fontSize: 12, color: '#1F8B4C', fontWeight: 800, marginTop: 6 }}>{Number(p.price || 0).toLocaleString('fr-FR')} FCFA</div>
+                        </div>
+                        {selected && (
+                          <div style={{
+                            position: 'absolute', top: 8, right: 8,
+                            width: 26, height: 26, borderRadius: 13,
+                            background: '#1F8B4C', color: 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 14, fontWeight: 800,
+                          }}>✓</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
