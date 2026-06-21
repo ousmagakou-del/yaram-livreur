@@ -26,6 +26,32 @@ export default function PharmaciesSection() {
 
   const handleSave = async (p) => {
     if (p.id) {
+      // ─── Garde-fou : désactivation pharmacie avec commandes en cours ───
+      // Si l'admin passe active=false et qu'il existe des commandes non-finales
+      // sur cette pharma, on affiche un confirm bloquant. Best-effort : si la
+      // query echoue (RLS, network), on laisse passer pour ne pas bloquer
+      // l'admin (mais on logge un warn).
+      const prev = pharmacies.find(x => x.id === p.id);
+      if (prev?.active && !p.active) {
+        try {
+          const { count } = await supabase
+            .from('orders')
+            .select('id', { count: 'exact', head: true })
+            .eq('pharmacy_id', p.id)
+            .in('status', ['pending_payment', 'awaiting_verification', 'paid', 'confirmed', 'preparing', 'ready', 'shipped', 'awaiting_confirm']);
+          if (count && count > 0) {
+            const ok = await confirmDialog(
+              `⚠️ Cette pharmacie a ${count} commande${count > 1 ? 's' : ''} en cours.\n` +
+              `La désactiver la rend INVISIBLE pour les nouvelles commandes, mais les commandes existantes restent actives. Continuer ?`,
+              { confirmLabel: 'Désactiver quand même', danger: true }
+            );
+            if (!ok) return;
+          }
+        } catch (e) {
+          console.warn('[PharmaciesSection] active-orders check failed:', e?.message);
+        }
+      }
+
       // Update : champs non-PIN via UPDATE direct (OK car write n'est pas restreinte
       // par notre GRANT — qui ne touche que SELECT).
       const payload = {

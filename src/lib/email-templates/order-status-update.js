@@ -69,6 +69,13 @@ const STATUS_COPY = {
     body: 'Ta commande a été annulée. Si tu as déjà payé, le remboursement est traité sous 48h. Une question ? Réponds à cet email.',
     cta: 'Voir le détail',
   },
+  refused: {
+    label: 'Paiement refusé',
+    emoji: '🚫',
+    title: 'Paiement refusé — réessaie',
+    body: 'On n\'a pas pu valider ton paiement. Pas de stress : tu peux retenter depuis l\'app. En cas de doute, réponds à cet email avec ta preuve de virement.',
+    cta: 'Réessayer le paiement',
+  },
 };
 
 export function orderStatusUpdateEmail({

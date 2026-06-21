@@ -3,6 +3,31 @@ import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken } from 
 import { adminListOrdersFull, adminUpdateOrder } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 import SignedImage from '../components/SignedImage';
+import { pushOrderStatus, pushLivreurAssigned } from '../lib/pushAdmin';
+import { sendOrderStatusUpdate } from '../lib/emails';
+
+// ─── Fire-and-forget helper (mirroring OrdersSection) ────────────────
+// Toutes les notifs admin doivent etre best-effort + timeout 4s. Si Resend
+// ou OneSignal est down, on log un warn et on continue : la UI admin ne
+// doit JAMAIS se bloquer sur une lambda externe.
+function safeFire(label, promiseFactory) {
+  try {
+    const p = promiseFactory();
+    if (!p || typeof p.then !== 'function') return;
+    const timeout = new Promise((resolve) =>
+      setTimeout(() => resolve({ success: false, error: 'timeout' }), 4000)
+    );
+    Promise.race([p, timeout])
+      .then((r) => {
+        if (r?.success === false) {
+          console.warn(`[admin/deliveries/${label}]`, r?.error || 'unknown');
+        }
+      })
+      .catch((e) => console.warn(`[admin/deliveries/${label}] crash:`, e?.message));
+  } catch (e) {
+    console.warn(`[admin/deliveries/${label}] sync crash:`, e?.message);
+  }
+}
 
 // Token livreur cryptographiquement secure (128 bits via crypto.getRandomValues)
 // Format : LIV-<24 chars base36 upper>
@@ -80,6 +105,12 @@ export default function DeliveriesSection() {
       navigator.clipboard.writeText(url);
       toast.success(`Lien copié :\n${url}`);
     }
+
+    // PUSH CLIENT : un livreur a été assigné à sa commande. C'est un signal
+    // intermédiaire (pas un change de status), best-effort. Pas d'email pour
+    // éviter le spam (l'email part au shipped quand le livreur picke).
+    safeFire('push:livreur_assigned', () => pushLivreurAssigned(order, name));
+
     setAssigningOrder(null);
     refresh();
   };
@@ -118,11 +149,19 @@ export default function DeliveriesSection() {
 
   const forceDeliver = async (order) => {
     if (!await confirmDialog('Forcer la livraison à "livrée" sans confirmation cliente ?')) return;
-    await adminUpdateOrder(order.id, {
+    const { error } = await adminUpdateOrder(order.id, {
       status: 'delivered',
       client_confirmed: true,
       client_confirmed_at: new Date().toISOString(),
     });
+    if (error) {
+      toast.error('Échec : ' + (error.message || ''));
+      return;
+    }
+    // PUSH + EMAIL : la cliente doit savoir que sa commande est officiellement
+    // livrée (même si forcée par l'admin). Best-effort.
+    safeFire('push:delivered', () => pushOrderStatus({ ...order, status: 'delivered' }));
+    safeFire('email:delivered', () => sendOrderStatusUpdate(order.id, 'delivered'));
     refresh();
   };
 

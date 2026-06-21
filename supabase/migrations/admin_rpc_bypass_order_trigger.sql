@@ -1,0 +1,131 @@
+-- ════════════════════════════════════════════════════════════════════
+-- YARAM — Garantit que les RPC admin qui touchent orders.status bypassent
+--        le trigger `_block_user_order_field_tampering`
+-- ════════════════════════════════════════════════════════════════════
+--
+-- Contexte
+-- --------
+-- Le trigger `_block_user_order_field_tampering` bloque toute UPDATE
+-- sur orders (champs sensibles : status, total, payment_method, ...) si
+-- la GUC `app.order_writer_ok` n'est pas positionnée à 'true' dans la
+-- transaction courante.
+--
+-- Les RPC CLIENT (`client_mark_order_paid`, `client_confirm_delivery`,
+-- `client_dispute_delivery`, `client_rate_order`) appellent déjà
+-- `SELECT set_config('app.order_writer_ok', 'true', true)` avant leur
+-- UPDATE — confirmé en prod.
+--
+-- Les RPC ADMIN (`admin_confirm_payment`, `admin_reject_payment`,
+-- `admin_update_order`, `admin_advance_order` si elle existe) ne sont
+-- PAS dans le repo (vivent uniquement en prod). Si elles n'ont pas le
+-- set_config, leurs UPDATE sont silencieusement BLOQUÉES et l'admin se
+-- retrouve avec un toast "Échec mise à jour" alors que la transaction
+-- est en réalité reject par le trigger.
+--
+-- Comment vérifier en prod (avant d'appliquer)
+-- --------------------------------------------
+-- Connecte-toi via psql (ou Supabase SQL editor) en service_role et lance :
+--
+--   SELECT proname,
+--          prosrc LIKE '%order_writer_ok%' AS has_bypass
+--   FROM   pg_proc
+--   WHERE  proname IN (
+--            'admin_confirm_payment',
+--            'admin_reject_payment',
+--            'admin_update_order',
+--            'admin_advance_order'
+--          );
+--
+-- Pour chaque RPC où has_bypass = false : il FAUT injecter le bypass.
+-- Sinon les actions admin (confirmer paiement, advance status, cancel)
+-- sont silencieusement ignorées.
+--
+-- Patch suggéré (à adapter au corps exact de chaque RPC)
+-- ------------------------------------------------------
+-- Dans chaque RPC, AVANT la 1ère UPDATE sur orders, ajouter :
+--
+--   PERFORM set_config('app.order_writer_ok', 'true', true);
+--
+-- Le 3e argument (true) limite la GUC à la transaction courante :
+-- aucune fuite vers les requêtes suivantes du même pool connection.
+--
+-- ────────────────────────────────────────────────────────────────────
+-- Helper rapide pour patcher sans réécrire toute la RPC : on enveloppe
+-- chaque RPC critique dans un wrapper qui set le GUC puis délègue.
+-- Cette approche est COMMENTÉE par défaut — elle suppose que tu connais
+-- la signature exacte de chaque RPC. À décommenter et adapter ligne par
+-- ligne après avoir lu pg_get_functiondef(...).
+-- ────────────────────────────────────────────────────────────────────
+--
+-- Exemple générique pour admin_confirm_payment :
+--
+--   CREATE OR REPLACE FUNCTION admin_confirm_payment(
+--     p_admin_token text,
+--     p_order_id    uuid,
+--     p_note        text DEFAULT NULL
+--   )
+--   RETURNS jsonb
+--   LANGUAGE plpgsql
+--   SECURITY DEFINER
+--   SET search_path = public
+--   AS $$
+--   DECLARE
+--     v_admin_id uuid;
+--     v_order    orders%ROWTYPE;
+--     v_target_status text;
+--   BEGIN
+--     -- 1. Vérif session admin (à adapter au schéma admin_sessions actuel)
+--     SELECT admin_id INTO v_admin_id
+--     FROM   admin_sessions
+--     WHERE  token = p_admin_token
+--       AND  expires_at > now()
+--     LIMIT 1;
+--     IF v_admin_id IS NULL THEN
+--       RETURN jsonb_build_object('success', false, 'error', 'session_required');
+--     END IF;
+--
+--     -- 2. Charge la commande
+--     SELECT * INTO v_order FROM orders WHERE id = p_order_id;
+--     IF NOT FOUND THEN
+--       RETURN jsonb_build_object('success', false, 'error', 'order_not_found');
+--     END IF;
+--
+--     -- 3. Détermine status cible (preorder → 'confirmed', sinon → 'paid')
+--     v_target_status := CASE WHEN v_order.is_preorder THEN 'confirmed' ELSE 'paid' END;
+--
+--     -- 4. ★★★ BYPASS TRIGGER ★★★ — DOIT être set AVANT l'UPDATE
+--     PERFORM set_config('app.order_writer_ok', 'true', true);
+--
+--     UPDATE orders
+--     SET    status = v_target_status,
+--            admin_payment_note = p_note,
+--            admin_verified_at  = now(),
+--            admin_verified_by  = v_admin_id
+--     WHERE  id = p_order_id;
+--
+--     -- 5. Audit + push (déjà gérés par triggers _notify_on_order_status_change
+--     --    et _push_on_order_status_change — best-effort)
+--     INSERT INTO admin_audit_log(admin_id, action, target_type, target_id, metadata)
+--     VALUES (v_admin_id, 'confirm_payment', 'order', p_order_id::text,
+--             jsonb_build_object('note', p_note, 'new_status', v_target_status));
+--
+--     RETURN jsonb_build_object('success', true, 'order_id', p_order_id, 'new_status', v_target_status);
+--   END;
+--   $$;
+--
+-- Répliquer le même pattern pour :
+--   - admin_reject_payment   → UPDATE status = 'refused'   (ou 'pending_payment')
+--   - admin_update_order     → UPDATE patch (peut toucher status)
+--   - admin_advance_order    → UPDATE status = next
+--
+-- ════════════════════════════════════════════════════════════════════
+-- TL;DR pour Oussou :
+--   1. Lance la query SELECT pg_get_functiondef en haut de ce fichier.
+--   2. Pour chaque RPC qui n'a PAS `order_writer_ok` dans son corps,
+--      copie-colle le pattern exemple, adapte au schéma exact.
+--   3. Apply via Supabase SQL editor (ou supabase db push si tu utilises
+--      le CLI).
+--   4. Smoke test : depuis l'admin app, clique "Confirmer paiement" sur
+--      une commande en awaiting_verification. Si tu reçois encore "Échec
+--      mise à jour", c'est que le bypass manque encore quelque part.
+-- ════════════════════════════════════════════════════════════════════

@@ -99,6 +99,47 @@ export async function pushOrderStatus(order) {
   }
 }
 
+/**
+ * Push "🛵 Livreur assigné" envoyé à la cliente quand l'admin assigne un
+ * livreur dans DeliveriesSection. Indépendant du status flow (la commande
+ * reste en 'paid' ou 'preparing' jusqu'à ce que le livreur récupère le
+ * colis et passe en 'shipped'). Best-effort, ne throw jamais.
+ *
+ * @param {Object} order - { id, user_id, ... }
+ * @param {string} livreurName
+ * @returns {Promise<{ success, error?, recipients? }>}
+ */
+export async function pushLivreurAssigned(order, livreurName) {
+  if (!order?.user_id || !order?.id) {
+    return { success: false, error: 'missing_user_or_order' };
+  }
+  const token = getAdminToken();
+  if (!token) return { success: false, error: 'no_admin_token' };
+
+  const shortId = String(order.id).slice(0, 12);
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        token,
+        type: 'order_status',
+        user_id: order.user_id,
+        title: '🛵 Livreur assigné',
+        message: `${livreurName || 'Un livreur'} a été assigné à ta commande ${shortId}. Il part bientôt !`,
+        url: `https://yaram.app/order/${order.id}`,
+        data: { order_id: order.id, source: 'livreur_assigned' },
+      },
+    });
+    if (error) {
+      console.warn('[pushLivreurAssigned] invoke error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return data || { success: true };
+  } catch (e) {
+    console.warn('[pushLivreurAssigned] exception:', e?.message);
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
 // ════════════════════════════════════════════════════════
 // SELF-PUSH : un user authentifié déclenche un push à lui-même
 // ════════════════════════════════════════════════════════

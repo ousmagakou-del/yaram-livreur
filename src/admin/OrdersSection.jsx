@@ -10,7 +10,31 @@ import {
 } from '../lib/adminApi';
 import { confirmDialog, toast } from '../lib/toast';
 import { pushOrderStatus } from '../lib/pushAdmin';
-import { sendOrderConfirmation, sendPaymentVerified } from '../lib/emails';
+import { sendOrderConfirmation, sendPaymentVerified, sendOrderStatusUpdate } from '../lib/emails';
+
+// ─── Fire-and-forget helper ──────────────────────────────────────────
+// Toutes les notifs admin (email + push) doivent etre best-effort. Si
+// Resend ou OneSignal est down, on ne bloque jamais le flow admin :
+// on log un warn et on continue. Promise.allSettled + timeout 4s pour
+// eviter qu'une lambda Resend qui timeout ne bloque indefiniment.
+function safeFire(label, promiseFactory) {
+  try {
+    const p = promiseFactory();
+    if (!p || typeof p.then !== 'function') return;
+    const timeout = new Promise((resolve) =>
+      setTimeout(() => resolve({ success: false, error: 'timeout' }), 4000)
+    );
+    Promise.race([p, timeout])
+      .then((r) => {
+        if (r?.success === false) {
+          console.warn(`[admin/${label}]`, r?.error || 'unknown');
+        }
+      })
+      .catch((e) => console.warn(`[admin/${label}] crash:`, e?.message));
+  } catch (e) {
+    console.warn(`[admin/${label}] sync crash:`, e?.message);
+  }
+}
 
 // Flow lineaire des statuts "normaux" d'une commande. Une commande peut sortir
 // de ce flow (refused, cancelled, disputed...) et ne plus etre "avancable".
@@ -211,7 +235,10 @@ export default function OrdersSection() {
     }
     // PUSH NOTIF : informe la cliente du nouveau status (best-effort, ne bloque pas).
     // Si pas de device iOS lié → skip silencieux côté serveur.
-    pushOrderStatus({ ...order, status: next }).catch(() => { /* silent */ });
+    safeFire(`push:${next}`, () => pushOrderStatus({ ...order, status: next }));
+    // EMAIL : update status (paid/preparing/shipped/delivered/awaiting_confirm).
+    // Resend = idempotent côté template; si user n'a pas d'email, no_recipient.
+    safeFire(`email:${next}`, () => sendOrderStatusUpdate(order.id, next));
     refresh();
   };
 
@@ -233,7 +260,8 @@ export default function OrdersSection() {
       refresh();
       return;
     }
-    pushOrderStatus({ ...order, status: 'cancelled' }).catch(() => { /* silent */ });
+    safeFire('push:cancelled', () => pushOrderStatus({ ...order, status: 'cancelled' }));
+    safeFire('email:cancelled', () => sendOrderStatusUpdate(order.id, 'cancelled'));
     refresh();
   };
 
@@ -275,21 +303,10 @@ export default function OrdersSection() {
     // L'admin vient de valider → status paid → maintenant on envoie l'email
     // "ta commande est confirmée + on prépare". Fire-and-forget : si Resend
     // est down, on ne bloque pas le flow admin.
-    sendOrderConfirmation(order.id)
-      .then(r => {
-        if (r?.success) console.log('[Admin] email confirmation envoyé', order.id);
-        else console.warn('[Admin] email confirmation échoué :', r?.error);
-      })
-      .catch(e => console.warn('[Admin] email confirmation crash :', e?.message));
-
+    safeFire('email:confirmation', () => sendOrderConfirmation(order.id));
     // Email annexe "paiement validé" — distinct de la confirmation de commande.
-    // Si tu juges ça redondant, retire-le. Utile pour Wave/OM où le user veut
-    // savoir que SON virement précis est arrivé.
-    sendPaymentVerified(order.id)
-      .then(r => {
-        if (r?.success) console.log('[Admin] email payment_verified envoyé', order.id);
-      })
-      .catch(() => { /* silent */ });
+    // Utile pour Wave/OM où le user veut savoir que SON virement est arrivé.
+    safeFire('email:payment_verified', () => sendPaymentVerified(order.id));
 
     // La RPC a déjà push à la cliente, on enchaîne juste sur refresh + count.
     refresh();
@@ -325,6 +342,12 @@ export default function OrdersSection() {
       return;
     }
     toast.success('Paiement rejeté — cliente notifiée');
+
+    // EMAIL : "paiement refusé". La RPC admin_reject_payment a déjà déclenché
+    // le push, mais Resend reste à la charge du client (le template "refused"
+    // vit dans email-templates/order-status-update.js). Fire-and-forget.
+    safeFire('email:refused', () => sendOrderStatusUpdate(order.id, 'refused'));
+
     refresh();
     refreshVerifCount();
   };
