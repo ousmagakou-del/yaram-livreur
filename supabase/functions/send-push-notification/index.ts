@@ -131,7 +131,10 @@ serve(async (req) => {
   }
 
   if (body.url) {
-    payload.url = body.url;
+    // FIX v8 : OneSignal refuse 'url' + 'app_url' ensemble (HTTP 400
+    // "Url Remove url field when setting app_url or web_url"). On utilise
+    // exclusivement web_url + app_url, jamais le legacy 'url'.
+    payload.web_url = body.url;
     payload.app_url = body.url;
   }
 
