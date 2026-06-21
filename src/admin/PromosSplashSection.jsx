@@ -166,8 +166,8 @@ export default function PromosSplashSection() {
                 borderRadius: 8,
                 background: p.mode === 'image' && p.image_url
                   ? `url("${p.image_url}") center/cover`
-                  : (p.bg_color || '#0A0A1F'),
-                color: p.text_color || '#fff',
+                  : (p.bg_color || 'linear-gradient(160deg, #FFFFFF 0%, #E8F5EC 100%)'),
+                color: p.text_color || '#0E5B33',
                 fontSize: 8,
                 display: 'flex',
                 alignItems: 'center',
@@ -233,9 +233,10 @@ function PromoEditor({ promo, onSave, onCancel }) {
     description: '',
     image_url: '',
     badge_text: '',
-    bg_color: '#0A0A1F',
-    text_color: '#FFFFFF',
-    title_accent_color: '#A78BFA',
+    // ─── Charte YARAM par défaut : laisser vide = gradient blanc/vert auto ───
+    bg_color: '',
+    text_color: '',
+    title_accent_color: '#1F8B4C',
     features: [],
     cta_text: '',
     cta_url: '',
@@ -471,72 +472,124 @@ function PromoEditor({ promo, onSave, onCancel }) {
 // Preview live de la promo (mini)
 // ═══════════════════════════════════════════════
 function PromoPreview({ promo }) {
+  // ─── Charte YARAM par défaut (miroir d'InterstitialPromo.css) ───
+  const accent = promo.title_accent_color || '#1F8B4C';
+  const defaultBg = 'linear-gradient(160deg, #FFFFFF 0%, #F7FAF8 45%, #E8F5EC 100%)';
+  const defaultText = '#0E5B33';
+
   const bgStyle = promo.mode === 'image' && promo.image_url
     ? { backgroundImage: `url("${promo.image_url}")`, backgroundSize: 'cover', backgroundPosition: 'center', color: '#fff' }
-    : { background: promo.bg_color, color: promo.text_color };
+    : { background: promo.bg_color || defaultBg, color: promo.text_color || defaultText };
 
   return (
     <div style={{
       width: '100%',
       aspectRatio: '9/19',
       maxHeight: 600,
-      borderRadius: 22,
+      borderRadius: 28,
       overflow: 'hidden',
       border: '8px solid #1A1A1A',
-      boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
+      boxShadow: '0 12px 40px rgba(14, 91, 51, 0.18)',
       display: 'flex',
       flexDirection: 'column',
-      padding: 20,
+      padding: 22,
       textAlign: 'center',
+      position: 'relative',
       ...bgStyle,
     }}>
+      {/* Aura subtle YARAM (mode template uniquement) */}
+      {promo.mode === 'template' && !promo.bg_color && (
+        <>
+          <div style={{
+            position: 'absolute', top: -60, right: -50, width: 160, height: 160,
+            background: 'radial-gradient(circle, rgba(31,139,76,0.16) 0%, transparent 65%)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{
+            position: 'absolute', bottom: -50, left: -60, width: 150, height: 150,
+            background: 'radial-gradient(circle, rgba(244,181,58,0.14) 0%, transparent 65%)',
+            pointerEvents: 'none',
+          }} />
+        </>
+      )}
+
       {promo.mode === 'image' ? (
-        <div style={{ marginTop: 'auto', padding: '20px 0', background: 'linear-gradient(180deg, transparent, rgba(0,0,0,0.7))', borderRadius: 8 }}>
-          {promo.title && <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{promo.title}</h2>}
+        <div style={{ marginTop: 'auto', padding: '20px 0', background: 'linear-gradient(180deg, transparent, rgba(14,91,51,0.7))', borderRadius: 8, position: 'relative', zIndex: 1 }}>
+          {promo.title && <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, textShadow: '0 1px 6px rgba(0,0,0,0.3)' }}>{promo.title}</h2>}
           {promo.subtitle && <p style={{ margin: '4px 0 12px', fontSize: 11 }}>{promo.subtitle}</p>}
           {promo.cta_text && (
-            <button style={{ width: '100%', padding: 10, borderRadius: 8, background: promo.title_accent_color || '#4F46E5', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700 }}>
+            <button style={{ width: '100%', padding: 11, borderRadius: 999, background: `linear-gradient(135deg, ${accent} 0%, #0E5B33 100%)`, color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, boxShadow: `0 6px 16px ${accent}40` }}>
               {promo.cta_text}
             </button>
           )}
         </div>
       ) : (
-        <>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={{ flex: 1 }} />
           {promo.badge_text && (
-            <div style={{ display: 'inline-block', alignSelf: 'center', padding: '5px 12px', borderRadius: 16, border: `1px solid ${promo.title_accent_color}44`, fontSize: 10, fontWeight: 600, marginBottom: 18, background: 'rgba(255,255,255,0.05)' }}>
+            <div style={{
+              display: 'inline-block', alignSelf: 'center',
+              padding: '7px 14px', borderRadius: 18,
+              border: `1.5px solid ${accent}`,
+              fontSize: 10, fontWeight: 800, letterSpacing: 1.2,
+              textTransform: 'uppercase',
+              marginBottom: 18,
+              background: 'rgba(255,255,255,0.85)',
+              color: defaultText,
+              boxShadow: `0 2px 8px ${accent}20`,
+            }}>
               {promo.badge_text}
             </div>
           )}
-          <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800, letterSpacing: -0.5 }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, color: promo.text_color || defaultText }}>
             {(promo.title || '').split(/(_[^_]+_)/g).map((part, i) =>
               part.startsWith('_') && part.endsWith('_')
-                ? <span key={i} style={{ color: promo.title_accent_color }}>{part.slice(1, -1)}</span>
+                ? <span key={i} style={{ color: accent }}>{part.slice(1, -1)}</span>
                 : <span key={i}>{part}</span>
             )}
           </h2>
-          {promo.subtitle && <p style={{ margin: '0 0 18px', fontSize: 11, opacity: 0.7 }}>{promo.subtitle}</p>}
+          {promo.subtitle && <p style={{ margin: '0 0 18px', fontSize: 11, color: promo.text_color ? promo.text_color : '#4A6B5A', opacity: 0.92 }}>{promo.subtitle}</p>}
           {(promo.features || []).slice(0, 3).map((f, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, marginBottom: 6, fontSize: 10, textAlign: 'left' }}>
-              <span style={{ fontSize: 14 }}>{f.icon}</span>
+            <div key={i} style={{
+              display: 'flex', gap: 10, padding: '9px 11px',
+              background: 'rgba(255,255,255,0.85)',
+              border: `1px solid ${accent}1F`,
+              borderRadius: 12, marginBottom: 6, fontSize: 10,
+              textAlign: 'left', alignItems: 'center',
+              boxShadow: '0 1px 4px rgba(14,91,51,0.05)',
+            }}>
+              <span style={{
+                fontSize: 14, width: 28, height: 28, borderRadius: 8,
+                background: 'linear-gradient(135deg, #E8F5EC 0%, #FFF7E5 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>{f.icon}</span>
               <div>
-                <strong style={{ display: 'block' }}>{f.title}</strong>
-                <span style={{ opacity: 0.7 }}>{f.subtitle}</span>
+                <strong style={{ display: 'block', color: defaultText, fontWeight: 800 }}>{f.title}</strong>
+                <span style={{ color: '#6B8275' }}>{f.subtitle}</span>
               </div>
             </div>
           ))}
           <div style={{ flex: 1 }} />
           {promo.cta_text && (
-            <button style={{ width: '100%', padding: 11, borderRadius: 10, background: promo.title_accent_color || '#4F46E5', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+            <button style={{
+              width: '100%', padding: 12, borderRadius: 999,
+              background: `linear-gradient(135deg, ${accent} 0%, #0E5B33 100%)`,
+              color: '#fff', border: 'none', fontSize: 12, fontWeight: 800,
+              marginBottom: 6, boxShadow: `0 6px 16px ${accent}40`,
+            }}>
               {promo.cta_text}
             </button>
           )}
           {promo.cta_secondary_text && (
-            <button style={{ width: '100%', padding: 10, borderRadius: 10, background: 'rgba(255,255,255,0.06)', color: promo.text_color, border: '1px solid rgba(255,255,255,0.1)', fontSize: 11, fontWeight: 600 }}>
+            <button style={{
+              width: '100%', padding: 11, borderRadius: 999,
+              background: 'rgba(255,255,255,0.75)', color: defaultText,
+              border: `1.5px solid ${accent}40`, fontSize: 11, fontWeight: 700,
+            }}>
               {promo.cta_secondary_text}
             </button>
           )}
-        </>
+        </div>
       )}
     </div>
   );

@@ -53,6 +53,8 @@ export default function InterstitialPromo({ promo, onClose }) {
     }, 300);
   };
 
+  // ─── Charte YARAM par defaut : soft white avec gradient vert subtle ───
+  // L'admin peut toujours override via bg_color / text_color.
   const bgStyle = promo.mode === 'image'
     ? {
         backgroundImage: `url("${promo.image_url}")`,
@@ -60,9 +62,11 @@ export default function InterstitialPromo({ promo, onClose }) {
         backgroundPosition: 'center',
       }
     : {
-        background: promo.bg_color || '#0A0A1F',
-        color: promo.text_color || '#FFFFFF',
+        background: promo.bg_color
+          || 'linear-gradient(160deg, #FFFFFF 0%, #F7FAF8 45%, #E8F5EC 100%)',
+        color: promo.text_color || '#0E5B33',
       };
+  const accent = promo.title_accent_color || '#1F8B4C';
 
   // Pour le template, render des features structurées
   const features = Array.isArray(promo.features) ? promo.features : [];
@@ -121,7 +125,7 @@ export default function InterstitialPromo({ promo, onClose }) {
 
             <h1 className="yip-title">
               {/* Si title contient des _mots_ entourés d'underscore → couleur accent */}
-              {renderTitleWithAccent(promo.title, promo.title_accent_color)}
+              {renderTitleWithAccent(promo.title, accent)}
             </h1>
 
             {promo.subtitle && (
@@ -147,8 +151,9 @@ export default function InterstitialPromo({ promo, onClose }) {
                 className="yip-cta-primary"
                 onClick={() => handleCTA('primary')}
                 style={{
-                  background: promo.title_accent_color || '#A78BFA',
+                  background: `linear-gradient(135deg, ${accent} 0%, #0E5B33 100%)`,
                   color: '#FFFFFF',
+                  boxShadow: `0 12px 28px ${accent}40`,
                 }}
               >
                 {promo.cta_text}
@@ -159,7 +164,7 @@ export default function InterstitialPromo({ promo, onClose }) {
               <button
                 className="yip-cta-secondary"
                 onClick={() => handleCTA('secondary')}
-                style={{ color: promo.text_color || '#FFFFFF' }}
+                style={{ color: promo.text_color || '#0E5B33', borderColor: `${accent}40` }}
               >
                 {promo.cta_secondary_text}
               </button>
@@ -178,7 +183,7 @@ function renderTitleWithAccent(text, accentColor) {
   return parts.map((p, i) => {
     if (p.startsWith('_') && p.endsWith('_')) {
       return (
-        <span key={i} style={{ color: accentColor || '#A78BFA' }}>
+        <span key={i} style={{ color: accentColor || '#1F8B4C' }}>
           {p.slice(1, -1)}
         </span>
       );
