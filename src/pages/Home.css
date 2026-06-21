@@ -218,9 +218,9 @@
   font-family: inherit;
 }
 
-/* ─── COUPON PROMO COLLANT ─── */
+/* ─── COUPON PROMO (entre Banner et Bons plans, rythme 32px) ─── */
 .yhome-coupon {
-  margin: -14px 16px 0;
+  margin: 32px 16px 0;
   background: white;
   border-radius: 14px;
   padding: 12px 14px;
@@ -294,9 +294,9 @@
   font-family: inherit;
 }
 
-/* ─── SECTIONS génériques (rythme vertical premium 24px entre sections) ─── */
+/* ─── SECTIONS génériques (rythme vertical premium 32px entre sections) ─── */
 .yhome-section {
-  padding: 24px 16px 0;
+  padding: 32px 16px 0;
 }
 
 .yhome-section-head {

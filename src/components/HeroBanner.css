@@ -6,7 +6,8 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 .yhero {
-  margin: 0 14px 16px;
+  /* Aligné sur le rythme premium : 32px top entre sections, 16px latéral */
+  margin: 32px 16px 0;
   border-radius: 24px;
   padding: 22px 18px 18px;
   position: relative;

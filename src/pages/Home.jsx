@@ -759,11 +759,11 @@ export default function Home() {
         </header>
 
         {/* ═══════════════════════════════════════════════════════════
-            NOUVEL ORDRE PREMIUM (juin 2026) :
-            1. Marques  → 2. Banner promo  → 3. Catégories  → 4. Hero
+            NOUVEL ORDRE PREMIUM (juin 2026, v2) :
+            1. Marques  → 2. Hero (Zéro frais)  → 3. Catégories  → 4. Banner promo
             → 5. Coupon BIENVENUE10  → 6. Bons plans (carrousel premium)
             → 7. Boutique internationale  → 8. Près de chez toi  → 9. Pour toi
-            Toutes les sections respirent le même padding-x (16px via .yhome-section)
+            Spacing inter-sections : 32px (.yhome-section padding-top)
             ═══════════════════════════════════════════════════════════ */}
 
         {/* ─── 1. MARQUES ─── */}
@@ -796,7 +796,49 @@ export default function Home() {
           </section>
         )}
 
-        {/* ─── 2. BANNER PROMO (contenue avec radius + marges cohérentes) ─── */}
+        {/* ─── 2. HERO BANNER (Zéro frais de service, éditable via Admin) ─── */}
+        <HeroBanner />
+
+        {/* ─── 3. CATÉGORIES ─── */}
+        {categories.length > 0 && (
+          <section className="yhome-section">
+            <div className="yhome-section-head">
+              <h2 className="yhome-section-title">Catégories</h2>
+              <button className="yhome-section-link" onClick={() => navigate({ name: 'categories', params: {} })}>
+                Tout voir →
+              </button>
+            </div>
+            <div className="yhome-cat-grid">
+              {categories.slice(0, 8).map(cat => (
+                <button
+                  key={cat.id}
+                  className="yhome-cat-item"
+                  onClick={() => {
+                    try { trackEvent('category_clicked', { category: cat.slug, name: cat.name }); } catch {}
+                    navigate({ name: 'search', params: { category: cat.slug } });
+                  }}
+                >
+                  <div
+                    className="yhome-cat-tile"
+                    style={{
+                      background: cat.bg_color || DEFAULT_CATEGORY_PRESET.bg_color,
+                      color: cat.text_color || DEFAULT_CATEGORY_PRESET.text_color,
+                    }}
+                  >
+                    {cat.icon_url ? (
+                      <img src={cat.icon_url} alt={`Catégorie ${cat.name}`} loading="lazy" decoding="async" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.textContent = cat.name.charAt(0); }} />
+                    ) : (
+                      <span>{cat.name.charAt(0)}</span>
+                    )}
+                  </div>
+                  <div className="yhome-cat-name">{cat.name}</div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ─── 4. BANNER PROMO (contenue avec radius + marges cohérentes) ─── */}
         {banners.length > 0 && (
           <section className="yhome-section">
             <div className="yhome-banner-wrap yhome-banner-wrap--premium" onClick={() => handleBannerClick(banners[activeBannerIdx])}>
@@ -841,48 +883,6 @@ export default function Home() {
             )}
           </section>
         )}
-
-        {/* ─── 3. CATÉGORIES ─── */}
-        {categories.length > 0 && (
-          <section className="yhome-section">
-            <div className="yhome-section-head">
-              <h2 className="yhome-section-title">Catégories</h2>
-              <button className="yhome-section-link" onClick={() => navigate({ name: 'categories', params: {} })}>
-                Tout voir →
-              </button>
-            </div>
-            <div className="yhome-cat-grid">
-              {categories.slice(0, 8).map(cat => (
-                <button
-                  key={cat.id}
-                  className="yhome-cat-item"
-                  onClick={() => {
-                    try { trackEvent('category_clicked', { category: cat.slug, name: cat.name }); } catch {}
-                    navigate({ name: 'search', params: { category: cat.slug } });
-                  }}
-                >
-                  <div
-                    className="yhome-cat-tile"
-                    style={{
-                      background: cat.bg_color || DEFAULT_CATEGORY_PRESET.bg_color,
-                      color: cat.text_color || DEFAULT_CATEGORY_PRESET.text_color,
-                    }}
-                  >
-                    {cat.icon_url ? (
-                      <img src={cat.icon_url} alt={`Catégorie ${cat.name}`} loading="lazy" decoding="async" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.textContent = cat.name.charAt(0); }} />
-                    ) : (
-                      <span>{cat.name.charAt(0)}</span>
-                    )}
-                  </div>
-                  <div className="yhome-cat-name">{cat.name}</div>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ─── 4. HERO BANNER (Zéro frais de service, éditable via Admin) ─── */}
-        <HeroBanner />
 
         {/* ─── 5. COUPON BIENVENUE10 (optionnel, dismissable) ─── */}
         {!couponDismissed && (
