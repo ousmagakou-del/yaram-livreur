@@ -2,6 +2,11 @@
 // YARAM — Templates HTML + envoi via edge function send-email (Resend wrapper)
 
 import { supabase } from './supabase';
+import { welcomeEmail } from './email-templates/welcome';
+import { orderConfirmationEmail } from './email-templates/order-confirmation';
+import { orderStatusUpdateEmail } from './email-templates/order-status-update';
+import { resetPasswordEmail } from './email-templates/reset-password';
+import { paymentVerifiedEmail } from './email-templates/payment-verified';
 
 const APP_URL = 'https://yaram.app';
 const BRAND_GREEN = '#1F8B4C';
@@ -78,6 +83,15 @@ function fcfa(n) {
 // ─────────────────────────────────────────────────────────────────────
 
 export const EmailTemplates = {
+  // ─── Nouveaux templates centralisés dans src/lib/email-templates/ ───
+  // (utilisés par les wrappers ci-dessous + l'edge function via mode RAW)
+  welcomeV2: (params) => welcomeEmail(params),
+  orderConfirmation: (params) => orderConfirmationEmail(params),
+  orderStatusUpdate: (params) => orderStatusUpdateEmail(params),
+  resetPassword: (params) => resetPasswordEmail(params),
+  paymentVerified: (params) => paymentVerifiedEmail(params),
+
+  // ─── Templates legacy (gardés pour compat avec Payment.jsx / Checkout.jsx) ───
   welcome: ({ firstName }) => ({
     subject: `Bienvenue sur YARAM, ${firstName} 💚`,
     html: layout({
@@ -288,6 +302,211 @@ export async function sendEmail({ to, template, params = {}, replyTo = null }) {
     return { success: true, id: data.id };
   } catch (e) {
     console.warn('[email] exception:', e?.message);
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// WRAPPERS HAUT-NIVEAU (templates centralisés v2)
+// Les 4 fonctions ci-dessous récupèrent les data nécessaires depuis Supabase
+// puis appellent l'edge function send-email en mode RAW.
+// ─────────────────────────────────────────────────────────────────────
+
+async function fetchOrderForEmail(orderId) {
+  const { data: order, error } = await supabase
+    .from('orders')
+    .select('id, total, delivery_fee, payment_method, address, user_id, items, status, estimated_delivery_date, deposit_amount, balance_amount, is_preorder')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error || !order) return { order: null, profile: null };
+  let profile = null;
+  if (order.user_id) {
+    const { data } = await supabase
+      .from('users_profile')
+      .select('email, first_name')
+      .eq('id', order.user_id)
+      .maybeSingle();
+    profile = data || null;
+  }
+  return { order, profile };
+}
+
+/**
+ * Envoie la confirmation de commande à la cliente.
+ * Récupère order + items + profil depuis Supabase et build le template côté client.
+ */
+export async function sendOrderConfirmation(orderId, userId = null) {
+  if (!orderId) return { success: false, error: 'orderId requis' };
+  const { order, profile } = await fetchOrderForEmail(orderId);
+  if (!order) return { success: false, error: 'order_not_found' };
+
+  const to = profile?.email;
+  if (!to) return { success: false, error: 'no_recipient' };
+
+  const firstName = profile?.first_name || order.address?.name?.split?.(' ')?.[0] || 'toi';
+  const { subject, html } = orderConfirmationEmail({
+    firstName,
+    orderId: order.id,
+    items: order.items || [],
+    total: order.total,
+    deliveryFee: order.delivery_fee,
+    paymentMethod: order.payment_method,
+    deliveryAddress: order.address,
+    estimatedDeliveryDate: order.estimated_delivery_date,
+  });
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    return { success: true, id: data.id };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Envoie un update de statut commande.
+ * Si livreur affecté (status shipped/in_delivery), récupère son nom/tel.
+ */
+export async function sendOrderStatusUpdate(orderId, newStatus) {
+  if (!orderId || !newStatus) return { success: false, error: 'orderId + newStatus requis' };
+  const { order, profile } = await fetchOrderForEmail(orderId);
+  if (!order) return { success: false, error: 'order_not_found' };
+
+  const to = profile?.email;
+  if (!to) return { success: false, error: 'no_recipient' };
+
+  let livreurName = null;
+  let livreurPhone = null;
+  if (newStatus === 'shipped' || newStatus === 'in_delivery' || newStatus === 'out_for_delivery') {
+    try {
+      const { data: tracking } = await supabase
+        .from('order_tracking')
+        .select('livreur_name, livreur_phone, driver_name, driver_phone')
+        .eq('order_id', orderId)
+        .maybeSingle();
+      livreurName = tracking?.livreur_name || tracking?.driver_name || null;
+      livreurPhone = tracking?.livreur_phone || tracking?.driver_phone || null;
+    } catch { /* table optionnelle */ }
+  }
+
+  const firstName = profile?.first_name || order.address?.name?.split?.(' ')?.[0] || 'toi';
+  const { subject, html } = orderStatusUpdateEmail({
+    firstName,
+    orderId: order.id,
+    newStatus,
+    livreurName,
+    livreurPhone,
+  });
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    return { success: true, id: data.id };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Envoie un email de réinitialisation de mot de passe (Supabase auth side).
+ * Utilise supabase.auth.resetPasswordForEmail() pour générer le lien magique,
+ * puis l'envoie via Resend en HTML brandé YARAM (au lieu du template Supabase par défaut).
+ *
+ * Note : si l'app utilise déjà la config Supabase native (template SMTP dans
+ * dashboard Supabase), cette fonction permet de la remplacer côté client.
+ */
+export async function sendResetPassword(email, { redirectTo, firstName, expiresInMinutes = 60 } = {}) {
+  if (!email) return { success: false, error: 'email requis' };
+  const cleanEmail = String(email).trim().toLowerCase();
+
+  // 1. Génère le lien Supabase (envoie aussi l'email natif si SMTP configuré côté
+  //    Supabase — sinon, on s'appuie sur Resend ci-dessous).
+  let resetLink = `${APP_URL}/auth/reset`;
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: redirectTo || `${APP_URL}/auth/reset`,
+    });
+    if (error) {
+      console.warn('[resetPassword] supabase.auth error:', error.message);
+      return { success: false, error: error.message };
+    }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+
+  // 2. Email brandé via Resend en complément (si template Supabase natif désactivé).
+  //    Si le template Supabase natif est actif, ce mail s'ajoute simplement par-dessus.
+  let resolvedFirstName = firstName;
+  if (!resolvedFirstName) {
+    try {
+      const { data } = await supabase
+        .from('users_profile')
+        .select('first_name')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+      resolvedFirstName = data?.first_name || cleanEmail.split('@')[0];
+    } catch {
+      resolvedFirstName = cleanEmail.split('@')[0];
+    }
+  }
+
+  const { subject, html } = resetPasswordEmail({
+    firstName: resolvedFirstName,
+    resetLink,
+    expiresInMinutes,
+  });
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to: cleanEmail, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    return { success: true, id: data.id };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Envoie l'email "paiement validé" après validation manuelle admin (Wave/OM).
+ */
+export async function sendPaymentVerified(orderId) {
+  if (!orderId) return { success: false, error: 'orderId requis' };
+  const { order, profile } = await fetchOrderForEmail(orderId);
+  if (!order) return { success: false, error: 'order_not_found' };
+
+  const to = profile?.email;
+  if (!to) return { success: false, error: 'no_recipient' };
+
+  const firstName = profile?.first_name || order.address?.name?.split?.(' ')?.[0] || 'toi';
+  // Pour les preorders, c'est l'acompte qui est validé.
+  const amount = order.is_preorder
+    ? (order.deposit_amount || order.total)
+    : order.total;
+
+  const { subject, html } = paymentVerifiedEmail({
+    firstName,
+    orderId: order.id,
+    amount,
+    paymentMethod: order.payment_method,
+  });
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    return { success: true, id: data.id };
+  } catch (e) {
     return { success: false, error: e?.message || String(e) };
   }
 }

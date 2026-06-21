@@ -415,7 +415,7 @@ export default function Product({ id }) {
         <div className="prod-gallery">
           <div className="prod-gallery-track" ref={galleryTrackRef}>
             {galleryImages.map((src, i) => (
-              <div key={i} className="prod-gallery-slide">
+              <div key={src || i} className="prod-gallery-slide">
                 <img src={src} alt={`${product.name} — ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} />
               </div>
             ))}
@@ -581,7 +581,7 @@ export default function Product({ id }) {
               <Collapse title="Avantages clés" icon="✨" defaultOpen={true}>
                 <ul className="prod-benefits">
                   {benefits.map((b, i) => (
-                    <li key={i} style={{ animationDelay: `${i * 60}ms` }}>
+                    <li key={typeof b === 'string' ? b : i} style={{ animationDelay: `${i * 60}ms` }}>
                       <span className="prod-benefit-check">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12"/>

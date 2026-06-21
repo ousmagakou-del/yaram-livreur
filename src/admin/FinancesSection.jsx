@@ -356,7 +356,7 @@ export default function FinancesSection() {
             <div style={S.sectionTitle}>📈 Revenus des 12 derniers mois</div>
             <div style={S.chart}>
               {monthlyData.map((m, i) => (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div key={m.label || i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div title={fmtFCFA(m.revenue)} style={{ ...S.bar, height: `${(m.revenue / maxBar) * 160}px`, width: '70%' }} />
                   <div style={S.barLabel}>{m.label}</div>
                 </div>
@@ -405,7 +405,7 @@ export default function FinancesSection() {
                 {topProducts.length === 0 ? (
                   <tr><td colSpan={4} style={{ ...S.td, textAlign: 'center', color: '#9B9B9B' }}>Aucune donnée</td></tr>
                 ) : topProducts.map((p, i) => (
-                  <tr key={i}>
+                  <tr key={p.id || p.name || i}>
                     <td style={S.td}>{i + 1}</td>
                     <td style={S.td}><strong>{p.name}</strong></td>
                     <td style={{ ...S.td, textAlign: 'right' }}>{p.qty}</td>

@@ -111,7 +111,7 @@ type OrderRow = {
 
 const Templates: Record<
   string,
-  (p: { firstName?: string; pharmacyName?: string; order?: OrderRow }) => { subject: string; html: string }
+  (p: { firstName?: string; pharmacyName?: string; order?: OrderRow; statusLabel?: string; newStatus?: string }) => { subject: string; html: string }
 > = {
   welcome: ({ firstName }) => ({
     subject: `Bienvenue sur YARAM, ${firstName} 💚`,
@@ -184,6 +184,63 @@ const Templates: Record<
       `,
     }),
   }),
+
+  paymentVerified: ({ firstName, order }) => {
+    const o = order!;
+    const methodMap: Record<string, string> = {
+      wave: "Wave", om: "Orange Money", orange_money: "Orange Money",
+      free_money: "Free Money", paytech: "PayTech", cb: "Carte bancaire", cod: "À la livraison",
+    };
+    const method = methodMap[(o.payment_method || "").toLowerCase()] || (o.payment_method || "mobile money");
+    const amount = o.is_preorder ? (o.deposit_amount || o.total) : o.total;
+    return {
+      subject: `Paiement validé · YARAM #${o.id}`,
+      html: layout({
+        title: "Paiement validé",
+        preheader: `Ton paiement ${method} est validé — commande #${o.id} en préparation.`,
+        body: `
+          <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:6px;">Commande #${o.id}</div>
+          <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:${BRAND_GREEN};">Paiement validé ✅</h1>
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#444;">Bonjour ${firstName}, on confirme la bonne réception de ton paiement ${method}. Ta commande passe maintenant en <strong>préparation</strong>.</p>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#F9FAFB;border-radius:12px;padding:18px;margin:8px 0 18px;">
+            <tr><td style="font-size:13px;color:#6B6B6B;padding:4px 0;">Montant validé</td><td style="font-size:18px;color:${BRAND_GREEN};padding:4px 0;text-align:right;font-weight:800;">${fcfa(amount)}</td></tr>
+            <tr><td style="font-size:13px;color:#6B6B6B;padding:4px 0;">Méthode</td><td style="font-size:13px;color:#1A1A1A;padding:4px 0;text-align:right;font-weight:600;">${method}</td></tr>
+          </table>
+          <div style="margin:24px 0 8px;">${btn("Suivre ma commande", `${APP_URL}/order/${o.id}`)}</div>
+        `,
+      }),
+    };
+  },
+
+  orderStatusUpdate: ({ firstName, order, statusLabel, newStatus }: any) => {
+    const o = order!;
+    const STATUS: Record<string, { label: string; emoji: string; title: string; body: string; cta: string }> = {
+      paid: { label: "Paiement reçu", emoji: "💚", title: "Paiement confirmé", body: "Ta commande passe en préparation. On t'écrit dès qu'elle part.", cta: "Suivre ma commande" },
+      preparing: { label: "En préparation", emoji: "🧴", title: "On prépare ta commande", body: "Notre partenaire prépare tes produits avec soin.", cta: "Voir le suivi" },
+      shipped: { label: "En route", emoji: "🛵", title: "Le livreur arrive !", body: "Ta commande vient de partir. Reste joignable au numéro communiqué.", cta: "Suivre en temps réel" },
+      in_delivery: { label: "En route", emoji: "🛵", title: "Le livreur arrive !", body: "Ta commande vient de partir. Reste joignable au numéro communiqué.", cta: "Suivre en temps réel" },
+      delivered: { label: "Livrée", emoji: "✅", title: "Commande livrée 💚", body: "On espère que tu vas adorer tes produits.", cta: "Noter ma livraison" },
+      awaiting_balance: { label: "Solde à payer", emoji: "💳", title: "Ta précommande est arrivée à Dakar", body: "Pour finaliser la livraison, il reste à régler le solde.", cta: "Payer le solde" },
+      awaiting_confirm: { label: "À confirmer", emoji: "⏳", title: "Confirme la réception", body: "Confirme la bonne réception pour clôturer la transaction.", cta: "Confirmer la réception" },
+      cancelled: { label: "Annulée", emoji: "⚠️", title: "Commande annulée", body: "Si tu as déjà payé, le remboursement est traité sous 48h.", cta: "Voir le détail" },
+    };
+    const meta = STATUS[newStatus] || { label: statusLabel || "Mise à jour", emoji: "📦", title: "Mise à jour de ta commande", body: "Ta commande vient d'être mise à jour.", cta: "Voir ma commande" };
+    const label = statusLabel || meta.label;
+    return {
+      subject: `Update commande #${o.id} · ${label}`,
+      html: layout({
+        title: `Commande #${o.id} — ${label}`,
+        preheader: meta.title,
+        body: `
+          <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:6px;">Commande #${o.id}</div>
+          <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:${BRAND_GREEN};">${meta.emoji} ${meta.title}</h1>
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#444;">Bonjour ${firstName}, ${meta.body}</p>
+          <div style="background:#EBF7EF;border-radius:10px;padding:12px 16px;margin:18px 0;font-size:14px;color:#1A1A1A;"><strong style="color:${BRAND_GREEN};">Nouveau statut :</strong> ${label}</div>
+          <div style="margin:24px 0 8px;">${btn(meta.cta, `${APP_URL}/order/${o.id}`)}</div>
+        `,
+      }),
+    };
+  },
 
   pharmacyNewOrder: ({ pharmacyName, order }) => ({
     subject: `Nouvelle commande YARAM #${order!.id}`,
@@ -306,7 +363,14 @@ serve(async (req) => {
       return json({ success: false, error: "no_recipient" }, 200);
     }
 
-    const { subject, html } = builder({ firstName, pharmacyName, order: order as OrderRow });
+    const extraParams = (body.params && typeof body.params === "object") ? body.params as Record<string, unknown> : {};
+    const { subject, html } = builder({
+      firstName,
+      pharmacyName,
+      order: order as OrderRow,
+      statusLabel: typeof extraParams.statusLabel === "string" ? extraParams.statusLabel : undefined,
+      newStatus: typeof extraParams.newStatus === "string" ? extraParams.newStatus : undefined,
+    });
     const result = await resendSend({ to, subject, html });
     console.log(`[send-email] template=${template} order=${order.id} success=${result.success}`);
     return json(result);

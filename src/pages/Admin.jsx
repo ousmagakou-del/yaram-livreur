@@ -1,36 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { adminLogin, adminLogout, getAdminSession, changeAdminPin } from '../lib/adminAuth';
 import { adminListOrders } from '../lib/adminApi';
-import DashboardSection from '../admin/DashboardSection';
-import OrdersSection from '../admin/OrdersSection';
-import FinancesSection from '../admin/FinancesSection';
-import PerformanceSection from '../admin/PerformanceSection';
-import SkinScansSection from '../admin/SkinScansSection';
-import AdminUsersSection from '../admin/AdminUsersSection';
-import AdminLogsSection from '../admin/AdminLogsSection';
-import PharmaciesSection from '../admin/PharmaciesSection';
-import ProductsSection from '../admin/ProductsSection';
-import BrandsSection from '../admin/BrandsSection';
-import StatsSection from '../admin/StatsSection';
-import PromosSection from '../admin/PromosSection';
-import MarketingSection from '../admin/MarketingSection';
-import ImportsSection from '../admin/ImportsSection';
-import PromosSplashSection from '../admin/PromosSplashSection';
-import ReviewsSection from '../admin/ReviewsSection';
-import UsersSection from '../admin/UsersSection';
-import DeliveriesSection from '../admin/DeliveriesSection';
-import StaffSection from '../admin/StaffSection';
-import HistorySection from '../admin/HistorySection';
-import SettingsSection from '../admin/SettingsSection';
-import ProductsValidationSection from '../admin/ProductsValidationSection';
-import CommissionsSection from '../admin/CommissionsSection';
-import BannersSection from '../admin/BannersSection';
-import CategoriesSection from '../admin/CategoriesSection';
-import LoyaltySection from '../admin/LoyaltySection';
-import NotificationsSection from '../admin/NotificationsSection';
-import PushBroadcastSection from '../admin/PushBroadcastSection';
+
+// Lazy sections : chargement à la demande pour réduire le shell Admin
+const DashboardSection           = lazy(() => import('../admin/DashboardSection'));
+const OrdersSection              = lazy(() => import('../admin/OrdersSection'));
+const FinancesSection            = lazy(() => import('../admin/FinancesSection'));
+const PerformanceSection         = lazy(() => import('../admin/PerformanceSection'));
+const SkinScansSection           = lazy(() => import('../admin/SkinScansSection'));
+const AdminUsersSection          = lazy(() => import('../admin/AdminUsersSection'));
+const AdminLogsSection           = lazy(() => import('../admin/AdminLogsSection'));
+const PharmaciesSection          = lazy(() => import('../admin/PharmaciesSection'));
+const ProductsSection            = lazy(() => import('../admin/ProductsSection'));
+const BrandsSection              = lazy(() => import('../admin/BrandsSection'));
+const StatsSection               = lazy(() => import('../admin/StatsSection'));
+const PromosSection              = lazy(() => import('../admin/PromosSection'));
+const MarketingSection           = lazy(() => import('../admin/MarketingSection'));
+const ImportsSection             = lazy(() => import('../admin/ImportsSection'));
+const PromosSplashSection        = lazy(() => import('../admin/PromosSplashSection'));
+const ReviewsSection             = lazy(() => import('../admin/ReviewsSection'));
+const UsersSection               = lazy(() => import('../admin/UsersSection'));
+const DeliveriesSection          = lazy(() => import('../admin/DeliveriesSection'));
+const StaffSection               = lazy(() => import('../admin/StaffSection'));
+const HistorySection             = lazy(() => import('../admin/HistorySection'));
+const SettingsSection            = lazy(() => import('../admin/SettingsSection'));
+const ProductsValidationSection  = lazy(() => import('../admin/ProductsValidationSection'));
+const CommissionsSection         = lazy(() => import('../admin/CommissionsSection'));
+const BannersSection             = lazy(() => import('../admin/BannersSection'));
+const CategoriesSection          = lazy(() => import('../admin/CategoriesSection'));
+const LoyaltySection             = lazy(() => import('../admin/LoyaltySection'));
+const NotificationsSection       = lazy(() => import('../admin/NotificationsSection'));
+const PushBroadcastSection       = lazy(() => import('../admin/PushBroadcastSection'));
+
 import './Admin.css';
+
+function AdminSectionFallback() {
+  return (
+    <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 14 }}>
+      Chargement…
+    </div>
+  );
+}
 
 const NAV = [
   { id: 'dashboard',   icon: '📊', label: "Vue d'ensemble" },
@@ -260,34 +271,36 @@ export default function Admin() {
       </aside>
 
       <main className="adm-main">
-        {section === 'dashboard'     && <DashboardSection setSection={setSection} />}
-        {section === 'orders'        && <OrdersSection />}
-        {section === 'stats'         && <StatsSection />}
-        {section === 'pharmacies'    && <PharmaciesSection />}
-        {section === 'performance'   && <PerformanceSection />}
-        {section === 'skinscans'     && <SkinScansSection />}
-        {section === 'commissions'   && <CommissionsSection />}
-        {section === 'finances'      && <FinancesSection />}
-        {section === 'loyalty'       && <LoyaltySection />}
-        {section === 'notifications' && <NotificationsSection />}
-        {section === 'push'          && <PushBroadcastSection />}
-        {section === 'products'      && <ProductsSection />}
-        {section === 'validation'    && <ProductsValidationSection />}
-        {section === 'brands'        && <BrandsSection />}
-        {section === 'banners'       && <BannersSection />}
-        {section === 'categories'    && <CategoriesSection />}
-        {section === 'promos'        && <PromosSection />}
-        {section === 'marketing'     && <MarketingSection />}
-        {section === 'imports'       && <ImportsSection />}
-        {section === 'splash'        && <PromosSplashSection />}
-        {section === 'reviews'       && <ReviewsSection />}
-        {section === 'users'         && <UsersSection />}
-        {section === 'deliveries'    && <DeliveriesSection />}
-        {section === 'staff'         && <StaffSection />}
-        {section === 'history'       && <HistorySection />}
-        {section === 'settings'      && <SettingsSection />}
-        {section === 'adminusers'    && <AdminUsersSection />}
-        {section === 'adminlogs'     && <AdminLogsSection />}
+        <Suspense fallback={<AdminSectionFallback />}>
+          {section === 'dashboard'     && <DashboardSection setSection={setSection} />}
+          {section === 'orders'        && <OrdersSection />}
+          {section === 'stats'         && <StatsSection />}
+          {section === 'pharmacies'    && <PharmaciesSection />}
+          {section === 'performance'   && <PerformanceSection />}
+          {section === 'skinscans'     && <SkinScansSection />}
+          {section === 'commissions'   && <CommissionsSection />}
+          {section === 'finances'      && <FinancesSection />}
+          {section === 'loyalty'       && <LoyaltySection />}
+          {section === 'notifications' && <NotificationsSection />}
+          {section === 'push'          && <PushBroadcastSection />}
+          {section === 'products'      && <ProductsSection />}
+          {section === 'validation'    && <ProductsValidationSection />}
+          {section === 'brands'        && <BrandsSection />}
+          {section === 'banners'       && <BannersSection />}
+          {section === 'categories'    && <CategoriesSection />}
+          {section === 'promos'        && <PromosSection />}
+          {section === 'marketing'     && <MarketingSection />}
+          {section === 'imports'       && <ImportsSection />}
+          {section === 'splash'        && <PromosSplashSection />}
+          {section === 'reviews'       && <ReviewsSection />}
+          {section === 'users'         && <UsersSection />}
+          {section === 'deliveries'    && <DeliveriesSection />}
+          {section === 'staff'         && <StaffSection />}
+          {section === 'history'       && <HistorySection />}
+          {section === 'settings'      && <SettingsSection />}
+          {section === 'adminusers'    && <AdminUsersSection />}
+          {section === 'adminlogs'     && <AdminLogsSection />}
+        </Suspense>
       </main>
 
       {pinModal && (

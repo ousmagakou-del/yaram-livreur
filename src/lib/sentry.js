@@ -1,81 +1,111 @@
 // src/lib/sentry.js
 // Initialisation Sentry monitoring d'erreurs prod.
-// Aucune dependance npm si VITE_SENTRY_DSN n'est pas defini → pas d'overhead.
+// Toute la logique est CONDITIONNELLE : si @sentry/browser n'est pas installé
+// OU si VITE_SENTRY_DSN n'est pas défini OU en dev → silent skip.
+// Aucun crash possible côté Cloudflare Pages même si la dep est absente.
 //
 // Pour activer en prod :
-//   1. Crée un compte gratuit sur https://sentry.io (5000 événements/mois free)
-//   2. Crée un projet React → copie le DSN (https://xxx@xxx.ingest.sentry.io/xxx)
-//   3. Ajoute VITE_SENTRY_DSN=https://... dans Cloudflare Pages → Settings → Env vars
-//   4. Redeploie
+//   1. npm install @sentry/browser (déjà dans package.json)
+//   2. Crée un compte gratuit sur https://sentry.io (5000 événements/mois free)
+//   3. Crée un projet React → copie le DSN
+//   4. Ajoute VITE_SENTRY_DSN=https://... dans Cloudflare Pages → Settings → Env vars
+//   5. Redeploie
 //
-// Sans DSN, ce module ne fait rien (production-safe).
+// PII filtering : email/phone/password/token/whatsapp sont scrubés des contextes.
 
-let initialized = false;
-let SentrySDK = null;
+let sentryReady = false;
+let Sentry = null;
 
 export async function initSentry() {
-  if (initialized) return;
+  if (sentryReady) return;
+  if (import.meta.env.DEV) return;
   const dsn = import.meta.env.VITE_SENTRY_DSN;
-  if (!dsn) {
-    // Pas de DSN configure : on skippe completement (pas d'import dynamique
-    // donc le bundle Sentry n'est meme pas téléchargé).
-    return;
-  }
+  if (!dsn) return;
 
   try {
-    // Import dynamique : Sentry ne s'ajoute au bundle que si DSN actif
-    SentrySDK = await import('@sentry/browser');
-    SentrySDK.init({
+    // Import dynamique : si @sentry/browser n'est pas installé,
+    // l'erreur est swallowed par le catch en bas.
+    Sentry = await import('@sentry/browser');
+    Sentry.init({
       dsn,
-      environment: import.meta.env.MODE || 'production',
-      // Sample 100% des erreurs (5000/mois suffisent pour debut)
-      sampleRate: 1.0,
-      // Traces : 10% pour pas spammer
+      release: import.meta.env.VITE_APP_VERSION || 'yaram@unknown',
+      environment: import.meta.env.MODE,
       tracesSampleRate: 0.1,
-      // Ne pas envoyer les erreurs en dev
-      enabled: import.meta.env.MODE === 'production',
-      // Filtre les erreurs benignes
+      replaysSessionSampleRate: 0,
+      replaysOnErrorSampleRate: 0.5,
+      beforeSend(event) {
+        // strip PII de l'user
+        if (event.user) {
+          delete event.user.email;
+          delete event.user.ip_address;
+          if (event.user.username) delete event.user.username;
+        }
+        // strip headers sensibles
+        if (event.request?.headers) {
+          delete event.request.headers.authorization;
+          delete event.request.headers.cookie;
+        }
+        if (event.request?.cookies) delete event.request.cookies;
+        return event;
+      },
       ignoreErrors: [
         'ResizeObserver loop limit exceeded',
         'ResizeObserver loop completed with undelivered notifications',
-        // Erreurs reseau classiques utilisateur offline
-        'NetworkError',
+        'Non-Error promise rejection captured',
+        /AbortError/i,
+        /NetworkError/i,
         'Failed to fetch',
         'Load failed',
-        // Extensions navigateur
         'top.GLOBALS',
-        // Bots
-        /^Non-Error promise rejection captured/,
       ],
-      // Anonymise les donnees sensibles avant envoi
-      beforeSend(event) {
-        // Strip toute donnee potentiellement PII des breadcrumbs
-        if (event.request?.cookies) delete event.request.cookies;
-        if (event.user) {
-          // Garde juste l'id, vire email/ip
-          event.user = { id: event.user.id };
-        }
-        return event;
-      },
     });
-    initialized = true;
-    console.log('✓ Sentry initialise');
-  } catch (e) {
-    console.warn('Sentry init failed (ok en dev sans @sentry/browser):', e.message);
+    sentryReady = true;
+    // eslint-disable-next-line no-console
+    console.log('[Sentry] initialized');
+  } catch {
+    // Sentry pas installé ou échec init → silent
   }
 }
 
-// Helper pour logger manuellement
-export function captureException(error, context = {}) {
-  if (!SentrySDK) return;
+export function captureError(err, context = {}) {
+  if (!sentryReady || !Sentry) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.error('[Sentry-stub]', err, context);
+    }
+    return;
+  }
   try {
-    SentrySDK.captureException(error, { extra: context });
+    Sentry.captureException(err, { extra: scrubPII(context) });
   } catch { /* ignore */ }
 }
 
+// Alias rétro-compat avec l'ancien nom utilisé par ErrorBoundary
+export const captureException = captureError;
+
 export function captureMessage(message, level = 'info') {
-  if (!SentrySDK) return;
+  if (!sentryReady || !Sentry) return;
   try {
-    SentrySDK.captureMessage(message, level);
+    Sentry.captureMessage(message, level);
   } catch { /* ignore */ }
+}
+
+export function identifySentry(user) {
+  if (!sentryReady || !Sentry) return;
+  try {
+    Sentry.setUser(user ? { id: user.id } : null);
+  } catch { /* ignore */ }
+}
+
+function scrubPII(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const out = {};
+  for (const k of Object.keys(obj)) {
+    if (/email|phone|password|token|secret|whatsapp/i.test(k)) {
+      out[k] = '[redacted]';
+    } else {
+      out[k] = obj[k];
+    }
+  }
+  return out;
 }

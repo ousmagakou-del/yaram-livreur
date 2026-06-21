@@ -454,7 +454,7 @@ export default function Evolution() {
 
                 {/* Points */}
                 {chartData.points.map((p, i) => (
-                  <g key={i} className={chartReady ? 'ev-point-in' : 'ev-point-hidden'} style={{ animationDelay: `${0.8 + i * 0.1}s` }}>
+                  <g key={p.label || i} className={chartReady ? 'ev-point-in' : 'ev-point-hidden'} style={{ animationDelay: `${0.8 + i * 0.1}s` }}>
                     <circle cx={p.x} cy={p.y} r="7" fill="white" stroke="#1F8B4C" strokeWidth="2.2"/>
                     <circle cx={p.x} cy={p.y} r="3" fill="#1F8B4C"/>
                   </g>
@@ -462,7 +462,7 @@ export default function Evolution() {
               </svg>
 
               <div className="ev-chart-axis">
-                {chartData.points.map((p, i) => <span key={i} className="ev-axis-label">{p.label}</span>)}
+                {chartData.points.map((p, i) => <span key={p.label || i} className="ev-axis-label">{p.label}</span>)}
               </div>
             </div>
           </section>
@@ -569,7 +569,7 @@ export default function Evolution() {
             <h2 className="ev-section-title">Tes insights</h2>
             <div className="ev-insights-list">
               {insights.map((ins, i) => (
-                <article key={i} className={`ev-insight ev-insight-${ins.tone}`} style={{ animationDelay: `${0.1 + i * 0.08}s` }}>
+                <article key={ins.title || i} className={`ev-insight ev-insight-${ins.tone}`} style={{ animationDelay: `${0.1 + i * 0.08}s` }}>
                   <div className="ev-insight-icon">
                     <InsightIcon name={ins.icon} />
                   </div>

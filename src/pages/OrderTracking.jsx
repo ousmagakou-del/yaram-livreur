@@ -452,7 +452,7 @@ export default function OrderTracking({ orderId }) {
           </button>
           <div className={`track-items ${itemsExpanded ? 'open' : ''}`}>
             {order.items?.map((it, i) => (
-              <div key={i} className="track-item">
+              <div key={`${it.id || it.name}-${i}`} className="track-item">
                 {it.img && <img src={it.img} alt="" loading="lazy" decoding="async" />}
                 <div className="track-item-info">
                   <strong>{it.name}</strong>

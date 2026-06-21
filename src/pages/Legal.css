@@ -132,3 +132,18 @@
   .legal-content { color: #D5D5D5; }
   .legal-content strong { color: #F5F5F5; }
 }
+
+/* Disclaimer IA en bas de chaque page légale */
+.legal-disclaimer {
+  margin-top: 40px;
+  padding: 12px 16px;
+  border-top: 1px dashed #D5D5D5;
+  font-size: 12px;
+  color: #888;
+  text-align: center;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  .legal-disclaimer { border-top-color: #2A3142; color: #A0A0A0; }
+}

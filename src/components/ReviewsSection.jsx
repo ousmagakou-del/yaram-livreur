@@ -176,7 +176,7 @@ function ReviewCard({ review, onHelpful }) {
       {review.photo_urls && review.photo_urls.length > 0 && (
         <div className="rv-photos">
           {review.photo_urls.map((url, i) => (
-            <img key={i} src={url} alt="" loading="lazy" decoding="async" />
+            <img key={url || i} src={url} alt="" loading="lazy" decoding="async" />
           ))}
         </div>
       )}

@@ -109,9 +109,9 @@ function BannerCarousel() {
       
       {banners.length > 1 && (
         <div className="bc-dots">
-          {banners.map((_, i) => (
+          {banners.map((b, i) => (
             <button
-              key={i}
+              key={b?.id || i}
               className={`bc-dot ${i === current ? 'active' : ''}`}
               onClick={(e) => { e.stopPropagation(); setCurrent(i); setPaused(true); setTimeout(() => setPaused(false), 3000); }}
             />

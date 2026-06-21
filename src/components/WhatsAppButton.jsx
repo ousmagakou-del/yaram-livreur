@@ -80,7 +80,7 @@ export default function WhatsAppButton() {
             
             <div className="wa-options">
               {messages.map((m, i) => (
-                <button key={i} className="wa-option" onClick={() => handleSend(m.text)}>
+                <button key={m.label || i} className="wa-option" onClick={() => handleSend(m.text)}>
                   <span className="wa-option-icon">{m.icon}</span>
                   <span className="wa-option-text">{m.label}</span>
                   <span className="wa-option-arrow">→</span>

@@ -509,6 +509,14 @@ export default function Profile() {
               />
               <div className="prof2-sep" />
               <MenuItem
+                icon="🏛️"
+                tint="rgba(0,0,0,0.06)"
+                label="Mentions légales"
+                sub="Éditeur, hébergeur, contact"
+                onClick={() => navigate({ name: 'mentions', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
                 icon="🔒"
                 tint="rgba(0,0,0,0.06)"
                 label="Politique de confidentialité"
@@ -520,7 +528,7 @@ export default function Profile() {
                 icon="📄"
                 tint="rgba(0,0,0,0.06)"
                 label="Conditions générales"
-                sub="CGU YARAM"
+                sub="CGV / CGU YARAM"
                 onClick={() => navigate({ name: 'terms', params: {} })}
               />
               <div className="prof2-sep" />

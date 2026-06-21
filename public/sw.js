@@ -1,191 +1,233 @@
 // ════════════════════════════════════════════════
-// YARAM Service Worker v5 — PERFORMANT
+// YARAM Service Worker v6 — VANILLA PERFORMANT
 // ════════════════════════════════════════════════
-// - Network-first pour HTML/JS (fraîcheur)
-// - Cache-first pour images/fonts (rapidité)
-// - Stale-while-revalidate pour Supabase GET (snappy)
-// - Ignore mutations Supabase (POST/PUT/DELETE)
+// Stratégies par bucket :
+//   - precache : shells critiques (/, manifest, icônes) — installé au boot
+//   - assets   : JS/CSS/fonts hashés (immutable) → cache-first long-lived
+//   - images   : Supabase storage / images produits → stale-while-revalidate
+//   - api      : Supabase REST GET → network-first avec timeout 3s + fallback cache
+//
+// Bypass strict :
+//   - Toute méthode != GET (POST/PUT/PATCH/DELETE) → réseau direct
+//   - /auth/* et /rest/v1/rpc/* mutatifs → réseau direct
+//   - WebSocket / Realtime → réseau direct
+//   - site_settings → réseau direct (admin-éditable)
+//
+// Compat : iOS Safari + Chrome Android. Skip-waiting + clients.claim().
 // ════════════════════════════════════════════════
 
-const SW_VERSION = 'v32-2026-06-01-cart-fix-blank-page';
-const CACHE_STATIC = 'yaram-static-v32';
-const CACHE_SUPABASE = 'yaram-supabase-v32';
+const SW_BUILD = 'yaram-v6-2026-06-21';
+const C_PRECACHE = `${SW_BUILD}-precache`;
+const C_ASSETS   = `${SW_BUILD}-assets`;
+const C_IMAGES   = `${SW_BUILD}-images`;
+const C_API      = `${SW_BUILD}-api`;
+const KNOWN_CACHES = new Set([C_PRECACHE, C_ASSETS, C_IMAGES, C_API]);
 
-const ESSENTIAL = [
+// Shells critiques pré-cachés à l'install pour 2e visite instantanée
+const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/favicon.svg',
 ];
 
-// ─── INSTALL : pre-cache + clean old caches ───
+// Timeouts adaptés au réseau sénégalais (LTE flaky / 2G)
+const API_NETWORK_TIMEOUT_MS = 3000;   // GET Supabase REST : tente 3s puis cache
+const SWR_BG_TIMEOUT_MS = 8000;        // refresh BG d'une image SWR
+const GENERIC_FETCH_TIMEOUT_MS = 10000;
+
+// ─── INSTALL ───────────────────────────────────────
 self.addEventListener('install', (event) => {
-  console.log('[SW v5] Install');
+  console.log('[SW v6] install', SW_BUILD);
   event.waitUntil(
-    Promise.all([
-      caches.keys().then(names =>
-        Promise.all(
-          names
-            .filter(name => name !== CACHE_STATIC && name !== CACHE_SUPABASE)
-            .map(name => {
-              console.log('[SW v5] Delete old cache:', name);
-              return caches.delete(name);
-            })
-        )
-      ),
-      caches.open(CACHE_STATIC).then(cache =>
-        cache.addAll(ESSENTIAL).catch(e => console.warn('[SW v5] Cache install warn:', e))
-      ),
-    ]).then(() => self.skipWaiting())
+    (async () => {
+      const cache = await caches.open(C_PRECACHE);
+      // addAll est atomique : si un asset 404, on retombe sur un add unitaire tolérant
+      try {
+        await cache.addAll(PRECACHE_URLS);
+      } catch (e) {
+        console.warn('[SW v6] precache addAll partial fail, retry unit', e);
+        await Promise.all(
+          PRECACHE_URLS.map(u => cache.add(u).catch(err => console.warn('[SW v6] skip', u, err)))
+        );
+      }
+      await self.skipWaiting();
+    })()
   );
 });
 
-// ─── ACTIVATE : prend le contrôle ───
+// ─── ACTIVATE ──────────────────────────────────────
 self.addEventListener('activate', (event) => {
-  console.log('[SW v5] Activate');
-  event.waitUntil(self.clients.claim());
+  console.log('[SW v6] activate', SW_BUILD);
+  event.waitUntil(
+    (async () => {
+      // Purge tous les caches qui ne correspondent pas à la version courante
+      const names = await caches.keys();
+      await Promise.all(
+        names.filter(n => !KNOWN_CACHES.has(n)).map(n => {
+          console.log('[SW v6] delete old cache', n);
+          return caches.delete(n);
+        })
+      );
+      await self.clients.claim();
+    })()
+  );
 });
 
-// ─── FETCH ───
+// ─── HELPERS ───────────────────────────────────────
+function fetchWithTimeout(request, timeoutMs = GENERIC_FETCH_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    const t = setTimeout(() => {
+      controller.abort();
+      reject(new Error('sw_timeout'));
+    }, timeoutMs);
+    fetch(request, { signal: controller.signal })
+      .then(r => { clearTimeout(t); resolve(r); })
+      .catch(e => { clearTimeout(t); reject(e); });
+  });
+}
+
+async function cacheFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const hit = await cache.match(request);
+  if (hit) return hit;
+  try {
+    const res = await fetchWithTimeout(request);
+    if (res && res.ok) {
+      // clone avant put — body unique
+      cache.put(request, res.clone()).catch(() => {});
+    }
+    return res;
+  } catch {
+    // Pour un asset hashé, on n'a rien de mieux à offrir
+    return new Response('', { status: 504, statusText: 'asset offline' });
+  }
+}
+
+async function networkFirstWithTimeout(request, cacheName, timeoutMs = API_NETWORK_TIMEOUT_MS) {
+  const cache = await caches.open(cacheName);
+  try {
+    const res = await fetchWithTimeout(request, timeoutMs);
+    if (res && res.ok) {
+      cache.put(request, res.clone()).catch(() => {});
+    }
+    return res;
+  } catch {
+    const hit = await cache.match(request);
+    if (hit) return hit;
+    return new Response(JSON.stringify({ error: 'offline', sw: SW_BUILD }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+
+  const networkPromise = fetchWithTimeout(request, SWR_BG_TIMEOUT_MS)
+    .then(res => {
+      if (res && res.ok) cache.put(request, res.clone()).catch(() => {});
+      return res;
+    })
+    .catch(() => null);
+
+  if (cached) return cached;
+  const res = await networkPromise;
+  if (res) return res;
+  return new Response('', { status: 504, statusText: 'image offline' });
+}
+
+// ─── ROUTER ────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // 1) Schémas non-http : pass-through (chrome-extension://, blob:, data:, ws://)
   if (!url.protocol.startsWith('http')) return;
+
+  // 2) WebSocket Realtime — Supabase utilise wss://, donc déjà filtré ci-dessus.
+  //    Belt-and-suspenders : si pathname contient /realtime/, on ne touche pas.
+  if (url.pathname.includes('/realtime/')) return;
+
+  // 3) Mutations : jamais cacher, jamais retarder
   if (request.method !== 'GET') return;
 
+  // 4) Analytics / tag managers : pass-through
   if (url.hostname.includes('google-analytics') ||
-      url.hostname.includes('googletagmanager')) return;
+      url.hostname.includes('googletagmanager') ||
+      url.hostname.includes('sentry.io')) return;
 
-  // ─── 1. Supabase GET → stale-while-revalidate (LITE) ───
-  if (url.hostname.includes('supabase.co')) {
-    // Auth endpoint → JAMAIS cacher (sensible)
+  // 5) Supabase
+  if (url.hostname.includes('supabase.co') || url.hostname.includes('supabase.in')) {
+    // Auth : tokens, sensible → jamais cacher
     if (url.pathname.includes('/auth/')) return;
-    // Realtime → laisser passer
-    if (url.pathname.includes('/realtime')) return;
-    // Storage (images) → cache-first long
+    // RPC : appels procéduraux (peuvent muter) → jamais cacher
+    if (url.pathname.includes('/rest/v1/rpc/')) return;
+    // site_settings : admin-éditable, doit toujours être frais
+    if (url.pathname.includes('/rest/v1/site_settings')) return;
+    // Storage (images produits / pharmacies) → stale-while-revalidate
     if (url.pathname.includes('/storage/')) {
-      event.respondWith(cacheFirstLong(request));
+      event.respondWith(staleWhileRevalidate(request, C_IMAGES));
       return;
     }
-    // ─── EXCLUSIONS du cache REST : tables admin-modifiables ───
-    // site_settings change quand admin modifie WhatsApp/commission/shipping/colors
-    // → JAMAIS cacher sinon l'app reste sur les vieilles valeurs après update admin
-    if (url.pathname.includes('/rest/v1/site_settings')) {
-      return; // network direct, pas de cache
-    }
-    // REST API (products, brands, categories, etc.) → stale-while-revalidate
+    // REST GET (products, categories, pharmacies…) → network-first 3s + cache
     if (url.pathname.includes('/rest/v1/')) {
-      event.respondWith(staleWhileRevalidate(request));
+      event.respondWith(networkFirstWithTimeout(request, C_API, API_NETWORK_TIMEOUT_MS));
       return;
     }
     return;
   }
 
-  // ─── 2. Images & fonts → cache-first ───
-  if (request.destination === 'image' ||
-      request.destination === 'font' ||
-      url.pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|woff2?|ttf|ico|mp3|mp4)$/i)) {
-    event.respondWith(cacheFirstLong(request));
+  // 6) Assets buildés (hashés et immutables : /assets/*.[hash].js|css)
+  //    Vite émet dans dist/assets/. Cache-first long-lived OK.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+    event.respondWith(cacheFirst(request, C_ASSETS));
     return;
   }
 
-  // ─── 3. Reste (HTML/JS/CSS) → network-first ───
-  event.respondWith(networkFirst(request));
+  // 7) Fonts & icons même-origine
+  if (request.destination === 'font' ||
+      url.pathname.match(/\.(woff2?|ttf|eot)$/i)) {
+    event.respondWith(cacheFirst(request, C_ASSETS));
+    return;
+  }
+
+  // 8) Images même-origine (icons PWA, splash, /Logos/*)
+  if (request.destination === 'image' ||
+      url.pathname.match(/\.(png|jpe?g|gif|webp|svg|ico)$/i)) {
+    event.respondWith(staleWhileRevalidate(request, C_IMAGES));
+    return;
+  }
+
+  // 9) Document (navigation HTML) → network-first court + fallback precache
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith((async () => {
+      try {
+        const res = await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS);
+        if (res && res.ok) {
+          const cache = await caches.open(C_PRECACHE);
+          cache.put('/', res.clone()).catch(() => {});
+        }
+        return res;
+      } catch {
+        const cache = await caches.open(C_PRECACHE);
+        const hit = (await cache.match(request)) || (await cache.match('/')) || (await cache.match('/index.html'));
+        if (hit) return hit;
+        return new Response('Offline', { status: 503 });
+      }
+    })());
+    return;
+  }
+
+  // 10) Tout le reste : laissez-faire (pas de event.respondWith → réseau natif)
 });
 
-// ─── STRATÉGIES ───
-// FETCH avec TIMEOUT + AbortController pour ne JAMAIS hang sur fetches zombies (iOS resume)
-const SW_FETCH_TIMEOUT_MS = 10000; // 10s : assez large pour réseau africain
-const SW_FETCH_TIMEOUT_BG_MS = 8000; // 8s pour BG refresh (plus court car non-bloquant)
-
-function fetchWithTimeout(request, timeoutMs = SW_FETCH_TIMEOUT_MS) {
-  return new Promise((resolve, reject) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-      reject(new Error('sw_fetch_timeout'));
-    }, timeoutMs);
-
-    fetch(request, { signal: controller.signal })
-      .then(r => { clearTimeout(timeoutId); resolve(r); })
-      .catch(e => { clearTimeout(timeoutId); reject(e); });
-  });
-}
-
-async function networkFirst(request) {
-  try {
-    const response = await fetchWithTimeout(request);
-    if (response.ok && request.url.startsWith('http')) {
-      try {
-        const cache = await caches.open(CACHE_STATIC);
-        await cache.put(request, response.clone());
-      } catch {}
-    }
-    return response;
-  } catch (error) {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    if (request.destination === 'document') {
-      return caches.match('/index.html');
-    }
-    return new Response('Network error', { status: 503 });
-  }
-}
-
-async function cacheFirstLong(request) {
-  const cached = await caches.match(request);
-  if (cached) {
-    // Refresh BG si > 7 jours (avec timeout, jamais hang)
-    const dateHeader = cached.headers.get('date');
-    if (dateHeader) {
-      const age = Date.now() - new Date(dateHeader).getTime();
-      if (age > 7 * 24 * 60 * 60 * 1000) {
-        fetchWithTimeout(request, SW_FETCH_TIMEOUT_BG_MS).then(r => {
-          if (r.ok) caches.open(CACHE_STATIC).then(c => c.put(request, r).catch(() => {}));
-        }).catch(() => {});
-      }
-    }
-    return cached;
-  }
-  try {
-    const response = await fetchWithTimeout(request);
-    if (response.ok && request.url.startsWith('http')) {
-      try {
-        const cache = await caches.open(CACHE_STATIC);
-        await cache.put(request, response.clone());
-      } catch {}
-    }
-    return response;
-  } catch {
-    return new Response('', { status: 404 });
-  }
-}
-
-// Stale-while-revalidate : pour Supabase REST
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE_SUPABASE);
-  const cached = await cache.match(request);
-
-  // Fetch en BG avec TIMEOUT (jamais hang si TCP mort post-iOS-resume)
-  const fetchPromise = fetchWithTimeout(request, SW_FETCH_TIMEOUT_BG_MS).then(response => {
-    if (response.ok) {
-      try { cache.put(request, response.clone()).catch(() => {}); } catch {}
-    }
-    return response;
-  }).catch(() => null);
-
-  // Si on a un cache : renvoie tout de suite (snappy)
-  if (cached) {
-    return cached;
-  }
-
-  // Sinon : attend le fetch avec timeout strict
-  const response = await fetchPromise;
-  if (response) return response;
-  return new Response('Network error', { status: 503 });
-}
-
-// ─── PUSH NOTIFICATIONS ───
+// ─── PUSH NOTIFS (conservé) ────────────────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {
@@ -198,7 +240,7 @@ self.addEventListener('push', (event) => {
       data: { url: data.url || '/' },
     }));
   } catch (e) {
-    console.error('[SW v5] Push error:', e);
+    console.error('[SW v6] push error', e);
   }
 });
 
@@ -215,9 +257,15 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// ─── MESSAGES (force update) ───
+// ─── MESSAGES (skipWaiting forcé depuis l'app) ─────
 self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') self.skipWaiting();
+  if (!event.data) return;
+  if (event.data === 'skipWaiting' || event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data?.type === 'GET_VERSION') {
+    event.source?.postMessage?.({ type: 'VERSION', version: SW_BUILD });
+  }
 });
 
-console.log('[SW YARAM v5] Loaded — perf-mode ON');
+console.log('[SW YARAM v6] loaded', SW_BUILD);

@@ -593,7 +593,7 @@ export default function Livreur() {
             <div key={phId} className="liv-pharmacy-group">
               <strong>🏥 {phName}</strong>
               {(order?.items || []).filter(it => it.pharmacyId === phId).map((it, i) => (
-                <div key={i} className="liv-item">
+                <div key={`${it.id || it.name}-${i}`} className="liv-item">
                   <span>{it.name}</span>
                   <span>×{it.qty}</span>
                 </div>
@@ -718,7 +718,7 @@ export default function Livreur() {
                       overflowY: 'auto',
                     }}>
                       {(tracking?.scanned_barcodes || []).map((b, i) => (
-                        <div key={i} style={{ padding: '2px 0', display: 'flex', justifyContent: 'space-between' }}>
+                        <div key={b.code || i} style={{ padding: '2px 0', display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{b.code}</span>
                           <span style={{ color: '#9B9B9B' }}>{new Date(b.scanned_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>

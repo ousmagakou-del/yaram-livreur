@@ -874,9 +874,9 @@ export default function Home() {
             </div>
             {banners.length > 1 && (
               <div className="yhome-banner-dots">
-                {banners.map((_, i) => (
+                {banners.map((b, i) => (
                   <button
-                    key={i}
+                    key={b?.id || i}
                     className={`yhome-banner-dot ${i === activeBannerIdx ? 'active' : ''}`}
                     onClick={() => setActiveBannerIdx(i)}
                     aria-label={`Voir bannière ${i + 1}`}

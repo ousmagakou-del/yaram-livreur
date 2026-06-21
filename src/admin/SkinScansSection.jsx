@@ -341,7 +341,7 @@ export default function SkinScansSection() {
             <div style={S.sectionTitle}>📈 Évolution mensuelle des scans (12 mois)</div>
             <div style={S.chart}>
               {monthlyScans.map((m, i) => (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div key={m.label || i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={S.barValue}>{m.count || ''}</div>
                   <div title={`${m.count} scans`} style={{
                     ...S.bar,

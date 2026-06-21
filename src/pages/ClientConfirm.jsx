@@ -162,7 +162,7 @@ export default function ClientConfirm() {
           <div className="cc-articles">
             <h3>Articles livrés</h3>
             {order.items?.map((it, i) => (
-              <div key={i} className="cc-item">
+              <div key={`${it.id || it.name}-${i}`} className="cc-item">
                 <img src={it.img} alt="" loading="lazy" decoding="async" onError={(e) => e.target.style.display = 'none'} />
                 <div>
                   <strong>{it.name}</strong>

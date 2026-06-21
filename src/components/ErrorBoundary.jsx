@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { captureException } from '../lib/sentry';
+import { captureError } from '../lib/sentry';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // <ErrorBoundary /> : capture les erreurs React qui blanchissent les pages.
@@ -21,7 +21,7 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     console.error('[ErrorBoundary] Render crash:', error, info?.componentStack);
     try {
-      captureException(error, {
+      captureError(error, {
         componentStack: info?.componentStack,
         url: typeof window !== 'undefined' ? window.location.pathname : null,
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,

@@ -235,7 +235,7 @@ export default function MarketingSection() {
               </summary>
               <ul style={{ marginTop: 8, fontSize: 12, paddingLeft: 18 }}>
                 {(lastResult.details || []).filter(d => d.status !== 'sent').map((d, i) => (
-                  <li key={i} style={{ color: '#C00' }}>
+                  <li key={d.phone || i} style={{ color: '#C00' }}>
                     {d.phone} → {d.status} ({d.blocks_sent}/{d.blocks_total}){d.errors?.length ? ' · ' + d.errors.join('; ') : ''}
                   </li>
                 ))}

@@ -586,7 +586,7 @@ function OrderDetail({ order, onAdvance, onCancel, onConfirmPayment, onRejectPay
       <div className="adm-detail-card">
         <h3>📦 Articles ({order.items?.length})</h3>
         {order.items?.map((it, i) => (
-          <div key={i} className="adm-detail-item">
+          <div key={`${it.id || it.name}-${i}`} className="adm-detail-item">
             <img src={it.img} alt="" />
             <div style={{ flex: 1 }}>
               <strong>{it.name}</strong>

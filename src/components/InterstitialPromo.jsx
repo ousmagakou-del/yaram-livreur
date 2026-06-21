@@ -131,7 +131,7 @@ export default function InterstitialPromo({ promo, onClose }) {
             {features.length > 0 && (
               <div className="yip-features">
                 {features.map((f, i) => (
-                  <div key={i} className="yip-feature">
+                  <div key={f.title || i} className="yip-feature">
                     {f.icon && <div className="yip-feature-icon">{f.icon}</div>}
                     <div>
                       <strong>{f.title}</strong>

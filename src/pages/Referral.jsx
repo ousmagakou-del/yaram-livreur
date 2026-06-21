@@ -336,7 +336,7 @@ export default function Referral() {
                 const name = row.display_name || row.first_name || `YARAMist ${rank}`;
                 const initial = (name[0] || 'Y').toUpperCase();
                 return (
-                  <div key={i} className={`rf-board-row ${rank <= 3 ? 'top3' : ''}`}>
+                  <div key={row.user_id || row.display_name || i} className={`rf-board-row ${rank <= 3 ? 'top3' : ''}`}>
                     <div className="rf-board-rank">{medal}</div>
                     <div className="rf-board-avatar">{initial}</div>
                     <div className="rf-board-name">{name}</div>

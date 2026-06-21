@@ -211,7 +211,7 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
 
                 <div className="phar-order-items">
                   {myItems.map((it, i) => (
-                    <div key={i} className="phar-order-item">
+                    <div key={`${it.id || it.name}-${i}`} className="phar-order-item">
                       <img src={it.img || 'https://placehold.co/40x40/F4F4F2/9B9B9B/png?text=?'} alt="" onError={(e) => e.target.style.display = 'none'} />
                       <div>
                         <strong>{it.name}</strong>

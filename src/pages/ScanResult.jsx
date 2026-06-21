@@ -243,7 +243,7 @@ export default function ScanResult({ scanId }) {
             <div className="sr-concerns-grid">
               {d.concerns.map((c, i) => (
                 <article
-                  key={i}
+                  key={c.name || i}
                   className="sr-concern-card"
                   style={{
                     '--c-color': SEVERITY_COLORS[c.severity] || '#6B6B6B',
@@ -288,7 +288,7 @@ export default function ScanResult({ scanId }) {
             </div>
             <div className="sr-routine-timeline">
               {d.routine_recommandee.map((step, i) => (
-                <article key={i} className="sr-routine-step" style={{ animationDelay: `${0.06 * i}s` }}>
+                <article key={`${step.product_type || 'step'}-${i}`} className="sr-routine-step" style={{ animationDelay: `${0.06 * i}s` }}>
                   <div className="sr-routine-num">{step.step || (i + 1)}</div>
                   <div className="sr-routine-body">
                     <div className="sr-routine-head">
@@ -363,7 +363,7 @@ export default function ScanResult({ scanId }) {
                 </div>
                 <div className="sr-tags">
                   {d.ingredients_recommandes.map((ing, i) => (
-                    <span key={i} className="sr-tag sr-tag-good">{ing}</span>
+                    <span key={ing || i} className="sr-tag sr-tag-good">{ing}</span>
                   ))}
                 </div>
               </div>
@@ -377,7 +377,7 @@ export default function ScanResult({ scanId }) {
                 </div>
                 <div className="sr-tags">
                   {d.ingredients_a_eviter.map((ing, i) => (
-                    <span key={i} className="sr-tag sr-tag-bad">{ing}</span>
+                    <span key={ing || i} className="sr-tag sr-tag-bad">{ing}</span>
                   ))}
                 </div>
               </div>

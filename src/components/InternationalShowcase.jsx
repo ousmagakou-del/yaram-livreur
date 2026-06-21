@@ -65,7 +65,7 @@ export default function InternationalShowcase() {
           <div className="intl-brands-track">
             {/* dupliqué 2× pour l'effet marquee infini */}
             {[...SHOWCASE_BRANDS, ...SHOWCASE_BRANDS].map((b, i) => (
-              <div className="intl-brand-chip" key={i}>
+              <div className="intl-brand-chip" key={`${b.name}-${i}`}>
                 <span className="intl-brand-flag">{b.tag}</span>
                 <span className="intl-brand-name">{b.name}</span>
               </div>

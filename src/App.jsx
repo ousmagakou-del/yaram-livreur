@@ -49,9 +49,10 @@ const Pharma        = lazy(() => import('./pages/Pharma'));
 const Livreur       = lazy(() => import('./pages/Livreur'));
 const ClientConfirm = lazy(() => import('./pages/ClientConfirm'));
 const PiSpiTest     = lazy(() => import('./pages/PiSpiTest'));
-const Privacy       = lazy(() => import('./pages/Privacy'));
-const Terms         = lazy(() => import('./pages/Terms'));
-const DeleteAccount = lazy(() => import('./pages/DeleteAccount'));
+const Privacy         = lazy(() => import('./pages/Privacy'));
+const Terms           = lazy(() => import('./pages/Terms'));
+const MentionsLegales = lazy(() => import('./pages/MentionsLegales'));
+const DeleteAccount   = lazy(() => import('./pages/DeleteAccount'));
 const International = lazy(() => import('./pages/International'));
 
 // Fallback leger pour Suspense (evite de re-trigger le SplashScreen plein-ecran)
@@ -111,7 +112,7 @@ function pathToRoute(pathname, search = '') {
   if (parts[0] === 'scan' && parts[1] === 'result' && parts[2]) return { name: 'scan_result', params: { scanId: parts[2] } };
   if (parts[0] === 'payment' && parts[1]) return { name: 'payment', params: { orderId: parts[1] } };
   
-  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'notif_settings', 'promos', 'privacy', 'terms', 'delete_account', 'international', 'help'];
+  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'notif_settings', 'promos', 'privacy', 'terms', 'mentions', 'delete_account', 'international', 'help'];
   if (simpleRoutes.includes(parts[0])) {
     const params = {};
     if (parts[0] === 'search') {
@@ -389,6 +390,19 @@ function ClientApp() {
     };
   }, []);
 
+  // ─── SENTRY : identifie l'user pour corréler les erreurs (id only, no PII) ───
+  // Import dynamique : si le module sentry.js fail à charger (ou si Sentry pas
+  // installé), on ignore silencieusement. Aucun crash possible côté boot.
+  useEffect(() => {
+    if (!authChecked) return;
+    let cancelled = false;
+    import('./lib/sentry').then(({ identifySentry }) => {
+      if (cancelled) return;
+      try { identifySentry(user || null); } catch { /* silent */ }
+    }).catch(() => { /* sentry pas dispo */ });
+    return () => { cancelled = true; };
+  }, [authChecked, user?.id]);
+
   // ─── NOTIFICATIONS WHATSAPP : 1 SEULE FOIS PAR SESSION ───
   const notifsSentRef = useRef(false);
   useEffect(() => {
@@ -501,6 +515,7 @@ function ClientApp() {
           international: 'international',
           privacy: 'privacy',
           terms: 'terms',
+          mentions: 'mentions',
           delete_account: 'delete_account',
           help: 'help',
         };
@@ -652,6 +667,7 @@ function ClientApp() {
     case 'international': page = <Suspense fallback={<LazyFallback />}><International /></Suspense>; break;
     case 'privacy': page = <Suspense fallback={<LazyFallback />}><Privacy /></Suspense>; break;
     case 'terms': page = <Suspense fallback={<LazyFallback />}><Terms /></Suspense>; break;
+    case 'mentions': page = <Suspense fallback={<LazyFallback />}><MentionsLegales /></Suspense>; break;
     case 'delete_account': page = <Suspense fallback={<LazyFallback />}><DeleteAccount /></Suspense>; break;
     default: page = <Home />;
   }

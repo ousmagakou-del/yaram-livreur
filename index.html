@@ -209,15 +209,6 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Service Worker pour PWA -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((reg) => console.log('✓ YARAM SW enregistré :', reg.scope))
-            .catch((err) => console.warn('⚠ YARAM SW échec :', err));
-        });
-      }
-    </script>
+    <!-- Service Worker : register géré par src/lib/sw-register.js (skip auto sur localhost & Capacitor) -->
   </body>
 </html>
