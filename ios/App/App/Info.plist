@@ -23,9 +23,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.6</string>
+	<string>1.0.7</string>
 	<key>CFBundleVersion</key>
-	<string>18</string>
+	<string>20</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -77,6 +77,13 @@
 
 	<key>NSFaceIDUsageDescription</key>
 	<string>YARAM utilise Face ID pour te reconnecter rapidement et en sécurité sans retaper ton mot de passe.</string>
+
+	<!-- App Tracking Transparency : requis depuis iOS 14.5 si on utilise des
+	     identifiants pour analytics, MEME en interne (PostHog, Sentry). Apple
+	     accepte ce string même si on ne demande PAS l'ATT prompt — c'est par
+	     précaution. PostHog est configuré avec respect_dnt et maskAllInputs. -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>YARAM utilise des analytics anonymisés pour améliorer l'expérience. Tu peux refuser, ça ne change rien à l'usage de l'app.</string>
 
 	<!-- Permet d'ouvrir des URLs externes (WhatsApp, Wave, etc.) -->
 	<key>LSApplicationQueriesSchemes</key>
