@@ -2,72 +2,140 @@
   <mj-include path="./_layout.mjml" />
   <mj-body background-color="#F4F4F2" width="600px">
 
-    <!-- Header avec eyebrow + titre premium -->
-    <mj-section background-color="#FFFFFF" padding="44px 32px 8px" border-radius="14px 14px 0 0">
+    <!-- ═══════════ HERO MASSIF VERT YARAM AVEC HALO ═══════════ -->
+    <mj-section background-color="#FFFFFF" padding="0" border-radius="20px 20px 0 0">
       <mj-column>
-        <mj-text align="center" mj-class="eyebrow">{{EYEBROW}}</mj-text>
-        <mj-text mj-class="h1" align="center" padding-top="12px">{{TITLE}}</mj-text>
-        <mj-text align="center" padding-top="12px">{{INTRO}}</mj-text>
+        <mj-raw>
+          <div style="position:relative;background:linear-gradient(135deg,#1F8B4C 0%,#166635 60%,#0E5B33 100%);border-radius:20px 20px 0 0;padding:50px 32px 60px;overflow:hidden;text-align:center;">
+            <!-- Halo blanc qui pulse -->
+            <div class="yp-halo" style="position:absolute;top:-80px;left:50%;margin-left:-150px;width:300px;height:300px;background:radial-gradient(circle,rgba(255,255,255,0.18) 0%,transparent 65%);border-radius:50%;"></div>
+            <!-- Aura orange en bas -->
+            <div style="position:absolute;bottom:-100px;right:-80px;width:280px;height:280px;background:radial-gradient(circle,rgba(244,181,58,0.32) 0%,transparent 65%);border-radius:50%;"></div>
+
+            <!-- Pill eyebrow blanc translucide -->
+            <div class="yp-fade-up" style="display:inline-block;position:relative;z-index:1;background:rgba(255,255,255,0.18);backdrop-filter:blur(8px);border:1.5px solid rgba(255,255,255,0.35);color:#FFFFFF;padding:8px 18px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:22px;">
+              {{EYEBROW}}
+            </div>
+
+            <!-- Title massif blanc -->
+            <h1 class="yp-fade-up" style="position:relative;z-index:1;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:38px;font-weight:900;line-height:1.05;letter-spacing:-1.2px;color:#FFFFFF;margin:0 0 16px;text-shadow:0 4px 24px rgba(0,0,0,0.18);">
+              {{TITLE}}
+            </h1>
+
+            <!-- Intro -->
+            <p class="yp-fade-up" style="position:relative;z-index:1;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:15px;line-height:1.6;color:rgba(255,255,255,0.94);margin:0 auto 30px;max-width:440px;font-weight:500;">
+              {{INTRO}}
+            </p>
+
+            <!-- CTA principal avec glow -->
+            <a href="{{HERO_CTA_URL}}" class="yp-glow" style="display:inline-block;position:relative;z-index:1;background:#FFFFFF;color:#0E5B33;padding:16px 36px;border-radius:999px;text-decoration:none;font-weight:800;font-size:15px;letter-spacing:0.2px;box-shadow:0 12px 28px rgba(0,0,0,0.18);">
+              {{HERO_CTA_LABEL}} →
+            </a>
+          </div>
+        </mj-raw>
       </mj-column>
     </mj-section>
 
-    <!-- CTA principal hero -->
-    <mj-section background-color="#FFFFFF" padding="20px 32px 8px">
-      <mj-column>
-        <mj-button href="{{HERO_CTA_URL}}">{{HERO_CTA_LABEL}}</mj-button>
+    <!-- ═══════════ TROIS BÉNÉFICES SOUS LE HERO ═══════════ -->
+    <mj-section background-color="#FFFFFF" padding="30px 24px 8px">
+      <mj-column width="33.33%" vertical-align="top">
+        <mj-text align="center" font-size="32px" padding="0"><span class="yp-float">🧪</span></mj-text>
+        <mj-text align="center" font-size="13px" font-weight="800" color="#0E5B33" padding-top="6px">Validé dermato</mj-text>
+        <mj-text align="center" font-size="11px" color="#6B8275" padding-top="2px">Score IA sur tout</mj-text>
+      </mj-column>
+      <mj-column width="33.33%" vertical-align="top">
+        <mj-text align="center" font-size="32px" padding="0"><span class="yp-float" style="animation-delay:1.2s">🛵</span></mj-text>
+        <mj-text align="center" font-size="13px" font-weight="800" color="#0E5B33" padding-top="6px">Livré 24h</mj-text>
+        <mj-text align="center" font-size="11px" color="#6B8275" padding-top="2px">À Dakar partout</mj-text>
+      </mj-column>
+      <mj-column width="33.33%" vertical-align="top">
+        <mj-text align="center" font-size="32px" padding="0"><span class="yp-float" style="animation-delay:2.4s">💚</span></mj-text>
+        <mj-text align="center" font-size="13px" font-weight="800" color="#0E5B33" padding-top="6px">Made in Africa</mj-text>
+        <mj-text align="center" font-size="11px" color="#6B8275" padding-top="2px">Pour ta peau</mj-text>
       </mj-column>
     </mj-section>
 
-    <!-- Diviseur élégant -->
+    <!-- ═══════════ DIVIDER ÉLÉGANT ═══════════ -->
     <mj-section background-color="#FFFFFF" padding="20px 32px 0">
       <mj-column>
-        <mj-divider border-color="#EFEFEF" border-width="1px" />
+        <mj-raw>
+          <div style="height:2px;background:linear-gradient(90deg,transparent 0%,#1F8B4C 20%,#F4B53A 50%,#1F8B4C 80%,transparent 100%);opacity:0.4;margin:0 0 24px;"></div>
+        </mj-raw>
       </mj-column>
     </mj-section>
 
-    <!-- Eyebrow section produits -->
-    <mj-section background-color="#FFFFFF" padding="28px 32px 0">
+    <!-- ═══════════ SECTION PRODUITS ═══════════ -->
+    <mj-section background-color="#FFFFFF" padding="0 32px 0">
       <mj-column>
-        <mj-text align="center" font-size="11px" font-weight="700" color="#1F8B4C" letter-spacing="2.5px" text-transform="uppercase">{{PRODUCTS_EYEBROW}}</mj-text>
-        <mj-text align="center" font-size="20px" font-weight="800" color="#0E5B33" padding-top="6px">{{PRODUCTS_TITLE}}</mj-text>
+        <mj-text align="center" mj-class="eyebrow">{{PRODUCTS_EYEBROW}}</mj-text>
+        <mj-text align="center" mj-class="h1" padding-top="8px">{{PRODUCTS_TITLE}}</mj-text>
       </mj-column>
     </mj-section>
 
-    <!-- Grille produits (HTML brut généré côté JS, injecté ici) -->
-    <mj-section background-color="#FFFFFF" padding="16px 32px 8px">
+    <!-- Grid produits (injecté côté JS) -->
+    <mj-section background-color="#FFFFFF" padding="22px 24px 8px">
       <mj-column>
         <mj-raw>{{PRODUCTS_HTML}}</mj-raw>
       </mj-column>
     </mj-section>
 
-    <!-- CTA secondaire vers catalogue -->
+    <!-- ═══════════ CTA SECONDAIRE PILL VERT ═══════════ -->
     <mj-section background-color="#FFFFFF" padding="20px 32px 8px">
       <mj-column>
-        <mj-button href="{{SHOP_CTA_URL}}" background-color="#FFFFFF" color="#1F8B4C" border="2px solid #1F8B4C">{{SHOP_CTA_LABEL}}</mj-button>
+        <mj-raw>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="text-align:center;">
+            <tr><td align="center">
+              <a href="{{SHOP_CTA_URL}}" class="yp-glow" style="display:inline-block;background:linear-gradient(135deg,#1F8B4C 0%,#0E5B33 100%);color:#FFFFFF;padding:16px 36px;border-radius:999px;text-decoration:none;font-weight:800;font-size:15px;letter-spacing:0.2px;">
+                {{SHOP_CTA_LABEL}}
+              </a>
+            </td></tr>
+          </table>
+        </mj-raw>
       </mj-column>
     </mj-section>
 
-    <!-- Outro narrative -->
-    <mj-section background-color="#FFFFFF" padding="28px 32px 16px">
+    <!-- ═══════════ BANNER PROMOTIONNEL DOUBLE ═══════════ -->
+    <mj-section background-color="#FFFFFF" padding="28px 24px 8px">
       <mj-column>
-        <mj-divider border-color="#EFEFEF" border-width="1px" padding-bottom="20px" />
-        <mj-text align="center">{{OUTRO}}</mj-text>
+        <mj-raw>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#E8F5EC 0%,#FFF7E5 100%);border-radius:18px;padding:24px;">
+            <tr>
+              <td valign="middle" width="62%">
+                <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#1F8B4C;margin-bottom:6px;">CADEAU FIDÉLITÉ</div>
+                <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:20px;font-weight:900;color:#0E5B33;line-height:1.15;margin-bottom:6px;">-10% sur ta prochaine commande</div>
+                <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;color:#4A6B5A;">Code <strong style="background:white;padding:2px 8px;border-radius:6px;color:#1F8B4C">YARAM10</strong></div>
+              </td>
+              <td valign="middle" width="38%" style="text-align:right;">
+                <div style="font-size:56px;line-height:1;">🎁</div>
+              </td>
+            </tr>
+          </table>
+        </mj-raw>
       </mj-column>
     </mj-section>
 
-    <!-- Footer -->
-    <mj-section background-color="#FAFAFA" padding="24px 32px" border-radius="0 0 14px 14px">
+    <!-- ═══════════ OUTRO + SIGNATURE ═══════════ -->
+    <mj-section background-color="#FFFFFF" padding="32px 32px 24px">
       <mj-column>
-        <mj-text mj-class="muted" align="center">
-          Tu reçois cet email parce que tu es abonné·e à YARAM.<br/>
-          Une question ? WhatsApp <a href="https://wa.me/{{WA_RAW}}" class="yaram-link">+221 77 760 89 83</a>
+        <mj-raw>
+          <div style="height:1px;background:#EFEFEF;margin:0 0 24px;"></div>
+        </mj-raw>
+        <mj-text align="center" font-size="15px" color="#4A6B5A" line-height="1.6">{{OUTRO}}</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- ═══════════ FOOTER ═══════════ -->
+    <mj-section background-color="#0E5B33" padding="32px 32px" border-radius="0 0 20px 20px">
+      <mj-column>
+        <mj-text align="center" font-size="13px" color="rgba(255,255,255,0.85)" line-height="1.6">
+          Une question ? WhatsApp <a href="https://wa.me/{{WA_RAW}}" style="color:#F4B53A;text-decoration:none;font-weight:700">+221 77 760 89 83</a>
         </mj-text>
-        <mj-text mj-class="muted" align="center" padding-top="14px">
-          <a href="https://yaram.app/?route=newsletter" class="yaram-link">Préférences</a> ·
-          <a href="https://yaram.app/?route=newsletter&action=unsubscribe" class="yaram-link">Désabonnement</a>
+        <mj-text align="center" font-size="11px" color="rgba(255,255,255,0.6)" padding-top="14px">
+          <a href="https://yaram.app/?route=newsletter" style="color:rgba(255,255,255,0.8);text-decoration:underline">Préférences</a> ·
+          <a href="https://yaram.app/?route=newsletter&action=unsubscribe" style="color:rgba(255,255,255,0.8);text-decoration:underline">Désabonnement</a>
         </mj-text>
-        <mj-text mj-class="muted" align="center" padding-top="10px">
-          YARAM · Dakar, Sénégal · <a href="https://yaram.app" class="yaram-link">yaram.app</a>
+        <mj-text align="center" font-size="11px" color="rgba(255,255,255,0.6)" padding-top="10px">
+          YARAM · Beauté Sénégal · <a href="https://yaram.app" style="color:#F4B53A;text-decoration:none;font-weight:700">yaram.app</a>
         </mj-text>
       </mj-column>
     </mj-section>

@@ -1,24 +1,22 @@
 // ════════════════════════════════════════════════════════════════
-// YARAM — Génère une grille HTML de produits pour emails MJML
+// YARAM — Grille HTML produits PREMIUM pour emails MJML
 // ════════════════════════════════════════════════════════════════
 //
-// Les emails HTML ne supportent ni CSS Grid moderne, ni hover JS.
-// On utilise des tables HTML imbriquées (la seule structure qui
-// marche sur Outlook 2007, iOS Mail, Gmail web/mobile).
-//
-// Animation possible :
-//   - Pulse subtil sur le badge "promo" via CSS keyframes (Gmail mobile OK)
-//   - "Shine" sur les cards via background animé (iOS Mail OK)
-//   - On reste sobre sur Outlook desktop (no keyframes)
-//
-// Usage :
-//   const productsHtml = renderProductsGrid(productsArray, { columns: 2 });
-//   → injecté dans {{PRODUCTS_HTML}} du template MJML
+// Design commercial qui claque :
+//  - Cards ratio 4:5 vertical (mieux pour photos beauté)
+//  - Hero image en aspect ratio fixé avec gradient overlay
+//  - Badge promo animé (pulse via class .yp-pulse, defini dans _layout.mjml)
+//  - Brand uppercase tracking large, premium
+//  - Score badge avec étoile dorée + glow
+//  - Prix MASSIF avec drop shadow
+//  - CTA pill plein vert avec glow
+//  - Animation fade-up stagger sur chaque card
 // ════════════════════════════════════════════════════════════════
 
 const BRAND_GREEN = '#1F8B4C';
 const BRAND_DARK = '#0E5B33';
 const BRAND_ACCENT = '#F4B53A';
+const BRAND_ORANGE = '#E94E1B';
 
 function escape(s) {
   return String(s == null ? '' : s)
@@ -32,7 +30,12 @@ function formatPrice(n) {
   return Number(n || 0).toLocaleString('fr-FR');
 }
 
-function renderCard(p) {
+/**
+ * Construit une card produit premium (table HTML compatible Outlook + iOS Mail).
+ * @param {object} p Produit
+ * @param {number} delayMs Délai stagger pour fade-up (en ms)
+ */
+function renderCard(p, delayMs = 0) {
   const href = `https://yaram.app/product/${p.id}`;
   const name = escape(p.name);
   const brand = escape(p.brand || '');
@@ -42,35 +45,56 @@ function renderCard(p) {
   const hasDiscount = !!oldPrice;
   const discountPct = hasDiscount ? Math.round(100 - (p.price / p.old_price) * 100) : 0;
   const score = p.score != null ? Math.round(p.score) : null;
-  const scoreBadge = score != null && score >= 80
-    ? `<span style="display:inline-block;background:${BRAND_GREEN};color:white;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:0.3px">⭐ ${score}/100</span>`
-    : '';
+  const hasScore = score != null && score >= 80;
+
+  // Animation delay inline pour stagger fade-up (iOS Mail honore le delay)
+  const animStyle = `animation:ypFadeUp 0.6s cubic-bezier(0.2,0.9,0.3,1.2) ${delayMs}ms both;`;
 
   return `
-<td valign="top" width="50%" style="padding:6px">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #EFEFEF;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+<td valign="top" width="50%" style="padding:7px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #ECECEC;border-radius:18px;overflow:hidden;box-shadow:0 4px 16px rgba(14,91,51,0.06);${animStyle}">
+    <!-- ─── HERO IMAGE avec gradient YARAM en bas ─── -->
     <tr>
-      <td style="position:relative;padding:0;background:linear-gradient(135deg,#FAFAFA 0%,#F4F4F2 100%)">
-        <a href="${href}" style="display:block;text-decoration:none">
-          <img src="${img}" alt="${name}" width="100%" style="display:block;width:100%;max-width:280px;height:auto;aspect-ratio:1;object-fit:cover" />
+      <td style="position:relative;padding:0;background:linear-gradient(180deg,#FAFAFA 0%,#F4F4F2 100%);">
+        <a href="${href}" style="display:block;text-decoration:none;">
+          <img src="${img}" alt="${name}" width="100%" style="display:block;width:100%;max-width:280px;height:auto;aspect-ratio:4/5;object-fit:cover;" />
         </a>
-        ${hasDiscount ? `<div class="yp-pulse" style="position:absolute;top:10px;left:10px;background:${BRAND_ACCENT};color:#0E5B33;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:0.3px;animation:ypPulse 2.4s ease-in-out infinite">-${discountPct}%</div>` : ''}
+        ${hasDiscount ? `
+          <div class="yp-pulse" style="position:absolute;top:12px;left:12px;background:linear-gradient(135deg,${BRAND_ACCENT} 0%,${BRAND_ORANGE} 100%);color:#FFFFFF;padding:6px 12px;border-radius:14px;font-size:12px;font-weight:900;letter-spacing:0.4px;box-shadow:0 4px 12px rgba(244,181,58,0.5);">
+            -${discountPct}%
+          </div>` : ''}
+        ${hasScore ? `
+          <div style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.95);backdrop-filter:blur(8px);color:${BRAND_DARK};padding:5px 10px;border-radius:14px;font-size:11px;font-weight:800;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            ⭐ ${score}
+          </div>` : ''}
       </td>
     </tr>
+    <!-- ─── INFOS ─── -->
     <tr>
-      <td style="padding:14px 14px 16px">
-        ${brand ? `<div style="font-size:10px;color:#888;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">${brand}</div>` : ''}
-        <a href="${href}" style="text-decoration:none;color:#1A1A1A">
-          <div style="font-size:14px;font-weight:700;line-height:1.3;color:#1A1A1A;min-height:36px">${name}</div>
+      <td style="padding:16px 14px 18px;">
+        ${brand ? `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:10px;color:#888;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">
+            ${brand}
+          </div>` : ''}
+        <a href="${href}" style="text-decoration:none;color:#1A1A1A;">
+          <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;font-weight:800;line-height:1.3;color:#0E5B33;min-height:36px;letter-spacing:-0.2px;">
+            ${name}
+          </div>
         </a>
-        <div style="margin-top:8px">
-          ${scoreBadge}
+        <!-- ─── Prix massif ─── -->
+        <div style="margin-top:14px;">
+          <span style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:22px;font-weight:900;color:${BRAND_DARK};letter-spacing:-0.5px;">
+            ${price}<span style="font-size:11px;font-weight:700;color:#666;margin-left:2px;">FCFA</span>
+          </span>
+          ${hasDiscount ? `
+            <span style="margin-left:8px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;color:#999;text-decoration:line-through;font-weight:600;">
+              ${oldPrice}
+            </span>` : ''}
         </div>
-        <div style="margin-top:12px;display:flex;align-items:baseline">
-          <span style="font-size:17px;font-weight:800;color:${BRAND_DARK}">${price}<span style="font-size:11px;font-weight:600;color:#666"> FCFA</span></span>
-          ${hasDiscount ? `<span style="margin-left:8px;font-size:12px;color:#999;text-decoration:line-through">${oldPrice} FCFA</span>` : ''}
-        </div>
-        <a href="${href}" style="display:block;margin-top:12px;text-align:center;background:${BRAND_GREEN};color:white;padding:10px 14px;border-radius:999px;font-size:13px;font-weight:700;text-decoration:none">Voir le produit →</a>
+        <!-- ─── CTA pill plein vert avec glow ─── -->
+        <a href="${href}" style="display:block;margin-top:14px;text-align:center;background:linear-gradient(135deg,${BRAND_GREEN} 0%,${BRAND_DARK} 100%);color:#FFFFFF;padding:12px 14px;border-radius:999px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;font-weight:800;text-decoration:none;letter-spacing:0.1px;box-shadow:0 6px 16px rgba(31,139,76,0.32);">
+          Voir le produit →
+        </a>
       </td>
     </tr>
   </table>
@@ -79,10 +103,10 @@ function renderCard(p) {
 
 /**
  * Génère un HTML table 2 colonnes responsive avec N produits.
- * @param {Array} products - tableau de produits { id, name, brand, img, price, old_price, score }
+ * @param {Array} products
  * @param {object} [opts]
- * @param {number} [opts.columns=2] - 2 colonnes par défaut
- * @param {number} [opts.maxItems=6] - max 6 cards (3 lignes × 2 cols)
+ * @param {number} [opts.columns=2]
+ * @param {number} [opts.maxItems=6]
  */
 export function renderProductsGrid(products = [], opts = {}) {
   const columns = opts.columns || 2;
@@ -90,26 +114,31 @@ export function renderProductsGrid(products = [], opts = {}) {
   const items = products.slice(0, maxItems);
 
   if (items.length === 0) {
-    return `<div style="text-align:center;padding:30px;color:#888;font-style:italic">Aucun produit sélectionné</div>`;
+    return `<div style="text-align:center;padding:40px;color:#888;font-style:italic;font-family:-apple-system,sans-serif;">Aucun produit sélectionné</div>`;
   }
 
-  // Découpe en lignes de N colonnes
+  // Découpe en lignes de N colonnes avec stagger delay sur chaque card
   const rows = [];
   for (let i = 0; i < items.length; i += columns) {
     rows.push(items.slice(i, i + columns));
   }
 
+  let cardIdx = 0;
   const rowsHtml = rows.map((row) => {
-    // Si dernière ligne incomplète, padde avec des <td> vides
-    const cells = [...row.map(renderCard)];
+    const cells = [...row.map((p) => {
+      const html = renderCard(p, cardIdx * 100); // stagger 100ms par card
+      cardIdx++;
+      return html;
+    })];
     while (cells.length < columns) {
-      cells.push('<td width="50%" style="padding:6px">&nbsp;</td>');
+      cells.push('<td width="50%" style="padding:7px;">&nbsp;</td>');
+      cardIdx++;
     }
     return `<tr>${cells.join('')}</tr>`;
   }).join('');
 
   return `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:0">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:0;">
   ${rowsHtml}
 </table>`;
 }

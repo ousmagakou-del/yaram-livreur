@@ -1,7 +1,7 @@
 <!--
-  YARAM — Layout MJML de base utilisé par tous les templates.
-  Inclus via <mj-include path="./_layout.mjml" /> dans chaque template.
-  Définit : couleurs, fonts, header, footer.
+  YARAM — Layout MJML PREMIUM
+  Charte verte YARAM + animations CSS qui marchent dans iOS Mail + Gmail mobile.
+  Outlook = fallback statique gracieux.
 -->
 <mj-head>
   <mj-title>YARAM</mj-title>
@@ -9,33 +9,75 @@
   <mj-attributes>
     <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" />
     <mj-text color="#1A1A1A" font-size="15px" line-height="1.55" />
-    <mj-button background-color="#1F8B4C" color="white" font-weight="700" font-size="15px" padding="14px 28px" border-radius="999px" inner-padding="14px 28px" />
+    <mj-button background-color="#1F8B4C" color="white" font-weight="800" font-size="15px" padding="16px 30px" border-radius="999px" inner-padding="16px 30px" />
     <mj-class name="muted" color="#888" font-size="13px" line-height="1.5" />
-    <mj-class name="eyebrow" color="#1F8B4C" font-size="11px" font-weight="700" letter-spacing="1.5px" text-transform="uppercase" />
-    <mj-class name="h1" font-size="24px" font-weight="800" line-height="1.2" color="#0E5B33" />
-    <mj-class name="card" background-color="#FFFFFF" border="1px solid #EFEFEF" border-radius="14px" padding="20px" />
+    <mj-class name="eyebrow" color="#1F8B4C" font-size="11px" font-weight="800" letter-spacing="2.5px" text-transform="uppercase" />
+    <mj-class name="h1" font-size="28px" font-weight="900" line-height="1.05" color="#0E5B33" letter-spacing="-0.8px" />
+    <mj-class name="h-massive" font-size="36px" font-weight="900" line-height="1" color="#0E5B33" letter-spacing="-1.2px" />
+    <mj-class name="card" background-color="#FFFFFF" border="1px solid #EFEFEF" border-radius="18px" padding="22px" />
   </mj-attributes>
   <mj-style>
-    .yaram-link { color: #1F8B4C; text-decoration: none; font-weight: 600; }
+    .yaram-link { color: #1F8B4C; text-decoration: none; font-weight: 700; }
     .yaram-divider { border: none; border-top: 1px solid #EFEFEF; margin: 22px 0; }
-    /* Pulse subtle sur badge -X% promo (iOS Mail + Gmail mobile) */
+
+    /* ════════ ANIMATIONS PREMIUM ════════ */
+
+    /* Pulse sur badge promo -X% */
     @keyframes ypPulse {
-      0%, 100% { transform: scale(1); }
-      50%      { transform: scale(1.06); box-shadow: 0 4px 12px rgba(244,181,58,0.4); }
+      0%, 100% { transform: scale(1); box-shadow: 0 2px 8px rgba(244,181,58,0.3); }
+      50%      { transform: scale(1.08); box-shadow: 0 4px 16px rgba(244,181,58,0.6); }
     }
-    /* CTA buttons hover shine (iOS Mail uniquement) */
+    .yp-pulse { animation: ypPulse 2.4s ease-in-out infinite; }
+
+    /* Glow doux sur CTA principal — battement comme un coeur */
+    @keyframes ypGlow {
+      0%, 100% { box-shadow: 0 12px 28px rgba(31,139,76,0.35); }
+      50%      { box-shadow: 0 16px 38px rgba(31,139,76,0.55); }
+    }
+    .yp-glow { animation: ypGlow 2.2s ease-in-out infinite; }
+
+    /* Shine qui passe sur le hero */
     @keyframes ypShine {
-      0%   { background-position: -100% 0; }
+      0%   { background-position: -200% 0; }
       100% { background-position: 200% 0; }
     }
-    /* Fade-up subtle au load (Apple Mail effet doux) */
+    .yp-shine {
+      background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0.4) 55%, transparent 70%);
+      background-size: 200% 100%;
+      animation: ypShine 3.5s ease-in-out infinite;
+    }
+
+    /* Fade-up subtle (Apple Mail) */
     @keyframes ypFadeUp {
-      from { opacity: 0; transform: translateY(8px); }
+      from { opacity: 0; transform: translateY(10px); }
       to   { opacity: 1; transform: translateY(0); }
     }
+    .yp-fade-up { animation: ypFadeUp 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
+    /* Float doux sur emoji hero */
+    @keyframes ypFloat {
+      0%, 100% { transform: translateY(0) rotate(-3deg); }
+      50%      { transform: translateY(-6px) rotate(3deg); }
+    }
+    .yp-float { animation: ypFloat 3.8s ease-in-out infinite; display: inline-block; }
+
+    /* Aura halo derriere le hero */
+    @keyframes ypHalo {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50%      { opacity: 1;   transform: scale(1.1); }
+    }
+    .yp-halo { animation: ypHalo 4s ease-in-out infinite; }
+
     /* Respect prefers-reduced-motion */
     @media (prefers-reduced-motion: reduce) {
-      .yp-pulse { animation: none !important; }
+      .yp-pulse, .yp-glow, .yp-shine, .yp-fade-up, .yp-float, .yp-halo {
+        animation: none !important;
+      }
+    }
+
+    /* iOS Dark Mode awareness */
+    @media (prefers-color-scheme: dark) {
+      .yaram-link { color: #4ADE80 !important; }
     }
   </mj-style>
 </mj-head>
