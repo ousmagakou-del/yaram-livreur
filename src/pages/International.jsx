@@ -117,6 +117,41 @@ export default function International() {
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState(null); // 'ok' | 'err' | null
 
+  // ─── State produits importables (récupérés depuis Supabase) ───
+  // On affiche les produits actifs marqués is_imported = true OU avec un
+  // origin_country défini hors Sénégal. Ça donne une vraie grille tappable
+  // qui ouvre la fiche produit standard.
+  const [intlProducts, setIntlProducts] = useState([]);
+  const [intlProductsLoading, setIntlProductsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, name, brand, price, image_url, image_urls, origin_country, is_imported')
+          .eq('active', true)
+          .or('is_imported.eq.true,origin_country.not.is.null')
+          .limit(20);
+        if (error) throw error;
+        // Filtre côté client : retire le Sénégal qui pourrait passer via origin_country
+        const filtered = (data || []).filter(p => {
+          if (p.is_imported === true) return true;
+          const oc = (p.origin_country || '').toLowerCase();
+          if (!oc) return false;
+          return !['sn', 'senegal', 'sénégal', 'sénégalais'].includes(oc);
+        });
+        if (!cancelled) setIntlProducts(filtered);
+      } catch (e) {
+        console.warn('[Intl] products fetch error:', e?.message);
+      } finally {
+        if (!cancelled) setIntlProductsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // ─── State FAQ collapsible ───
   const [openFaq, setOpenFaq] = useState(null);
 
@@ -349,6 +384,57 @@ export default function International() {
           ))}
         </div>
       </section>
+
+      {/* ═══════════ C-bis. PRODUITS DISPONIBLES À COMMANDER ═══════════ */}
+      {(intlProductsLoading || intlProducts.length > 0) && (
+        <section className="intlp-section intlp-reveal">
+          <div className="intlp-section-head">
+            <div className="intlp-section-eyebrow">DÉJÀ EN STOCK</div>
+            <h2 className="intlp-section-title">Produits disponibles</h2>
+            <p className="intlp-section-sub">
+              Importés sous 15 jours ou déjà arrivés à Dakar
+            </p>
+          </div>
+          {intlProductsLoading ? (
+            <div className="intlp-products-grid">
+              {[0,1,2,3].map(i => (
+                <div key={i} className="intlp-product-card intlp-product-skeleton" />
+              ))}
+            </div>
+          ) : (
+            <div className="intlp-products-grid">
+              {intlProducts.map(p => {
+                const img = p.image_url || (Array.isArray(p.image_urls) ? p.image_urls[0] : null);
+                return (
+                  <button
+                    key={p.id}
+                    className="intlp-product-card"
+                    onClick={() => navigate({ name: 'product', params: { id: p.id } })}
+                  >
+                    {img ? (
+                      <img src={img} alt={p.name} className="intlp-product-img" loading="lazy" decoding="async" />
+                    ) : (
+                      <div className="intlp-product-img intlp-product-img-fallback">📦</div>
+                    )}
+                    <div className="intlp-product-body">
+                      {p.brand && <div className="intlp-product-brand">{p.brand}</div>}
+                      <div className="intlp-product-name">{p.name}</div>
+                      <div className="intlp-product-foot">
+                        {p.origin_country && (
+                          <span className="intlp-product-origin">📍 {p.origin_country}</span>
+                        )}
+                        <span className="intlp-product-price">
+                          {Number(p.price || 0).toLocaleString('fr-FR')} FCFA
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ═══════════ D. FORMULAIRE DEMANDE ═══════════ */}
       <section

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNav } from '../App';
+import { useNav, useUser } from '../App';
 import { getMyOrders, invalidateCache, supabase } from '../lib/supabase';
 import { safeFormatDate } from '../lib/utils';
 import TabBar from '../components/TabBar';
@@ -8,6 +8,7 @@ import './Orders.css';
 
 export default function Orders() {
   const { navigate } = useNav();
+  const { user } = useUser();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,19 +36,19 @@ export default function Orders() {
 
   useEffect(() => {
     let cancelled = false;
+    // FIX juin 2026 v2 : le useEffect attendait []. Si user n'était pas
+    // encore prêt au 1er mount → return [] → cache poison → page reste vide.
+    // Maintenant : on dépend de user?.id, on skip si pas user, et on re-fetch
+    // dès que user devient disponible.
+    if (!user?.id) {
+      setLoading(true);
+      return;
+    }
     (async () => {
       try {
-        // FIX juin 2026 : purge agressive du cache au mount.
-        // Cause du bug "aucune commande visible" : un cache vide (peut-être
-        // posé alors que la session n'était pas encore active) restait collé
-        // en localStorage et était re-servi en boucle.
-        // 1. Cleanup module-level (mem + LS) pour cet user
+        // Purge brute force tout cache 'my_orders_*' (toutes versions LS)
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
-        } catch {}
-        // 2. Cleanup brute force des vieux prefix yaram_cache_v*_my_orders_*
-        try {
+          invalidateCache(`my_orders_${user.id}`);
           const toDel = [];
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
@@ -107,7 +108,7 @@ export default function Orders() {
       window.removeEventListener('yaram-route-back', handleRouteBack);
       window.removeEventListener('yaram-app-resumed', handleAppResumed);
     };
-  }, []);
+  }, [user?.id]);
 
   return (
     <div className="orders-screen page-anim">

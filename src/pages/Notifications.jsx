@@ -122,9 +122,12 @@ export default function Notifications() {
     }
   }, []);
 
+  // FIX juin 2026 : attendre que user soit prêt avant de fetch, sinon RLS
+  // bloque silencieusement et retourne [] (la page reste vide pour toujours).
   useEffect(() => {
+    if (!user?.id) { setLoading(true); return; }
     load();
-  }, [load]);
+  }, [user?.id, load]);
 
   // ─── Real-time subscription : nouvelle notif arrive → refresh liste ───
   useEffect(() => {
