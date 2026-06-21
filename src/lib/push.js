@@ -29,12 +29,23 @@ const VAPID_PUBLIC = (typeof import.meta !== 'undefined' && import.meta?.env?.VI
 
 // ─── helpers ──────────────────────────────────────────
 function urlBase64ToUint8Array(base64String) {
-  if (!base64String) return new Uint8Array(0);
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
+  if (!base64String) {
+    throw new Error('VITE_VAPID_PUBLIC vide — env var pas propagée côté Cloudflare');
+  }
+  // Strip toute whitespace/newline accidentels lors du paste dans le dashboard
+  const cleaned = String(base64String).replace(/\s+/g, '');
+  const padding = '='.repeat((4 - (cleaned.length % 4)) % 4);
+  const base64 = (cleaned + padding).replace(/-/g, '+').replace(/_/g, '/');
+  let raw;
+  try { raw = atob(base64); } catch (e) {
+    throw new Error('VITE_VAPID_PUBLIC base64 invalide — vérifie qu\'il n\'y a pas de caractères en trop : "' + cleaned.slice(0, 20) + '..." (len=' + cleaned.length + ')');
+  }
   const out = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  // Doit faire exactement 65 bytes et commencer par 0x04 (P-256 uncompressed)
+  if (out.length !== 65 || out[0] !== 0x04) {
+    throw new Error('VITE_VAPID_PUBLIC mauvais format : ' + out.length + ' bytes (attendu 65), premier byte 0x' + out[0]?.toString(16) + ' (attendu 0x04)');
+  }
   return out;
 }
 
