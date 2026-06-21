@@ -144,9 +144,19 @@ export default function Cart() {
     };
     window.addEventListener('yaram-route-back', handleRouteBack);
 
+    // FIX v7 : sync au foreground (Capacitor + PWA)
+    // Cas : user ajoute un item via webapp dans Safari, revient sur l'app native →
+    // le localStorage est partagé sur PWA mais pas avec Capacitor. On force un re-read
+    // au visibilitychange visible pour être sûr d'afficher l'état frais du LS.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setItems(getCart());
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
       window.removeEventListener('yaram-cart-updated', onUpdate);
       window.removeEventListener('yaram-route-back', handleRouteBack);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 

@@ -85,7 +85,7 @@ export default function Profile() {
     };
     loadStats();
 
-    // Auto-refresh sur retour navigation (popstate iOS)
+    // Auto-refresh sur retour navigation (popstate iOS + nav programmatique)
     const handleRouteBack = (e) => {
       const target = e?.detail?.to?.name;
       if (target && target !== 'profile') return;
@@ -93,9 +93,14 @@ export default function Profile() {
     };
     window.addEventListener('yaram-route-back', handleRouteBack);
 
+    // FIX v7 : refresh aussi au resume app (Capacitor / PWA)
+    const handleAppResumed = () => loadStats();
+    window.addEventListener('yaram-app-resumed', handleAppResumed);
+
     return () => {
       cancelled = true;
       window.removeEventListener('yaram-route-back', handleRouteBack);
+      window.removeEventListener('yaram-app-resumed', handleAppResumed);
     };
   }, [user?.id]);
 

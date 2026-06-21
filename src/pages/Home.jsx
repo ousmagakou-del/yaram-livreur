@@ -389,23 +389,37 @@ export default function Home() {
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // ─── Auto-refresh sur retour navigation (popstate iOS) ───
-    // Quand l'user fait "Retour" depuis une autre page (Product, Cart, etc.)
-    // vers Home, force un refresh des données si le cache a > 30 sec.
-    // Évite le bug "données obsolètes au retour qui force un manual refresh".
+    // ─── Auto-refresh sur retour navigation (popstate iOS + nav programmatique) ───
+    // Quand l'user revient sur Home depuis une autre page (Product, Cart, TabBar Home, etc.)
+    // on déclenche un refresh BG. Heuristique :
+    //   - source 'navigate' (TabBar click, redirect post-action) → refresh si cache > 10s
+    //   - source 'popstate' (back button iOS) → refresh si cache > 30s
+    // Le cache module-level reste affiché instant, le BG fetch update sans flicker.
     const handleRouteBack = (e) => {
       const target = e?.detail?.to;
       if (target?.name !== 'home' && target?.name) return;
+      const source = e?.detail?.source || 'popstate';
+      const threshold = source === 'navigate' ? 10 * 1000 : 30 * 1000;
       const cacheAge = Date.now() - homeDataCache.loadedAt;
-      if (cacheAge > 30 * 1000) {
+      if (cacheAge > threshold) {
         loadData(true);
       }
     };
     window.addEventListener('yaram-route-back', handleRouteBack);
 
+    // ─── Refresh sur reprise app (Capacitor iOS + PWA) ───
+    // App.jsx dispatch yaram-app-resumed après >1min de background. On force un reload
+    // de la home pour montrer les nouveautés (produits, promos, stocks, etc.).
+    const handleAppResumed = () => {
+      if (route?.name !== 'home' && route?.name) return;
+      loadData(true);
+    };
+    window.addEventListener('yaram-app-resumed', handleAppResumed);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('yaram-route-back', handleRouteBack);
+      window.removeEventListener('yaram-app-resumed', handleAppResumed);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.name]);

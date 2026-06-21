@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════
-// YARAM — Pull To Refresh component (v4 — final, listeners sur scroll parent)
+// YARAM — Pull To Refresh component (v5 — fix iOS Capacitor + listeners stables)
 // ════════════════════════════════════════════════════════
 //
 // Stratégie qui marche partout (PWA + Capacitor iOS + Android) :
@@ -8,6 +8,15 @@
 //      → Aucune dépendance sur le DOM du wrapper, marche même en display:contents
 //   3. Le wrapper utilise display:contents au repos (transparent pour flex/grid)
 //   4. Switch à display:block UNIQUEMENT quand on pull pour le transform
+//
+// FIX v5 (juin 2026) :
+//   - Listeners attachés UNE SEULE FOIS au mount (deps stables) au lieu de re-bind
+//     à chaque setPullDistance → la swipe ne se faisait pas car les listeners
+//     étaient torn down en plein milieu du geste.
+//   - State du pull stocké dans des refs (pas dans React state) pour le live tracking,
+//     React state seulement pour le render visuel via rAF throttling.
+//   - overscroll-behavior-y: contain ajouté sur le scroll parent pour empêcher
+//     la bounce native iOS de bouffer le swipe quand on est à scrollTop = 0.
 //
 // Usage : place le composant à l'intérieur du scroll container.
 //   <div className="yhome-scroll">     ← scroll container natif
@@ -19,13 +28,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 
-const PULL_THRESHOLD = 80;
+const PULL_THRESHOLD = 70;       // 70px (60-80 sweet spot iPhone)
 const MAX_PULL = 140;
 const SPINNER_HEIGHT = 60;
 
 function findScrollParent(el) {
   let node = el?.parentElement;
-  while (node) {
+  while (node && node !== document.body && node !== document.documentElement) {
     const style = getComputedStyle(node);
     if (
       /(auto|scroll|overlay)/.test(style.overflowY) ||
@@ -46,24 +55,56 @@ function getScrollTop(scrollEl) {
 export default function PullToRefresh({ onRefresh, children, disabled = false }) {
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const anchorRef = useRef(null);
+
+  // ─── Refs pour tracking live du geste (pas de re-bind) ───
   const touchStartY = useRef(null);
-  const anchorRef = useRef(null); // span pour détecter le scroll parent
   const isPulling = useRef(false);
+  const currentPullRef = useRef(0);
+  const isRefreshingRef = useRef(false);
+  const onRefreshRef = useRef(onRefresh);
+  const disabledRef = useRef(disabled);
+  const rafIdRef = useRef(null);
+
+  // Sync refs avec props (sans re-bind)
+  useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
+  useEffect(() => { disabledRef.current = disabled; }, [disabled]);
+  useEffect(() => { isRefreshingRef.current = isRefreshing; }, [isRefreshing]);
 
   useEffect(() => {
-    if (disabled) return;
     const anchor = anchorRef.current;
     if (!anchor) return;
 
-    // Détecte le scroll container parent (yhome-scroll, prof-scroll, ou window)
     const scrollParent = findScrollParent(anchor);
-    // Cible où on attache les listeners : le scroll parent (préféré) sinon document
     const target = scrollParent || document;
 
+    // ─── iOS Safari : overscroll-behavior contain empêche le bounce natif
+    // de bouffer le swipe quand on est à scrollTop=0. Critique pour Capacitor WKWebView.
+    // On le set sur le scroll parent ET on restore au cleanup.
+    let prevOverscroll = '';
+    if (scrollParent) {
+      try {
+        prevOverscroll = scrollParent.style.overscrollBehaviorY || '';
+        scrollParent.style.overscrollBehaviorY = 'contain';
+        scrollParent.style.webkitOverflowScrolling = 'touch';
+      } catch { /* noop */ }
+    }
+
+    // ─── Render throttle via rAF ───
+    const scheduleRender = (next) => {
+      currentPullRef.current = next;
+      if (rafIdRef.current != null) return;
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null;
+        setPullDistance(currentPullRef.current);
+      });
+    };
+
     const handleTouchStart = (e) => {
+      if (disabledRef.current || isRefreshingRef.current) return;
       isPulling.current = false;
       const scrollTop = getScrollTop(scrollParent);
-      if (scrollTop > 0 || isRefreshing) {
+      if (scrollTop > 0) {
         touchStartY.current = null;
         return;
       }
@@ -71,14 +112,15 @@ export default function PullToRefresh({ onRefresh, children, disabled = false })
     };
 
     const handleTouchMove = (e) => {
-      if (touchStartY.current === null || isRefreshing) return;
+      if (disabledRef.current || isRefreshingRef.current) return;
+      if (touchStartY.current === null) return;
 
       const deltaY = e.touches[0].clientY - touchStartY.current;
 
       if (deltaY <= 0) {
         if (isPulling.current) {
           isPulling.current = false;
-          setPullDistance(0);
+          scheduleRender(0);
         }
         return;
       }
@@ -88,12 +130,13 @@ export default function PullToRefresh({ onRefresh, children, disabled = false })
       if (scrollTop > 0) {
         if (isPulling.current) {
           isPulling.current = false;
-          setPullDistance(0);
+          scheduleRender(0);
         }
         touchStartY.current = null;
         return;
       }
 
+      // Résistance progressive (rubber-band custom)
       let resisted;
       if (deltaY < PULL_THRESHOLD) {
         resisted = deltaY;
@@ -107,46 +150,59 @@ export default function PullToRefresh({ onRefresh, children, disabled = false })
       if (resisted < 8) return;
 
       isPulling.current = true;
-      setPullDistance(resisted);
+      scheduleRender(resisted);
 
+      // preventDefault : empêche le scroll natif de prendre le geste
+      // Note : sur iOS, certains touchmove sont déjà passive — on protège.
       if (e.cancelable) {
-        e.preventDefault();
+        try { e.preventDefault(); } catch { /* noop iOS strict */ }
       }
     };
 
     const handleTouchEnd = async () => {
       const wasPulling = isPulling.current;
-      const finalDistance = pullDistance;
+      const finalDistance = currentPullRef.current;
       touchStartY.current = null;
       isPulling.current = false;
 
-      if (!wasPulling || isRefreshing) return;
+      if (!wasPulling || isRefreshingRef.current) {
+        if (currentPullRef.current !== 0) scheduleRender(0);
+        return;
+      }
 
       const shouldRefresh = finalDistance >= PULL_THRESHOLD;
 
-      if (shouldRefresh && onRefresh) {
-        setIsRefreshing(true);
-        setPullDistance(SPINNER_HEIGHT);
+      if (shouldRefresh && onRefreshRef.current) {
+        // Haptic feedback si dispo (iOS Capacitor)
         try {
-          await onRefresh();
-        } catch (e) {
-          console.warn('[PullToRefresh] onRefresh error:', e?.message);
+          if (navigator?.vibrate) navigator.vibrate(15);
+        } catch { /* noop */ }
+
+        isRefreshingRef.current = true;
+        setIsRefreshing(true);
+        scheduleRender(SPINNER_HEIGHT);
+        try {
+          await onRefreshRef.current();
+        } catch (err) {
+          console.warn('[PullToRefresh] onRefresh error:', err?.message);
         } finally {
+          isRefreshingRef.current = false;
           setIsRefreshing(false);
-          setPullDistance(0);
+          scheduleRender(0);
         }
       } else {
-        setPullDistance(0);
+        scheduleRender(0);
       }
     };
 
     const handleTouchCancel = () => {
       touchStartY.current = null;
       isPulling.current = false;
-      if (!isRefreshing) setPullDistance(0);
+      if (!isRefreshingRef.current) scheduleRender(0);
     };
 
     target.addEventListener('touchstart', handleTouchStart, { passive: true });
+    // touchmove non-passive pour pouvoir preventDefault
     target.addEventListener('touchmove', handleTouchMove, { passive: false });
     target.addEventListener('touchend', handleTouchEnd, { passive: true });
     target.addEventListener('touchcancel', handleTouchCancel, { passive: true });
@@ -156,8 +212,21 @@ export default function PullToRefresh({ onRefresh, children, disabled = false })
       target.removeEventListener('touchmove', handleTouchMove);
       target.removeEventListener('touchend', handleTouchEnd);
       target.removeEventListener('touchcancel', handleTouchCancel);
+      if (rafIdRef.current != null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (scrollParent) {
+        try { scrollParent.style.overscrollBehaviorY = prevOverscroll; } catch { /* noop */ }
+      }
     };
-  }, [pullDistance, isRefreshing, onRefresh, disabled]);
+    // ⚠️ DÉPS VIDES INTENTIONNELLES : on bind les listeners UNE seule fois au mount.
+    // Les changements de onRefresh / disabled / isRefreshing passent par les refs
+    // (synchronisées dans des useEffect séparés ci-dessus). Ça évite que la swipe
+    // se fasse couper en plein milieu par un re-bind quand setPullDistance trigger
+    // un re-render de tout le composant.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isActive = pullDistance > 0 || isRefreshing;
 

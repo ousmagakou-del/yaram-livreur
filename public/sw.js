@@ -16,7 +16,7 @@
 // Compat : iOS Safari + Chrome Android. Skip-waiting + clients.claim().
 // ════════════════════════════════════════════════
 
-const SW_BUILD = 'yaram-v6-2026-06-21';
+const SW_BUILD = 'yaram-v7-2026-06-21';
 const C_PRECACHE = `${SW_BUILD}-precache`;
 const C_ASSETS   = `${SW_BUILD}-assets`;
 const C_IMAGES   = `${SW_BUILD}-images`;
@@ -34,9 +34,13 @@ const PRECACHE_URLS = [
 ];
 
 // Timeouts adaptés au réseau sénégalais (LTE flaky / 2G)
-const API_NETWORK_TIMEOUT_MS = 3000;   // GET Supabase REST : tente 3s puis cache
-const SWR_BG_TIMEOUT_MS = 8000;        // refresh BG d'une image SWR
-const GENERIC_FETCH_TIMEOUT_MS = 10000;
+// FIX v7 (juin 2026) : 3s était trop court sur LTE Sénégal → trop souvent
+// on tombait dans le fallback cache stale alors que la requête finissait à 3.5s.
+// 7s laisse le temps au réseau mou de répondre tout en bornant l'attente.
+const API_NETWORK_TIMEOUT_MS = 7000;   // GET Supabase REST : tente 7s puis cache
+const NAVIGATION_TIMEOUT_MS = 5000;    // HTML shell : 5s puis fallback precache
+const SWR_BG_TIMEOUT_MS = 10000;       // refresh BG d'une image SWR
+const GENERIC_FETCH_TIMEOUT_MS = 12000;
 
 // ─── INSTALL ───────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -170,12 +174,26 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.includes('/rest/v1/rpc/')) return;
     // site_settings : admin-éditable, doit toujours être frais
     if (url.pathname.includes('/rest/v1/site_settings')) return;
+    // FIX v7 : tables user-specific qui changent à chaque mutation → JAMAIS cacher
+    // Sans ça, l'user voyait son ancien panier / commandes / favoris après refresh
+    // car le SW lui servait la version cache au lieu de re-fetch.
+    const VOLATILE_TABLES = [
+      '/rest/v1/orders',
+      '/rest/v1/cart_items',
+      '/rest/v1/favorites',
+      '/rest/v1/notifications',
+      '/rest/v1/addresses',
+      '/rest/v1/skin_scans',
+      '/rest/v1/users_profile',
+      '/rest/v1/reviews',
+    ];
+    if (VOLATILE_TABLES.some(p => url.pathname.includes(p))) return;
     // Storage (images produits / pharmacies) → stale-while-revalidate
     if (url.pathname.includes('/storage/')) {
       event.respondWith(staleWhileRevalidate(request, C_IMAGES));
       return;
     }
-    // REST GET (products, categories, pharmacies…) → network-first 3s + cache
+    // REST GET (products, categories, pharmacies…) → network-first 7s + cache
     if (url.pathname.includes('/rest/v1/')) {
       event.respondWith(networkFirstWithTimeout(request, C_API, API_NETWORK_TIMEOUT_MS));
       return;
@@ -208,7 +226,7 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate' || request.destination === 'document') {
     event.respondWith((async () => {
       try {
-        const res = await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS);
+        const res = await fetchWithTimeout(request, NAVIGATION_TIMEOUT_MS);
         if (res && res.ok) {
           const cache = await caches.open(C_PRECACHE);
           cache.put('/', res.clone()).catch(() => {});

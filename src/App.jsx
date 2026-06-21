@@ -236,6 +236,20 @@ function ClientApp() {
           cacheMod.purgeStaleInflight?.();
         } catch { /* noop */ }
 
+        // 2.bis FIX v7 : force la reconnexion des realtime channels.
+        // iOS coupe les websockets après ~30s en background → au retour,
+        // les channels semblent "alive" mais ne reçoivent plus rien.
+        // disconnect() + connect() force tous les channels actifs à rejoin.
+        try {
+          if (awayDuration > 30 * 1000 && supabase.realtime) {
+            supabase.realtime.disconnect();
+            // microtask pour laisser le close se propager avant le reconnect
+            setTimeout(() => {
+              try { supabase.realtime.connect(); } catch { /* noop */ }
+            }, 50);
+          }
+        } catch { /* realtime pas dispo, on s'en moque */ }
+
         // 3. Dispatch event que les pages peuvent écouter pour reload
         window.dispatchEvent(new CustomEvent('yaram-app-resumed', {
           detail: { awayDuration },
@@ -254,8 +268,33 @@ function ClientApp() {
       if (e.persisted) handleVisibility();
     });
 
+    // ─── Capacitor iOS / Android : App.addListener('resume') ───
+    // Sur certaines versions de WKWebView, visibilitychange ne fire pas
+    // de manière fiable après un long background (ex : iPhone qui dort).
+    // L'event Capacitor resume est plus déterministe pour le natif.
+    let capSub = null;
+    (async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        capSub = await CapApp.addListener('resume', () => {
+          // Simule un visibilitychange : si on était caché >1min, refresh.
+          // Note : sur Capacitor, document.hidden peut rester false → on injecte
+          // un lastHiddenAt si pas déjà set par visibilitychange.
+          if (!lastHiddenAt) lastHiddenAt = Date.now() - 2 * 60 * 1000; // assume long away
+          handleVisibility();
+        });
+        // Track lastHiddenAt aussi sur pause Capacitor (plus fiable que visibilitychange)
+        await CapApp.addListener('pause', () => {
+          lastHiddenAt = Date.now();
+        });
+      } catch {
+        // Web build : pas de @capacitor/app, on s'en moque
+      }
+    })();
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      try { capSub?.remove?.(); } catch { /* noop */ }
     };
   }, []);
 
@@ -498,9 +537,9 @@ function ClientApp() {
 
   const navigate = (target) => {
     if (target === -1) { goBack(); return; }
-    
+
     let newRoute;
-    
+
     if (typeof target === 'string') {
       const path = target.split('?')[0].replace(/^\//, '');
       if (path.startsWith('product/')) {
@@ -550,12 +589,25 @@ function ClientApp() {
     } else {
       return;
     }
-    
+
     const newPath = routeToPath(newRoute);
     if (newPath !== window.location.pathname + window.location.search) {
       window.history.pushState(null, '', newPath);
     }
-    
+
+    // ─── FIX (juin 2026) : dispatch yaram-route-back AUSSI sur navigate() programmatique ───
+    // Avant : l'event ne firait que sur popstate (vrai back button). Donc quand l'user
+    // tape Home / Orders / Cart dans la TabBar (= navigate() pushState), les pages
+    // n'avaient AUCUN signal pour invalider leur cache → données stale au retour.
+    // Maintenant : on dispatch toujours, et les handlers décident quoi faire selon to.name.
+    // Le payload inclut `from` pour permettre des heuristiques fines plus tard.
+    try {
+      const prevRoute = route;
+      window.dispatchEvent(new CustomEvent('yaram-route-back', {
+        detail: { to: newRoute, from: prevRoute, source: 'navigate' },
+      }));
+    } catch { /* ignore */ }
+
     setRoute(newRoute);
     if (typeof window !== 'undefined') window.scrollTo(0, 0);
   };

@@ -71,9 +71,22 @@ export default function Orders() {
     };
     window.addEventListener('yaram-route-back', handleRouteBack);
 
+    // FIX v7 : refresh aussi au resume app (Capacitor / PWA)
+    const handleAppResumed = () => {
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
+        } catch { /* silent */ }
+        load();
+      })();
+    };
+    window.addEventListener('yaram-app-resumed', handleAppResumed);
+
     return () => {
       cancelled = true;
       window.removeEventListener('yaram-route-back', handleRouteBack);
+      window.removeEventListener('yaram-app-resumed', handleAppResumed);
     };
   }, []);
 
