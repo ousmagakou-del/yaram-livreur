@@ -54,9 +54,11 @@ export async function getMyOrders() {
   // TTL court (30s) et on évite que les '[]' soient gardés.
   return cachedFetch(`my_orders_${session.user.id}`, async () => {
     // PERF : SELECT explicite des colonnes utilisées par Orders.jsx
+    // FIX juin 2026 : lead_time_days n'existe pas en DB → la query throwait
+    // → getMyOrders retournait [] → "Aucune commande". Colonne retirée.
     const { data, error } = await supabase
       .from('orders')
-      .select('id, status, total, subtotal, shipping, payment_method, items, address, created_at, is_preorder, deposit_amount, balance_amount, expected_arrival_date, lead_time_days')
+      .select('id, status, total, subtotal, shipping, payment_method, items, address, created_at, is_preorder, deposit_amount, balance_amount, expected_arrival_date')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false })
       .limit(50);
