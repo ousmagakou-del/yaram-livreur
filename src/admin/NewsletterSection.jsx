@@ -144,9 +144,12 @@ export default function NewsletterSection() {
     let cancel = false;
     (async () => {
       setProductsLoading(true);
+      // FIX juin 2026 : products n'a pas de colonne `old_price` côté DB.
+      // On utilise uniquement `price` ; le badge promo dans renderProductsGrid
+      // se basera sur d'autres signaux (badges JSON, score, etc.) si besoin.
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, brand, price, score, img, image_url, old_price')
+        .select('id, name, brand, price, score, img, image_url')
         .eq('active', true)
         .eq('status', 'approved')
         .order('score', { ascending: false, nullsFirst: false })
