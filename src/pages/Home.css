@@ -294,9 +294,9 @@
   font-family: inherit;
 }
 
-/* ─── SECTIONS génériques ─── */
+/* ─── SECTIONS génériques (rythme vertical premium 24px entre sections) ─── */
 .yhome-section {
-  padding: 20px 16px 0;
+  padding: 24px 16px 0;
 }
 
 .yhome-section-head {
@@ -400,14 +400,34 @@
   white-space: nowrap;
 }
 
-/* ─── BANNIÈRE 100% IMAGE ─── */
+/* ─── BANNIÈRE 100% IMAGE (premium contenue) ─── */
 .yhome-banner-wrap {
   position: relative;
   width: 100%;
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
   cursor: pointer;
   background: #F4F4F2;
+  /* Empêche tout overflow visuel/animation des éléments enfants */
+  isolation: isolate;
+  contain: paint;
+  /* shadow douce premium */
+  box-shadow:
+    0 6px 18px rgba(31, 139, 76, 0.10),
+    0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.yhome-banner-wrap:active {
+  transform: scale(0.985);
+  box-shadow:
+    0 3px 10px rgba(31, 139, 76, 0.10),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Variante premium = même radius marqué, juste un alias explicite pour le markup */
+.yhome-banner-wrap.yhome-banner-wrap--premium {
+  border-radius: 22px;
 }
 
 .yhome-banner-img-full {
@@ -415,6 +435,8 @@
   display: block;
   aspect-ratio: 16 / 9;
   object-fit: cover;
+  /* assure que l'image (et toute anim CSS éventuelle) reste contenue */
+  border-radius: inherit;
 }
 
 /* Fallback si pas d'image */
@@ -625,56 +647,6 @@
   gap: 10px;
 }
 
-/* ─── CARTE BONS PLANS (lien vers /promos) ─── */
-.yhome-promo-link {
-  margin: 14px 16px 0;
-  background: linear-gradient(135deg, #FFF4D6 0%, #FFE4D6 100%);
-  border: none;
-  border-radius: 14px;
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  font-family: inherit;
-  width: calc(100% - 32px);
-  box-shadow: 0 2px 8px rgba(255,121,0,0.12);
-  transition: transform 0.15s;
-}
-
-.yhome-promo-link:active {
-  transform: scale(0.98);
-}
-
-.yhome-promo-link-icon {
-  font-size: 26px;
-  flex-shrink: 0;
-}
-
-.yhome-promo-link-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  min-width: 0;
-}
-
-.yhome-promo-link-text strong {
-  font-size: 14px;
-  font-weight: 800;
-  color: #993C1D;
-  letter-spacing: -0.2px;
-}
-
-.yhome-promo-link-text span {
-  font-size: 11px;
-  color: #854F0B;
-  font-weight: 500;
-}
-
-.yhome-promo-link-arrow {
-  font-size: 18px;
-  color: #993C1D;
-  font-weight: 800;
-  flex-shrink: 0;
-}
+/* ─── Note : l'ancien .yhome-promo-link (mini lien Bons plans) a été
+   remplacé par le component <BonsPlansCarousel /> + BonsPlansCarousel.css
+   pour le redesign premium juin 2026. Voir src/components/. ─── */

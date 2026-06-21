@@ -15,6 +15,7 @@ import PullToRefresh from '../components/PullToRefresh';
 import TabBar from '../components/TabBar';
 import BarcodeScannerClient from '../components/BarcodeScannerClient';
 import HeroBanner from '../components/HeroBanner';
+import BonsPlansCarousel from '../components/BonsPlansCarousel';
 import { getCartCount } from '../lib/cart';
 import { getUnreadNotificationsCount, subscribeNotificationsCount } from '../lib/supabase';
 import { usePageSEO } from '../lib/seo';
@@ -757,45 +758,15 @@ export default function Home() {
           </div>
         </header>
 
-        {/* ════════ HERO BANNER (style Instacart, éditable via Admin) ════════ */}
-        <HeroBanner />
+        {/* ═══════════════════════════════════════════════════════════
+            NOUVEL ORDRE PREMIUM (juin 2026) :
+            1. Marques  → 2. Banner promo  → 3. Catégories  → 4. Hero
+            → 5. Coupon BIENVENUE10  → 6. Bons plans (carrousel premium)
+            → 7. Boutique internationale  → 8. Près de chez toi  → 9. Pour toi
+            Toutes les sections respirent le même padding-x (16px via .yhome-section)
+            ═══════════════════════════════════════════════════════════ */}
 
-        {!couponDismissed && (
-          <div className="yhome-coupon">
-            <div className="yhome-coupon-badge">
-              -10%<br/><span>1ère</span>
-            </div>
-            <div className="yhome-coupon-text">
-              <strong>Sur ta 1ère commande dès 25 000 FCFA</strong>
-              <span>avec le code</span>
-            </div>
-            <button
-              className="yhome-coupon-code"
-              onClick={() => {
-                try { navigator.clipboard?.writeText('BIENVENUE10'); } catch {}
-                try { localStorage.setItem('yaram_pending_promo', 'BIENVENUE10'); } catch {}
-                if (navigator.vibrate) navigator.vibrate(40);
-                navigate('/cart');
-              }}
-            >
-              BIENVENUE10
-            </button>
-            <button className="yhome-coupon-close" onClick={dismissCoupon} aria-label="Fermer">×</button>
-          </div>
-        )}
-
-        <button
-          className="yhome-promo-link"
-          onClick={() => navigate({ name: 'promos', params: {} })}
-        >
-          <div className="yhome-promo-link-icon">🎁</div>
-          <div className="yhome-promo-link-text">
-            <strong>Bons plans</strong>
-            <span>Découvre toutes les promos actives</span>
-          </div>
-          <div className="yhome-promo-link-arrow">→</div>
-        </button>
-
+        {/* ─── 1. MARQUES ─── */}
         {topBrands.length > 0 && (
           <section className="yhome-section">
             <div className="yhome-section-head">
@@ -825,9 +796,10 @@ export default function Home() {
           </section>
         )}
 
+        {/* ─── 2. BANNER PROMO (contenue avec radius + marges cohérentes) ─── */}
         {banners.length > 0 && (
           <section className="yhome-section">
-            <div className="yhome-banner-wrap" onClick={() => handleBannerClick(banners[activeBannerIdx])}>
+            <div className="yhome-banner-wrap yhome-banner-wrap--premium" onClick={() => handleBannerClick(banners[activeBannerIdx])}>
               {banners[activeBannerIdx]?.image_url ? (
                 <img
                   src={banners[activeBannerIdx].image_url}
@@ -870,6 +842,7 @@ export default function Home() {
           </section>
         )}
 
+        {/* ─── 3. CATÉGORIES ─── */}
         {categories.length > 0 && (
           <section className="yhome-section">
             <div className="yhome-section-head">
@@ -908,7 +881,38 @@ export default function Home() {
           </section>
         )}
 
-        {/* ═══ BANNER BOUTIQUE INTERNATIONALE ═══ */}
+        {/* ─── 4. HERO BANNER (Zéro frais de service, éditable via Admin) ─── */}
+        <HeroBanner />
+
+        {/* ─── 5. COUPON BIENVENUE10 (optionnel, dismissable) ─── */}
+        {!couponDismissed && (
+          <div className="yhome-coupon">
+            <div className="yhome-coupon-badge">
+              -10%<br/><span>1ère</span>
+            </div>
+            <div className="yhome-coupon-text">
+              <strong>Sur ta 1ère commande dès 25 000 FCFA</strong>
+              <span>avec le code</span>
+            </div>
+            <button
+              className="yhome-coupon-code"
+              onClick={() => {
+                try { navigator.clipboard?.writeText('BIENVENUE10'); } catch {}
+                try { localStorage.setItem('yaram_pending_promo', 'BIENVENUE10'); } catch {}
+                if (navigator.vibrate) navigator.vibrate(40);
+                navigate('/cart');
+              }}
+            >
+              BIENVENUE10
+            </button>
+            <button className="yhome-coupon-close" onClick={dismissCoupon} aria-label="Fermer">×</button>
+          </div>
+        )}
+
+        {/* ─── 6. BONS PLANS (carrousel premium) ─── */}
+        <BonsPlansCarousel />
+
+        {/* ─── 7. BOUTIQUE INTERNATIONALE ─── */}
         <section className="yhome-section">
           <button
             onClick={() => navigate({ name: 'international', params: {} })}
@@ -916,7 +920,7 @@ export default function Home() {
               width: '100%',
               background: 'linear-gradient(135deg, #0066CC 0%, #004999 50%, #002F66 100%)',
               border: 'none',
-              borderRadius: 16,
+              borderRadius: 20,
               padding: '18px 18px',
               color: '#fff',
               cursor: 'pointer',
@@ -924,7 +928,7 @@ export default function Home() {
               display: 'flex',
               alignItems: 'center',
               gap: 14,
-              boxShadow: '0 6px 18px rgba(0, 102, 204, 0.25)',
+              boxShadow: '0 8px 22px rgba(0, 102, 204, 0.28)',
               position: 'relative',
               overflow: 'hidden',
             }}
