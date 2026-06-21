@@ -128,20 +128,44 @@ export async function pushOrderStatus(order) {
     return { success: false, error: 'no_admin_token' };
   }
 
+  const tplTitle = tpl.title;
+  const tplMessage = typeof tpl.message === 'function' ? tpl.message(order) : tpl.message;
+  const tplUrl = typeof tpl.url === 'function' ? tpl.url(order) : tpl.url;
+  const payloadNew = {
+    type: 'order_status',
+    user_id: order.user_id,
+    title: tplTitle,
+    body: tplMessage,
+    data: { order_id: order.id, status: order.status, url: tplUrl },
+  };
+  const payloadLegacy = {
+    token,
+    type: 'order_status',
+    user_id: order.user_id,
+    title: tplTitle,
+    message: tplMessage,
+    url: tplUrl,
+    data: { order_id: order.id, status: order.status },
+  };
+
+  // Try new send-push first
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push', {
+      body: payloadNew,
+      headers: { 'x-admin-token': token },
+    });
+    if (!error && data?.ok) {
+      return { success: true, ...data };
+    }
+    console.warn('[pushOrderStatus] send-push failed, fallback OneSignal:', error?.message || data?.error);
+  } catch (e) {
+    console.warn('[pushOrderStatus] send-push exception, fallback OneSignal:', e?.message);
+  }
+
+  // Fallback OneSignal
   try {
     const { data, error } = await supabase.functions.invoke('send-push-notification', {
-      body: {
-        token,
-        type: 'order_status',
-        user_id: order.user_id,
-        title: tpl.title,
-        message: typeof tpl.message === 'function' ? tpl.message(order) : tpl.message,
-        url: typeof tpl.url === 'function' ? tpl.url(order) : tpl.url,
-        data: {
-          order_id: order.id,
-          status: order.status,
-        },
-      },
+      body: payloadLegacy,
     });
     if (error) {
       console.warn('[pushOrderStatus] invoke error:', error.message);
@@ -172,15 +196,38 @@ export async function pushLivreurAssigned(order, livreurName) {
   if (!token) return { success: false, error: 'no_admin_token' };
 
   const shortId = String(order.id).slice(0, 12);
+  const title = '🛵 Livreur assigné';
+  const msg = `${livreurName || 'Un livreur'} a été assigné à ta commande ${shortId}. Il part bientôt !`;
+  const url = `https://yaram.app/order/${order.id}`;
+
+  // Try new send-push first
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push', {
+      body: {
+        type: 'order_status',
+        user_id: order.user_id,
+        title,
+        body: msg,
+        data: { order_id: order.id, source: 'livreur_assigned', url },
+      },
+      headers: { 'x-admin-token': token },
+    });
+    if (!error && data?.ok) return { success: true, ...data };
+    console.warn('[pushLivreurAssigned] send-push failed, fallback OneSignal:', error?.message || data?.error);
+  } catch (e) {
+    console.warn('[pushLivreurAssigned] send-push exception, fallback OneSignal:', e?.message);
+  }
+
+  // Fallback OneSignal
   try {
     const { data, error } = await supabase.functions.invoke('send-push-notification', {
       body: {
         token,
         type: 'order_status',
         user_id: order.user_id,
-        title: '🛵 Livreur assigné',
-        message: `${livreurName || 'Un livreur'} a été assigné à ta commande ${shortId}. Il part bientôt !`,
-        url: `https://yaram.app/order/${order.id}`,
+        title,
+        message: msg,
+        url,
         data: { order_id: order.id, source: 'livreur_assigned' },
       },
     });
@@ -280,6 +327,33 @@ export async function pushBroadcast({ title, message, url, filters }) {
     return { success: false, error: 'title_and_message_required' };
   }
 
+  // Try new send-push first (broadcast mode)
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push', {
+      body: {
+        type: 'broadcast',
+        broadcast: true,
+        title,
+        body: message,
+        data: { url: url || null },
+      },
+      headers: { 'x-admin-token': token },
+    });
+    if (!error && data?.ok) {
+      // Map back to old { recipients, notification_id } shape pour compat UI
+      return {
+        success: true,
+        recipients: data?.totals?.devices ?? data?.totals?.success ?? undefined,
+        notification_id: data?.actor || 'send-push',
+        ...data,
+      };
+    }
+    console.warn('[pushBroadcast] send-push failed, fallback OneSignal:', error?.message || data?.error);
+  } catch (e) {
+    console.warn('[pushBroadcast] send-push exception, fallback OneSignal:', e?.message);
+  }
+
+  // Fallback OneSignal
   try {
     const { data, error } = await supabase.functions.invoke('send-push-notification', {
       body: {

@@ -1,33 +1,50 @@
 // ════════════════════════════════════════════════════════
-// YARAM — Push notifications via @capacitor/push-notifications + OneSignal
+// YARAM — Push notifications : APNs natif (iOS) + Web Push (PWA)
 // ════════════════════════════════════════════════════════
 //
-// Approche hybride :
-// - Côté CLIENT : on utilise @capacitor/push-notifications (plugin officiel
-//   Capacitor) pour demander la permission et récupérer le device token APNs natif
-// - Côté BACKEND : on envoie ce token à notre edge function register-push-device
-//   qui l'enregistre chez OneSignal et nous retourne un player_id
-// - Côté ENVOI : OneSignal envoie les pushs via leur API (déjà setup)
+// MIGRATION : on bascule de OneSignal vers stack 100% indépendante.
+//   - iOS natif (Capacitor) : @capacitor/push-notifications → APNs token
+//     → upsert dans `device_tokens` (type='apns')
+//   - PWA (web) : Notification API + ServiceWorker.pushManager
+//     → upsert dans `device_tokens` (type='web_push')
 //
-// Pourquoi cette approche au lieu du SDK OneSignal Cordova ?
-//   → Le plugin onesignal-cordova-plugin a des conflits Live Activities avec
-//     Capacitor SPM modern (header OneSignalLiveActivities-Swift.h not found).
-//   → @capacitor/push-notifications est officiel, à jour, sans compatibility issue.
+// L'ENVOI passe par l'edge function `send-push` (router APNs + WebPush).
+// L'edge function OneSignal `send-push-notification` reste en place pour
+// la transition — on call la nouvelle en priorité, fallback OneSignal si KO.
 //
-// Pourquoi pas Firebase iOS SDK direct ?
-//   → Le SDK Firebase iOS pèse ~150 MB et explose le temps de build SPM.
-//     Pour de simples push notifs, l'API APNs native via Capacitor + OneSignal
-//     (qui parle APNs en backend) suffit largement.
-//
-// No-op sur web (le plugin ne fonctionne que sur iOS/Android natif).
+// Tous les logs sont préfixés `[push]` pour grep.
 // ════════════════════════════════════════════════════════
 
 import { isNativeApp, getPlatform } from './platform';
 import { supabase } from './supabase';
 
 let initialized = false;
-let cachedPlayerId = null;
-let cachedDeviceToken = null;
+let cachedPlayerId = null;        // legacy OneSignal player_id (transition)
+let cachedDeviceToken = null;     // APNs token natif iOS
+let cachedWebSubscription = null; // PushSubscription web (PWA)
+
+// VAPID public key exposée à la PWA via env Cloudflare Pages.
+// MUST be set en build : VITE_VAPID_PUBLIC=<base64url uncompressed P-256>
+const VAPID_PUBLIC = (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_VAPID_PUBLIC) || '';
+
+// ─── helpers ──────────────────────────────────────────
+function urlBase64ToUint8Array(base64String) {
+  if (!base64String) return new Uint8Array(0);
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function arrayBufferToBase64Url(buffer) {
+  if (!buffer) return '';
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
 
 async function getPushPlugin() {
   const mod = await import('@capacitor/push-notifications');
@@ -54,15 +71,23 @@ export async function initPush() {
       cachedDeviceToken = token.value;
       console.log('[push] APNs token received:', token.value.slice(0, 16) + '...');
 
-      // Envoie le token à OneSignal via notre edge function
+      // 1) NEW : upsert direct dans device_tokens (APNs natif, sans OneSignal)
+      try {
+        await upsertApnsDeviceToken(token.value);
+      } catch (e) {
+        console.warn('[push] upsertApnsDeviceToken failed:', e?.message);
+      }
+
+      // 2) LEGACY : on continue d'envoyer à OneSignal pendant la transition.
+      //    Une fois la migration validée en prod (~7j), retirer ce bloc.
       try {
         const result = await sendTokenToBackend(token.value);
-        if (result.player_id) {
+        if (result?.player_id) {
           cachedPlayerId = result.player_id;
           console.log('[push] OneSignal player_id:', result.player_id);
         }
       } catch (e) {
-        console.warn('[push] register-push-device failed:', e?.message);
+        console.warn('[push] register-push-device (legacy) failed:', e?.message);
       }
     });
 
@@ -157,6 +182,149 @@ function waitForPlayerId(timeoutMs = 5000) {
   });
 }
 
+// ════════════════════════════════════════════════════════
+// NEW : upsert dans `device_tokens` (sans OneSignal)
+// ════════════════════════════════════════════════════════
+
+async function upsertApnsDeviceToken(apnsToken) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) {
+      console.log('[push] upsertApnsDeviceToken skipped : no user logged in');
+      return { ok: false, reason: 'no_user' };
+    }
+    // ON CONFLICT (user_id, apns_token) → toggle enabled = true + bump last_seen_at
+    const { error } = await supabase
+      .from('device_tokens')
+      .upsert({
+        user_id: user.id,
+        type: 'apns',
+        apns_token: apnsToken,
+        platform: getPlatform(),
+        app_version: '1.0.3',
+        enabled: true,
+        last_seen_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,apns_token' });
+    if (error) {
+      console.warn('[push] device_tokens upsert (apns) error:', error.message);
+      return { ok: false, error: error.message };
+    }
+    console.log('[push] device_tokens upsert (apns) OK');
+    return { ok: true };
+  } catch (e) {
+    console.warn('[push] upsertApnsDeviceToken exception:', e?.message);
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
+async function upsertWebDeviceToken(subscriptionJSON) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) {
+      console.log('[push] upsertWebDeviceToken skipped : no user logged in');
+      return { ok: false, reason: 'no_user' };
+    }
+    const { endpoint, keys } = subscriptionJSON || {};
+    const p256dh = keys?.p256dh || null;
+    const auth = keys?.auth || null;
+    if (!endpoint || !p256dh || !auth) {
+      console.warn('[push] web subscription incomplete:', { has_endpoint: !!endpoint, has_p256dh: !!p256dh, has_auth: !!auth });
+      return { ok: false, reason: 'incomplete_subscription' };
+    }
+    const { error } = await supabase
+      .from('device_tokens')
+      .upsert({
+        user_id: user.id,
+        type: 'web_push',
+        web_endpoint: endpoint,
+        web_p256dh: p256dh,
+        web_auth: auth,
+        platform: 'web',
+        app_version: '1.0.3',
+        enabled: true,
+        last_seen_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,web_endpoint' });
+    if (error) {
+      console.warn('[push] device_tokens upsert (web) error:', error.message);
+      return { ok: false, error: error.message };
+    }
+    console.log('[push] device_tokens upsert (web) OK');
+    return { ok: true };
+  } catch (e) {
+    console.warn('[push] upsertWebDeviceToken exception:', e?.message);
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// NEW : Web Push (PWA) — Notification API + ServiceWorker.pushManager
+// ════════════════════════════════════════════════════════
+
+/**
+ * Demande la permission web + subscribe au push manager + upsert le sub
+ * dans `device_tokens` (type='web_push').
+ *
+ * Prérequis : VITE_VAPID_PUBLIC défini en build (Cloudflare Pages env).
+ * No-op sur native app (utilise APNs natif) ou sur browser sans support.
+ */
+export async function setupWebPushForUser() {
+  if (isNativeApp()) {
+    return { skipped: true, reason: 'native_platform' };
+  }
+  if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return { ok: false, error: 'web_push_unsupported' };
+  }
+  if (!VAPID_PUBLIC) {
+    console.warn('[push] VITE_VAPID_PUBLIC missing — web push disabled');
+    return { ok: false, error: 'vapid_public_missing' };
+  }
+
+  try {
+    // Permission
+    let perm = Notification.permission;
+    if (perm === 'default') {
+      perm = await Notification.requestPermission();
+    }
+    if (perm !== 'granted') {
+      console.log('[push] web permission state:', perm);
+      return { ok: false, error: 'permission_' + perm };
+    }
+
+    // Service worker registration (déjà installé par le boot — /sw.js)
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg) {
+      return { ok: false, error: 'no_service_worker' };
+    }
+
+    // Subscribe (si pas déjà)
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+      });
+      console.log('[push] new web push subscription created');
+    } else {
+      console.log('[push] reusing existing web push subscription');
+    }
+    cachedWebSubscription = sub;
+
+    const subJson = sub.toJSON ? sub.toJSON() : {
+      endpoint: sub.endpoint,
+      keys: {
+        p256dh: arrayBufferToBase64Url(sub.getKey?.('p256dh')),
+        auth: arrayBufferToBase64Url(sub.getKey?.('auth')),
+      },
+    };
+
+    const up = await upsertWebDeviceToken(subJson);
+    return up.ok ? { ok: true, subscription: subJson } : { ok: false, error: up.error || 'upsert_failed' };
+  } catch (e) {
+    console.warn('[push] setupWebPushForUser failed:', e?.message);
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
 async function sendTokenToBackend(deviceToken) {
   try {
     const { data, error } = await supabase.functions.invoke('register-push-device', {
@@ -207,21 +375,25 @@ export async function setPushEnabled(enabled) {
 
 /**
  * Flow complet à appeler après login :
- * 1. Init listeners (si pas déjà fait)
- * 2. Demande permission + register APNs
- * 3. Le listener envoie auto le token à OneSignal en arrière-plan
+ *   - iOS natif : init listeners + permission + register APNs (le listener
+ *     upsert dans device_tokens type='apns')
+ *   - PWA / web : Notification.requestPermission + pushManager.subscribe
+ *     → upsert dans device_tokens type='web_push'
  */
 export async function setupPushForUser(user) {
   if (!user?.id) return { ok: false, error: 'no_user' };
-  if (!isNativeApp()) return { skipped: true };
 
-  const initRes = await initPush();
-  if (!initRes.ok && !initRes.alreadyInitialized) {
-    return { ok: false, error: 'init_failed', detail: initRes.error };
+  // ─── iOS / Android natif ───
+  if (isNativeApp()) {
+    const initRes = await initPush();
+    if (!initRes.ok && !initRes.alreadyInitialized) {
+      return { ok: false, error: 'init_failed', detail: initRes.error };
+    }
+    return await requestPushPermission();
   }
 
-  const permRes = await requestPushPermission();
-  return permRes;
+  // ─── Web / PWA ───
+  return await setupWebPushForUser();
 }
 
 // Aliases pour compatibilité avec le code FCM transitoire

@@ -245,17 +245,23 @@ self.addEventListener('fetch', (event) => {
   // 10) Tout le reste : laissez-faire (pas de event.respondWith → réseau natif)
 });
 
-// ─── PUSH NOTIFS (conservé) ────────────────────────
+// ─── PUSH NOTIFS (APNs ne passe pas ici — c'est natif iOS) ──────────
+// Payload envoyé par notre edge function `send-push-web` :
+//   { title, body, data: { url, order_id, status, ... } }
+// On supporte aussi le legacy OneSignal qui sortait { title, body, url }
+// à plat — fallback en lisant data.url || data top-level.
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {
     const data = event.data.json();
+    const inner = (data.data && typeof data.data === 'object') ? data.data : {};
+    const url = inner.url || data.url || '/';
     event.waitUntil(self.registration.showNotification(data.title || 'YARAM', {
-      body: data.body || '',
-      icon: data.icon || '/icon-192.png',
-      badge: data.badge || '/icon-96.png',
+      body: data.body || inner.body || '',
+      icon: data.icon || inner.icon || '/icon-192.png',
+      badge: data.badge || inner.badge || '/icon-96.png',
       vibrate: [200, 100, 200],
-      data: { url: data.url || '/' },
+      data: { ...inner, url },
     }));
   } catch (e) {
     console.error('[SW v6] push error', e);
