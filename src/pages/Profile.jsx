@@ -325,7 +325,7 @@ export default function Profile() {
           <section className="prof2-hero prof2-anim" style={{ animationDelay: '0ms' }}>
             <div className="prof2-avatar-wrap">
               {hasPhoto ? (
-                <img src={avatar} alt={firstName} className="prof2-avatar" />
+                <img src={avatar} alt={firstName} className="prof2-avatar" loading="lazy" decoding="async" />
               ) : (
                 <div className="prof2-avatar prof2-avatar-fallback">{initial}</div>
               )}

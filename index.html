@@ -15,15 +15,19 @@
          On le déclenche pendant que l'HTML parse (avant que React lance
          le 1er fetch). Gain mesuré : -400ms au TTFB du 1er /rest/v1/.
          Ordre : preconnect (TLS+DNS+TCP), dns-prefetch (DNS seul fallback). -->
+    <!-- Supabase (REST + Storage + Realtime) — origine la plus critique -->
     <link rel="preconnect" href="https://qxhhnrnworwrnwmqekmb.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://qxhhnrnworwrnwmqekmb.supabase.co" />
+    <!-- Storage (signed URLs des images produit) — meme domaine mais subdomain wss -->
+    <link rel="preconnect" href="https://qxhhnrnworwrnwmqekmb.storage.supabase.co" crossorigin />
+    <!-- PostHog EU pour les events analytics -->
     <link rel="preconnect" href="https://eu.i.posthog.com" crossorigin />
     <link rel="dns-prefetch" href="https://eu.i.posthog.com" />
-    <link rel="dns-prefetch" href="https://onesignal.com" />
-    <link rel="dns-prefetch" href="https://cdn.onesignal.com" />
-    <link rel="dns-prefetch" href="https://api.resend.com" />
-    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+    <!-- GTM (Google Tag Manager) — defere mais preconnect tot -->
     <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+    <!-- Resend (envoi mails de back-office) -->
+    <link rel="dns-prefetch" href="https://api.resend.com" />
 
     <!-- ════════════ PRELOAD CRITICAL IMAGES ════════════
          Logo PWA + favicon SVG demandés très tôt par le manifest et le SW

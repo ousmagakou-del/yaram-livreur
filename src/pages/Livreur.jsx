@@ -1082,28 +1082,20 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
 
       setStatus('scanning');
 
-      // PERF : lazy-import @zxing/browser au moment de l'activation seulement
-      const { BrowserMultiFormatReader } = await import('@zxing/browser');
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader;
-
-      reader.decodeFromVideoElement(videoRef.current, async (result, err) => {
-        if (result) {
-          const code = result.getText();
-
-          if (alreadyScanned.includes(code)) {
-            setVerification({ barcode: code, alreadyScanned: true, message: 'Déjà scanné' });
-            setTimeout(() => setVerification(null), 1500);
-            return;
-          }
-
-          if (verifying || verification) return;
-
-          if (navigator.vibrate) navigator.vibrate(100);
-
-          await verifyBarcode(code);
+      // PERF : essaie BarcodeDetector natif (0 byte JS sur Android Chrome/Edge),
+      // fallback ZXing lazy-import sur iOS Safari.
+      const { startBarcodeScan } = await import('../lib/barcode');
+      const handle = await startBarcodeScan(videoRef.current, async (code) => {
+        if (alreadyScanned.includes(code)) {
+          setVerification({ barcode: code, alreadyScanned: true, message: 'Déjà scanné' });
+          setTimeout(() => setVerification(null), 1500);
+          return;
         }
+        if (verifying || verification) return;
+        if (navigator.vibrate) navigator.vibrate(100);
+        await verifyBarcode(code);
       });
+      readerRef.current = handle;
 
     } catch (e) {
       console.error('Camera error:', e);
@@ -1123,7 +1115,9 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
   const cleanup = () => {
     try {
       if (readerRef.current) {
-        readerRef.current.reset();
+        // Le handle peut etre { stop } (nouveau startBarcodeScan) ou { reset } (legacy zxing)
+        if (readerRef.current.stop) readerRef.current.stop();
+        else if (readerRef.current.reset) readerRef.current.reset();
         readerRef.current = null;
       }
     } catch (e) {}

@@ -6,6 +6,8 @@ import App from './App.jsx'
 import { loadSiteSettings, subscribeSettings } from './lib/supabase'
 import { initSentry } from './lib/sentry'
 import { registerServiceWorker } from './lib/sw-register'
+import { prefetchProbableRoutes } from './lib/prefetch'
+import { initWebVitals } from './lib/webVitals'
 
 // ─── Init Sentry + SW DIFFÉRÉ à l'idle ───
 // Sentry charge ~80kb gzip de @sentry/browser. Le faire au boot bloque le
@@ -15,6 +17,10 @@ import { registerServiceWorker } from './lib/sw-register'
 const _deferInit = () => {
   initSentry();
   registerServiceWorker();
+  // PERF : precharge les chunks routes probables apres idle (-300ms a la navigation)
+  prefetchProbableRoutes();
+  // OBS : capture LCP / CLS / INP / FCP / TTFB et envoie a PostHog
+  initWebVitals();
 };
 if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
   window.requestIdleCallback(_deferInit, { timeout: 3000 });

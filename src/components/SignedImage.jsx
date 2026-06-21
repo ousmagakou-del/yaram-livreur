@@ -12,7 +12,7 @@
 // Cache interne : la signed URL est mise en cache jusqu'a (ttl - 60s).
 // L'invalidation automatique fait que si on re-render apres expiry, on re-signe.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { supabase, getSignedStorageUrl } from '../lib/supabase';
 
 const SIGNED_TTL = 60 * 60 * 24 * 7; // 7 jours par defaut
@@ -39,7 +39,7 @@ function cacheSet(key, url, ttlSeconds) {
   });
 }
 
-export default function SignedImage({
+function SignedImage({
   src,
   bucket,
   path,
@@ -151,6 +151,17 @@ export default function SignedImage({
 
   return <img src={resolvedSrc} alt={alt} loading="lazy" decoding="async" onError={() => setError(true)} {...rest} />;
 }
+
+// PERF : memo + comparator sur les props qui declenchent un nouveau signed URL.
+// Les listes (DeliveriesSection, ScanHistory) re-render souvent sans changer ces props.
+export default memo(SignedImage, (prev, next) => (
+  prev.src === next.src &&
+  prev.bucket === next.bucket &&
+  prev.path === next.path &&
+  prev.ttl === next.ttl &&
+  prev.className === next.className &&
+  prev.alt === next.alt
+));
 
 // Injecte le keyframes une seule fois (idempotent)
 if (typeof document !== 'undefined' && !document.getElementById('signed-image-styles')) {

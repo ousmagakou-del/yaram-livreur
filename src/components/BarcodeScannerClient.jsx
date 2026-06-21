@@ -89,19 +89,14 @@ export default function BarcodeScannerClient({ onProductFound, onCancel }) {
 
       setStatus('scanning');
 
-      // PERF : lazy-import @zxing/browser au moment de l'activation seulement
-      const { BrowserMultiFormatReader } = await import('@zxing/browser');
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader;
-
-      reader.decodeFromVideoElement(videoRef.current, async (decoded) => {
-        if (decoded) {
-          const code = decoded.getText();
-          if (searching || result) return;
-          if (navigator.vibrate) navigator.vibrate(100);
-          await lookupBarcode(code);
-        }
+      // PERF : essaie BarcodeDetector natif (0 byte JS), fallback ZXing lazy-import
+      const { startBarcodeScan } = await import('../lib/barcode');
+      const handle = await startBarcodeScan(videoRef.current, async (code) => {
+        if (searching || result) return;
+        if (navigator.vibrate) navigator.vibrate(100);
+        await lookupBarcode(code);
       });
+      readerRef.current = handle;
     } catch (e) {
       console.error('Camera error:', e);
       if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
@@ -118,7 +113,11 @@ export default function BarcodeScannerClient({ onProductFound, onCancel }) {
   };
 
   const cleanup = () => {
-    try { readerRef.current?.reset(); } catch {}
+    // Le handle peut etre { stop } (nouveau) ou { reset } (legacy zxing direct)
+    try {
+      if (readerRef.current?.stop) readerRef.current.stop();
+      else if (readerRef.current?.reset) readerRef.current.reset();
+    } catch {}
     readerRef.current = null;
     try {
       streamRef.current?.getTracks().forEach(t => t.stop());

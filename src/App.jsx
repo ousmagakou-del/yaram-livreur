@@ -189,22 +189,32 @@ export default function App() {
       params.has('pispi')
     );
 
+  // Helper pour wrapper toutes les routes top-level avec ErrorBoundary +
+  // Suspense uniforme. Plus jamais d'ecran blanc silencieux sur Admin/Pharma/Livreur.
+  const wrapRoute = (Comp) => (
+    <>
+      <ErrorBoundary>
+        <Suspense fallback={<SplashScreen />}><Comp /></Suspense>
+      </ErrorBoundary>
+      <Toaster />
+    </>
+  );
+
   if (typeof window !== 'undefined' && !hasAnyExplicitRoute && isStickyAdminSession()) {
     reattachQueryParam('admin');
-    return <><Suspense fallback={<SplashScreen />}><Admin /></Suspense><Toaster /></>;
+    return wrapRoute(Admin);
   }
   if (typeof window !== 'undefined' && !hasAnyExplicitRoute && isStickyPharmaSession()) {
     reattachQueryParam('pharma');
-    return <><Suspense fallback={<SplashScreen />}><Pharma /></Suspense><Toaster /></>;
+    return wrapRoute(Pharma);
   }
 
-  // Routes top-level (non-client) : chunks separes, wrap dans Suspense.
-  // Toaster est monte autour pour que toast.*() marche partout (admin, pharma, livreur, etc.).
-  if (params.has('admin'))   return <><Suspense fallback={<SplashScreen />}><Admin /></Suspense><Toaster /></>;
-  if (params.has('pharma'))  return <><Suspense fallback={<SplashScreen />}><Pharma /></Suspense><Toaster /></>;
-  if (params.has('livreur')) return <><Suspense fallback={<SplashScreen />}><Livreur /></Suspense><Toaster /></>;
-  if (params.has('confirm')) return <><Suspense fallback={<SplashScreen />}><ClientConfirm /></Suspense><Toaster /></>;
-  if (params.has('pispi'))   return <><Suspense fallback={<SplashScreen />}><PiSpiTest /></Suspense><Toaster /></>;
+  // Routes top-level (non-client) : chunks separes, wrap dans Suspense + ErrorBoundary.
+  if (params.has('admin'))   return wrapRoute(Admin);
+  if (params.has('pharma'))  return wrapRoute(Pharma);
+  if (params.has('livreur')) return wrapRoute(Livreur);
+  if (params.has('confirm')) return wrapRoute(ClientConfirm);
+  if (params.has('pispi'))   return wrapRoute(PiSpiTest);
 
   return <ClientApp />;
 }
