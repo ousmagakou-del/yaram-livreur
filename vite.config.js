@@ -2,8 +2,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+
+  // ─── Perf : strip console.* et debugger en build production ───
+  // 169 occurrences console.log/warn dans le code source -> bytes inutiles
+  // en prod + fuite d'info debug. Dev = on garde les logs pour debug local.
+  ...(command === 'build' && {
+    esbuild: { drop: ['console', 'debugger'] },
+  }),
 
   build: {
     // ─── Perf : split les grosses libs dans des chunks separes ───
@@ -24,4 +31,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

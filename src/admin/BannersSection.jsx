@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getAllBanners, createBanner, updateBanner, deleteBanner, uploadBannerImage } from '../lib/supabase';
+import { adminLogAction } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 
 const BG_COLORS = [
@@ -39,8 +40,22 @@ export default function BannersSection() {
 
   const handleSave = async (banner) => {
     if (banner.id) {
+      adminLogAction({
+        action:     'update_banner',
+        targetType: 'banner',
+        targetId:   banner.id,
+        before:     null,
+        after:      { title: banner.title, active: banner.active, link_type: banner.link_type },
+      }).catch(() => { /* best-effort */ });
       await updateBanner(banner.id, banner);
     } else {
+      adminLogAction({
+        action:     'create_banner',
+        targetType: 'banner',
+        targetId:   null,
+        before:     null,
+        after:      { title: banner.title, active: banner.active, link_type: banner.link_type },
+      }).catch(() => { /* best-effort */ });
       await createBanner(banner);
     }
     setEditing(null);
@@ -50,11 +65,26 @@ export default function BannersSection() {
 
   const handleDelete = async (id) => {
     if (!await confirmDialog('Supprimer cette bannière ?')) return;
+    const prev = banners.find(b => b.id === id);
+    adminLogAction({
+      action:     'delete_banner',
+      targetType: 'banner',
+      targetId:   id,
+      before:     prev ? { title: prev.title, active: prev.active } : null,
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     await deleteBanner(id);
     refresh();
   };
 
   const toggleActive = async (banner) => {
+    adminLogAction({
+      action:     'toggle_banner_active',
+      targetType: 'banner',
+      targetId:   banner.id,
+      before:     { active: banner.active,  title: banner.title },
+      after:      { active: !banner.active, title: banner.title },
+    }).catch(() => { /* best-effort */ });
     await updateBanner(banner.id, { active: !banner.active });
     refresh();
   };

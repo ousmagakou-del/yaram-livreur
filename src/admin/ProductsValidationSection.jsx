@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getAdminToken } from '../lib/adminAuth';
+import { adminLogAction } from '../lib/adminApi';
 import { promptDialog } from '../lib/toast';
 
 export default function ProductsValidationSection() {
@@ -25,6 +26,13 @@ export default function ProductsValidationSection() {
   const approve = async (product) => {
     const token = getAdminToken();
     if (!token) return;
+    adminLogAction({
+      action:     'approve_pharma_product',
+      targetType: 'product',
+      targetId:   product.id,
+      before:     { status: product.status, name: product.name },
+      after:      { status: 'approved',     name: product.name },
+    }).catch(() => { /* best-effort */ });
     await supabase.rpc('admin_validate_product', {
       p_token: token, p_id: product.id, p_action: 'approve',
     });
@@ -43,6 +51,13 @@ export default function ProductsValidationSection() {
     if (!reason) return;
     const token = getAdminToken();
     if (!token) return;
+    adminLogAction({
+      action:     'reject_pharma_product',
+      targetType: 'product',
+      targetId:   product.id,
+      before:     { status: product.status, name: product.name },
+      after:      { status: 'rejected',     name: product.name, reason },
+    }).catch(() => { /* best-effort */ });
     await supabase.rpc('admin_validate_product', {
       p_token: token, p_id: product.id, p_action: 'reject', p_reason: reason,
     });

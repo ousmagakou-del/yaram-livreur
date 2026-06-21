@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getAdminToken } from '../lib/adminAuth';
+import { adminLogAction } from '../lib/adminApi';
 import { toast, confirmDialog, promptDialog } from '../lib/toast';
 
 const CATEGORIES = ['serum', 'solaire', 'nettoyant', 'hydratant', 'masque', 'corps', 'levres', 'maquillage', 'cheveux', 'huile'];
@@ -53,6 +54,13 @@ export default function ProductsSection() {
         ? parseInt(p.usage_duration_days)
         : null,
     };
+    adminLogAction({
+      action:     p.id ? 'update_product' : 'create_product',
+      targetType: 'product',
+      targetId:   p.id || null,
+      before:     p.id ? { name: products.find(x => x.id === p.id)?.name, active: products.find(x => x.id === p.id)?.active } : null,
+      after:      { name: payload.name, active: payload.active, price: payload.price },
+    }).catch(() => { /* best-effort */ });
     const { error } = await supabase.rpc('admin_upsert_product', {
       p_token: token,
       p_id: p.id || null,
@@ -73,6 +81,13 @@ export default function ProductsSection() {
     const token = getAdminToken();
     if (!token) { flash('Session admin expirée', true); return; }
     setBusyId(p.id);
+    adminLogAction({
+      action:     'deactivate_product',
+      targetType: 'product',
+      targetId:   p.id,
+      before:     { active: true, name: p.name },
+      after:      { active: false, name: p.name },
+    }).catch(() => { /* best-effort */ });
     const { error } = await supabase.rpc('admin_upsert_product', {
       p_token: token, p_id: p.id, p_payload: { active: false },
     });
@@ -90,6 +105,13 @@ export default function ProductsSection() {
     const token = getAdminToken();
     if (!token) { flash('Session admin expirée', true); return; }
     setBusyId(p.id);
+    adminLogAction({
+      action:     'reactivate_product',
+      targetType: 'product',
+      targetId:   p.id,
+      before:     { active: false, name: p.name },
+      after:      { active: true,  name: p.name },
+    }).catch(() => { /* best-effort */ });
     const { error } = await supabase.rpc('admin_upsert_product', {
       p_token: token, p_id: p.id, p_payload: { active: true },
     });
@@ -122,6 +144,15 @@ export default function ProductsSection() {
     const token = getAdminToken();
     if (!token) { flash('Session admin expirée', true); return; }
     setBusyId(p.id);
+
+    // AUDIT : suppression définitive — capture l'état avant pour traçabilité.
+    adminLogAction({
+      action:     'hard_delete_product',
+      targetType: 'product',
+      targetId:   p.id,
+      before:     { name: p.name, brand: p.brand, price: p.price, active: p.active },
+      after:      null,
+    }).catch(() => { /* best-effort */ });
 
     // 1. Nettoie favorites (table publique, peut etre toujours en .from)
     await supabase.from('favorites').delete().eq('product_id', p.id);

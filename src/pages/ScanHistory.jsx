@@ -20,6 +20,10 @@ export default function ScanHistory() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    // Safety 12s : libère l'UI si la requête skin_scans hang
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
 
     (async () => {
       try {
@@ -33,10 +37,11 @@ export default function ScanHistory() {
         console.warn('[ScanHistory] fetch failed:', e?.message);
       } finally {
         if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safety); };
   }, []);
 
   // Stats globales

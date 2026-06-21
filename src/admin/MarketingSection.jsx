@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { adminListUsersFull } from '../lib/adminApi';
+import { adminListUsersFull, adminLogAction } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 import {
   sendWhatsAppBulk,
@@ -146,6 +146,22 @@ export default function MarketingSection() {
       `Tu peux fermer cet écran, l'envoi continue côté serveur.`
     );
     if (!ok) return;
+
+    // AUDIT : trace l'envoi campagne WhatsApp bulk (action sensible — N° de cibles).
+    adminLogAction({
+      action:     'send_marketing_campaign',
+      targetType: 'campaign',
+      targetId:   null,
+      before:     null,
+      after:      {
+        campaign:  campaignName || null,
+        mode:      sendMode,
+        blocks:    validBlocks.length,
+        recipients: recipientsWithPhone.length,
+        filter_skin: filterSkin,
+        filter_city: filterCity,
+      },
+    }).catch(() => { /* best-effort */ });
 
     setSending(true);
     setProgress({ current: 0, total: recipientsWithPhone.length });

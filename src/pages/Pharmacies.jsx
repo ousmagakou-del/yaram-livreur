@@ -12,6 +12,11 @@ export default function Pharmacies() {
 
   useEffect(() => {
     let cancelled = false;
+    // Safety net : si le cachedFetch reste collé > 12s (promise dédupliquée
+    // zombie), on libère l'UI avec une liste vide plutôt que skeleton à vie.
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
     (async () => {
       try {
         const all = await getAllPharmacies();
@@ -21,9 +26,10 @@ export default function Pharmacies() {
         if (!cancelled) setPharmacies([]);
       } finally {
         if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safety); };
   }, []);
 
   const cities = ['all', ...Array.from(new Set(pharmacies.map(p => p.city)))];

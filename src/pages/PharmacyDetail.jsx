@@ -48,6 +48,8 @@ export default function PharmacyDetail({ pharmacyId }) {
   const [products, setProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [fav, setFav] = useState(false);
   const [userPos, setUserPos] = useState(null);
@@ -57,23 +59,54 @@ export default function PharmacyDetail({ pharmacyId }) {
   const heroImgRef = useRef(null);
 
   // ── Chargement pharmacie + produits + reviews ────
+  // PROD HARDENING : si pharmacyId absent au mount → on coupe le loader tout de
+  // suite (l'écran "Pharmacie introuvable" apparait au lieu d'un spinner infini).
+  // Safety timeout 12s : si une requête hang malgré le customFetch timeout (cas
+  // rare : Service Worker bug, AbortController qui ne fire pas sur certains
+  // proxies LTE Sénégal), on rend la main à l'UI plutôt que de pourrir l'expé.
   useEffect(() => {
-    if (!pharmacyId) return;
+    if (!pharmacyId) {
+      setLoading(false);
+      setLoadError(true);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
+    setLoadError(false);
+
+    const safety = setTimeout(() => {
+      if (cancelled) return;
+      console.warn('[PharmacyDetail] safety timeout 12s — release UI');
+      setLoading(false);
+      setLoadError(true);
+    }, 12000);
+
     (async () => {
       try {
-        const { data: ph } = await supabase
+        // .maybeSingle() : retourne {data:null} si 0 rows AU LIEU de {error:PGRST116}.
+        // Évite que le warn 0-row pollue Sentry et clarifie le path "pharmacie inactive".
+        const { data: ph, error: phErr } = await supabase
           .from('pharmacies')
           .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, active, rating, review_count')
-          .eq('id', pharmacyId).single();
+          .eq('id', pharmacyId).maybeSingle();
         if (cancelled) return;
-        setPharmacy(ph);
+        if (phErr) {
+          console.warn('[PharmacyDetail] pharmacy fetch error:', phErr.message);
+        }
+        setPharmacy(ph || null);
 
-        const { data: inv } = await supabase
+        // Si pas de pharmacie → on arrête le flow (loading off, error true).
+        // Inutile d'aller chercher l'inventaire / les avis.
+        if (!ph) {
+          setLoadError(true);
+          return;
+        }
+
+        const { data: inv, error: invErr } = await supabase
           .from('inventory').select('product_id, stock, products(*)')
           .eq('pharmacy_id', pharmacyId).gt('stock', 0).eq('active', true);
         if (cancelled) return;
+        if (invErr) console.warn('[PharmacyDetail] inventory error:', invErr.message);
 
         const list = [];
         (inv || []).forEach(i => {
@@ -81,24 +114,20 @@ export default function PharmacyDetail({ pharmacyId }) {
         });
         setProducts(list);
 
-        // Reviews : best-effort (table optionnelle)
-        try {
-          const { data: rv } = await supabase
-            .from('pharmacy_reviews')
-            .select('id, name, rating, comment, created_at')
-            .eq('pharmacy_id', pharmacyId)
-            .order('created_at', { ascending: false })
-            .limit(3);
-          if (!cancelled && rv) setReviews(rv);
-        } catch (_) { /* table peut ne pas exister, on ignore */ }
+        // Reviews : best-effort. La table publique est `reviews` (par produit),
+        // pas `pharmacy_reviews` (n'existe pas en DB). On laisse la liste vide
+        // proprement plutôt que de logger un 42P01 dans Sentry à chaque vue.
+        if (!cancelled) setReviews([]);
       } catch (e) {
         console.warn('[PharmacyDetail] load failed:', e?.message);
+        if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
     })();
-    return () => { cancelled = true; };
-  }, [pharmacyId]);
+    return () => { cancelled = true; clearTimeout(safety); };
+  }, [pharmacyId, reloadKey]);
 
   // ── Géolocalisation utilisateur (silencieuse) ────
   useEffect(() => {
@@ -201,10 +230,33 @@ export default function PharmacyDetail({ pharmacyId }) {
   }
 
   if (!pharmacy) {
+    // Distinction prod : (a) chargement KO → bouton retry ; (b) row inexistant → retour.
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
-        <p>Pharmacie introuvable</p>
-        <button onClick={() => navigate(-1)} style={{ marginTop: 20, padding: '10px 20px', background: '#1F8B4C', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>← Retour</button>
+        <p style={{ fontSize: 16, marginBottom: 8 }}>
+          {loadError ? 'Impossible de charger cette pharmacie' : 'Pharmacie introuvable'}
+        </p>
+        {loadError && (
+          <p style={{ fontSize: 13, color: '#8B8B8B', marginBottom: 20 }}>
+            Vérifie ta connexion puis réessaye.
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20, flexWrap: 'wrap' }}>
+          {loadError && (
+            <button
+              onClick={() => { setReloadKey(k => k + 1); }}
+              style={{ padding: '10px 20px', background: '#1F8B4C', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+            >
+              Réessayer
+            </button>
+          )}
+          <button
+            onClick={() => navigate(-1)}
+            style={{ padding: '10px 20px', background: loadError ? '#F4F4F2' : '#1F8B4C', color: loadError ? '#222' : 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+          >
+            ← Retour
+          </button>
+        </div>
       </div>
     );
   }

@@ -61,16 +61,22 @@ export default function ScanResult({ scanId }) {
   const animRef = useRef(null);
 
   useEffect(() => {
+    if (!scanId) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
+    // Safety 12s : libère l'UI si une des 2 requêtes hang
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
 
     (async () => {
       try {
+        // .maybeSingle() pour éviter le PGRST116 quand le scan n'existe plus
         const { data, error } = await supabase
           .from('skin_scans')
           .select('*')
           .eq('id', scanId)
-          .single();
+          .maybeSingle();
         if (cancelled) return;
         if (error) {
           console.warn('[ScanResult] fetch error:', error.message);
@@ -90,10 +96,11 @@ export default function ScanResult({ scanId }) {
         console.warn('[ScanResult] load failed:', e?.message);
       } finally {
         if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safety); };
   }, [scanId]);
 
   // Animation compteur score

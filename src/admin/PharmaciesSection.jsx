@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, adminSetPharmacyPin } from '../lib/supabase';
 import { getAdminSession } from '../lib/adminAuth';
+import { adminLogAction } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 
 export default function PharmaciesSection() {
@@ -62,6 +63,14 @@ export default function PharmaciesSection() {
         hours: p.hours, commission: parseFloat(p.commission || 8),
         active: p.active, logo: p.logo, cover: p.cover, tagline: p.tagline,
       };
+      // AUDIT : log update pharma (incluant transition active true/false).
+      adminLogAction({
+        action:     'update_pharmacy',
+        targetType: 'pharmacy',
+        targetId:   p.id,
+        before:     prev ? { active: prev.active, name: prev.name, commission: prev.commission } : null,
+        after:      { active: payload.active, name: payload.name, commission: payload.commission },
+      }).catch(() => { /* best-effort */ });
       const { error } = await supabase.from('pharmacies').update(payload).eq('id', p.id);
       if (error) { toast.error('Erreur update : ' + error.message); return; }
 
@@ -89,6 +98,13 @@ export default function PharmaciesSection() {
         lng: p.lng ? String(parseFloat(p.lng)) : '',
         commission: String(parseFloat(p.commission || 8)),
       };
+      adminLogAction({
+        action:     'create_pharmacy',
+        targetType: 'pharmacy',
+        targetId:   null,
+        before:     null,
+        after:      { name: payload.name, city: payload.city, active: !!p.active },
+      }).catch(() => { /* best-effort */ });
       const { error } = await supabase.rpc('admin_create_pharmacy', {
         p_token: token,
         p_payload: payload,
@@ -103,6 +119,14 @@ export default function PharmaciesSection() {
     if (!await confirmDialog('Supprimer cette pharmacie ?')) return;
     const token = getAdminSession()?.token;
     if (!token) { toast.error('Session admin expirée'); return; }
+    const prev = pharmacies.find(x => x.id === id);
+    adminLogAction({
+      action:     'delete_pharmacy',
+      targetType: 'pharmacy',
+      targetId:   id,
+      before:     prev ? { name: prev.name, city: prev.city, active: prev.active } : null,
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     const { error } = await supabase.rpc('admin_delete_pharmacy', {
       p_token: token,
       p_id: id,

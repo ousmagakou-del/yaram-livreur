@@ -146,6 +146,10 @@ export default function Search({ initialCategory, initialBrand }) {
   // ─── Load data ────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
+    // Safety 12s : libère l'UI même si Promise.all reste collé (ex: une RPC hang)
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
     const load = async () => {
       try {
         const [p, b, c] = await Promise.all([
@@ -159,8 +163,10 @@ export default function Search({ initialCategory, initialBrand }) {
         setCategories(c || []);
       } catch (e) {
         console.error('Search load error:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
-      if (!cancelled) setLoading(false);
     };
     load();
 
@@ -172,6 +178,7 @@ export default function Search({ initialCategory, initialBrand }) {
     window.addEventListener('yaram-route-back', handleRouteBack);
     return () => {
       cancelled = true;
+      clearTimeout(safety);
       window.removeEventListener('yaram-route-back', handleRouteBack);
     };
   }, []);

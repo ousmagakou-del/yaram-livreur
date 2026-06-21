@@ -16,14 +16,17 @@
 // ⚠️ INCRÉMENTER ce numéro à chaque deploy qui change le format des données
 // Ça force la purge du cache localStorage côté client → fini les vieilles données
 // v8 : ajout de la déduplication in-flight + getAllCategories + Home localStorage
-const CACHE_VERSION = 'v8';
+// v9 (juin 2026) : RLS fixes — l'ancien JS recevait [] silencieusement sur certaines
+//                  tables (orders, favorites, products). Bump pour purger les caches
+//                  qui contiendraient ces tableaux vides erronés.
+const CACHE_VERSION = 'v9';
 
 const memCache = new Map(); // { key: { data, time } }
 const inflightPromises = new Map(); // key → { promise, startTime } — déduplication
 const INFLIGHT_TIMEOUT = 25000; // 25s : abandon une promise qui hang depuis trop longtemps
 
 const LS_PREFIX = `yaram_cache_${CACHE_VERSION}_`;
-const OLD_PREFIXES = ['yaram_cache_', 'yaram_cache_v5_', 'yaram_cache_v6_', 'yaram_cache_v7_']; // À nettoyer
+const OLD_PREFIXES = ['yaram_cache_', 'yaram_cache_v5_', 'yaram_cache_v6_', 'yaram_cache_v7_', 'yaram_cache_v8_']; // À nettoyer
 
 // Default TTL = 5 minutes
 const DEFAULT_TTL = 5 * 60 * 1000;

@@ -89,6 +89,12 @@ export default function Loyalty() {
       setLoading(false);
       return;
     }
+    let cancelled = false;
+    setLoading(true);
+    // Safety 12s : libère l'UI si la requête loyalty_transactions hang
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
     (async () => {
       try {
         const { data, error } = await supabase
@@ -97,13 +103,16 @@ export default function Loyalty() {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(30);
+        if (cancelled) return;
         if (!error) setTransactions(data || []);
       } catch (e) {
         console.warn('[Loyalty] fetch failed:', e?.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
     })();
+    return () => { cancelled = true; clearTimeout(safety); };
   }, [user?.id]);
 
   const balance = user?.loyalty_points || 0;

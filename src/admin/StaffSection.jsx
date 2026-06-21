@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { adminListStaff, adminUpsertStaff, adminDeleteStaff } from '../lib/adminApi';
+import { adminListStaff, adminUpsertStaff, adminDeleteStaff, adminLogAction } from '../lib/adminApi';
 import { confirmDialog } from '../lib/toast';
 
 const ROLES = [
@@ -28,18 +28,34 @@ export default function StaffSection() {
     setLoading(false);
   };
 
-  const handleSave = async (s) => {
+  const handleSave = async (st) => {
     const payload = {
-      name: s.name, email: s.email || null, phone: s.phone,
-      role: s.role, pharmacy_id: s.pharmacy_id || null, active: s.active,
+      name: st.name, email: st.email || null, phone: st.phone,
+      role: st.role, pharmacy_id: st.pharmacy_id || null, active: st.active,
     };
-    await adminUpsertStaff(s.id || null, payload);
+    const prev = st.id ? staff.find(x => x.id === st.id) : null;
+    adminLogAction({
+      action:     st.id ? 'update_staff' : 'create_staff',
+      targetType: 'staff',
+      targetId:   st.id || null,
+      before:     prev ? { role: prev.role, active: prev.active, name: prev.name } : null,
+      after:      { role: payload.role, active: payload.active, name: payload.name },
+    }).catch(() => { /* best-effort */ });
+    await adminUpsertStaff(st.id || null, payload);
     setEditing(null);
     refresh();
   };
 
   const handleDelete = async (id) => {
     if (!await confirmDialog('Retirer ce membre ?')) return;
+    const prev = staff.find(x => x.id === id);
+    adminLogAction({
+      action:     'delete_staff',
+      targetType: 'staff',
+      targetId:   id,
+      before:     prev ? { name: prev.name, role: prev.role, active: prev.active } : null,
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     await adminDeleteStaff(id);
     refresh();
   };

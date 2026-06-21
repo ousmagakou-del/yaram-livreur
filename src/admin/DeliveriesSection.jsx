@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken } from '../lib/supabase';
-import { adminListOrdersFull, adminUpdateOrder } from '../lib/adminApi';
+import { adminListOrdersFull, adminUpdateOrder, adminLogAction } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 import SignedImage from '../components/SignedImage';
 import { pushOrderStatus, pushLivreurAssigned } from '../lib/pushAdmin';
@@ -78,6 +78,14 @@ export default function DeliveriesSection() {
 
   const assignDriver = async (order, name, phone) => {
     const token = generateSecureToken();
+    // AUDIT : trace l'assignation livreur avant execution (best-effort).
+    await adminLogAction({
+      action:     'assign_driver',
+      targetType: 'order',
+      targetId:   order.id,
+      before:     { status: order.status, driver: null },
+      after:      { status: order.status, driver: { name, phone: phone || null } },
+    }).catch(() => { /* best-effort */ });
     await supabase.from('delivery_tracking').insert({
       order_id: order.id,
       delivery_token: token,
@@ -149,6 +157,15 @@ export default function DeliveriesSection() {
 
   const forceDeliver = async (order) => {
     if (!await confirmDialog('Forcer la livraison à "livrée" sans confirmation cliente ?')) return;
+    // AUDIT : forceDeliver sans confirmation cliente => action sensible (declenche
+    // la commission pharma). Le log capture before/after pour traçabilité.
+    await adminLogAction({
+      action:     'force_deliver_order',
+      targetType: 'order',
+      targetId:   order.id,
+      before:     { status: order.status, client_confirmed: !!order.client_confirmed },
+      after:      { status: 'delivered',  client_confirmed: true },
+    }).catch(() => { /* best-effort */ });
     const { error } = await adminUpdateOrder(order.id, {
       status: 'delivered',
       client_confirmed: true,

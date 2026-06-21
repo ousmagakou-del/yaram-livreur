@@ -126,6 +126,10 @@ export default function International() {
 
   useEffect(() => {
     let cancelled = false;
+    // Safety 12s : libère le spinner de la grille produits si la requête hang
+    const safety = setTimeout(() => {
+      if (!cancelled) setIntlProductsLoading(false);
+    }, 12000);
     (async () => {
       try {
         const { data, error } = await supabase
@@ -147,9 +151,10 @@ export default function International() {
         console.warn('[Intl] products fetch error:', e?.message);
       } finally {
         if (!cancelled) setIntlProductsLoading(false);
+        clearTimeout(safety);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safety); };
   }, []);
 
   // ─── State FAQ collapsible ───

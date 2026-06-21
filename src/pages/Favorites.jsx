@@ -34,6 +34,10 @@ export default function Favorites() {
 
   useEffect(() => {
     let cancelled = false;
+    // Safety net 12s : libère l'UI si getMyFavorites hang (RLS, session expiree)
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
     (async () => {
       try {
         const data = await getMyFavorites();
@@ -43,9 +47,10 @@ export default function Favorites() {
         if (!cancelled) setFavorites([]);
       } finally {
         if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safety); };
   }, []);
 
   const showToast = (text) => {

@@ -59,6 +59,10 @@ export default function Referral() {
     if (!user || !user.id) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
+    // Safety 12s : libère l'UI si une RPC referral hang
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
 
     (async () => {
       try {
@@ -83,10 +87,11 @@ export default function Referral() {
         console.warn('[Referral] fetch failed:', e?.message);
       } finally {
         if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safety); };
   }, [user]);
 
   // ─── Compteurs animés ───

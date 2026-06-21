@@ -25,6 +25,14 @@
     <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
     <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
 
+    <!-- ════════════ PRELOAD CRITICAL IMAGES ════════════
+         Logo PWA + favicon SVG demandés très tôt par le manifest et le SW
+         (precache install). Les preload-er pendant le parse HTML économise
+         50-150ms sur le 1er paint de la TabBar / header après hydratation.
+         fetchpriority=high force le navigateur à les sortir devant les JS. -->
+    <link rel="preload" as="image" href="/icon-192.png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/favicon.svg" type="image/svg+xml" />
+
     <!-- Theme color (barre de statut) -->
     <meta name="theme-color" content="#1F8B4C" />
     <meta name="background-color" content="#1F8B4C" />

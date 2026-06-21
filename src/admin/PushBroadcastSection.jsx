@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast, confirmDialog } from '../lib/toast';
 import { pushBroadcast } from '../lib/pushAdmin';
+import { adminLogAction } from '../lib/adminApi';
 
 const TEMPLATES = [
   {
@@ -78,6 +79,15 @@ export default function PushBroadcastSection() {
 
     setSending(true);
     setLastResult(null);
+    // AUDIT : trace l'envoi de broadcast push avant execution (action sensible —
+    // touche TOUTES les clientes iOS / web). Capture le payload pour traçabilité.
+    adminLogAction({
+      action:     'send_push_broadcast',
+      targetType: 'broadcast',
+      targetId:   null,
+      before:     null,
+      after:      { title, message: message.slice(0, 200), url, template_id: selectedTemplate || null },
+    }).catch(() => { /* best-effort */ });
     try {
       const res = await pushBroadcast({ title, message, url });
       setLastResult(res);

@@ -93,6 +93,8 @@ export default function OrderTracking({ orderId }) {
   const { navigate } = useNav();
   const [order, setOrder] = useState(null);
   const [tracking, setTracking] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [itemsExpanded, setItemsExpanded] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -102,22 +104,49 @@ export default function OrderTracking({ orderId }) {
   const markerRef = useRef(null);
 
   useEffect(() => {
-    refresh();
+    if (!orderId) {
+      setFirstLoadDone(true);
+      setLoadError(true);
+      return;
+    }
+    let cancelled = false;
+    setFirstLoadDone(false);
+    setLoadError(false);
+
+    // Safety timeout 12s : libère l'UI si la RPC hang (réseau LTE Dakar fragile)
+    const safety = setTimeout(() => {
+      if (cancelled) return;
+      setFirstLoadDone(true);
+      setLoadError(true);
+    }, 12000);
+
+    refresh(true).finally(() => { if (!cancelled) clearTimeout(safety); });
+
     const sub = supabase
       .channel('order-tracking-tr-' + orderId)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'delivery_tracking', filter: `order_id=eq.${orderId}` },
         (payload) => { if (payload.new) setTracking(payload.new); })
       .subscribe();
-    const interval = setInterval(refresh, 8000);
-    return () => { sub.unsubscribe(); clearInterval(interval); };
+    const interval = setInterval(() => refresh(false), 8000);
+    return () => { cancelled = true; clearTimeout(safety); sub.unsubscribe(); clearInterval(interval); };
   }, [orderId]);
 
-  const refresh = async () => {
-    const { data: orderData } = await supabase.rpc('client_get_order_by_id', { p_order_id: orderId });
-    setOrder(orderData);
-    const { data: trackingData } = await supabase.from('delivery_tracking').select('*').eq('order_id', orderId).maybeSingle();
-    if (trackingData) setTracking(trackingData);
+  const refresh = async (isFirst = false) => {
+    try {
+      const { data: orderData, error: orderErr } = await supabase.rpc('client_get_order_by_id', { p_order_id: orderId });
+      if (orderErr) console.warn('[OrderTracking] order RPC error:', orderErr.message);
+      if (orderData) setOrder(orderData);
+      else if (isFirst) setLoadError(true);
+
+      const { data: trackingData } = await supabase.from('delivery_tracking').select('*').eq('order_id', orderId).maybeSingle();
+      if (trackingData) setTracking(trackingData);
+    } catch (e) {
+      console.warn('[OrderTracking] refresh failed:', e?.message);
+      if (isFirst) setLoadError(true);
+    } finally {
+      if (isFirst) setFirstLoadDone(true);
+    }
   };
 
   // Trigger confettis quand on passe en 'delivered' en live
@@ -182,6 +211,40 @@ export default function OrderTracking({ orderId }) {
   }, [order?.id]);
 
   if (!order) {
+    // Si le premier load a complété sans rapporter d'order → on bascule sur un
+    // état d'erreur (au lieu d'un spinner infini) avec bouton retry + retour.
+    if (firstLoadDone) {
+      return (
+        <div className="track-screen page-anim">
+          <div className="track-loading" style={{ textAlign: 'center', padding: 40 }}>
+            <p style={{ fontSize: 16, marginBottom: 8 }}>
+              {loadError ? 'Impossible de charger cette commande' : 'Commande introuvable'}
+            </p>
+            {loadError && (
+              <p style={{ fontSize: 13, color: '#8B8B8B', marginBottom: 20 }}>
+                Vérifie ta connexion puis réessaye.
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20, flexWrap: 'wrap' }}>
+              {loadError && (
+                <button
+                  onClick={() => { setFirstLoadDone(false); setLoadError(false); refresh(true); }}
+                  style={{ padding: '10px 20px', background: '#1F8B4C', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Réessayer
+                </button>
+              )}
+              <button
+                onClick={() => navigate('/orders')}
+                style={{ padding: '10px 20px', background: '#F4F4F2', color: '#222', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+              >
+                ← Mes commandes
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="track-screen page-anim">
         <div className="track-loading">

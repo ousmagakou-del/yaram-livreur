@@ -133,6 +133,11 @@ export default function Categories() {
   const [query, setQuery] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+    // Safety 12s : libère l'UI si une des 3 RPC reste pendante
+    const safety = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
     const load = async () => {
       try {
         const [catData, slugRows, brandData] = await Promise.all([
@@ -140,6 +145,7 @@ export default function Categories() {
           getProductCategorySlugs(),
           getAllBrands(),
         ]);
+        if (cancelled) return;
 
         const c = {};
         (slugRows || []).forEach((row) => {
@@ -173,8 +179,10 @@ export default function Categories() {
         setBrands(brandData || []);
       } catch (e) {
         console.error('Categories load error:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+        clearTimeout(safety);
       }
-      setLoading(false);
     };
     load();
 
@@ -184,7 +192,11 @@ export default function Categories() {
       load();
     };
     window.addEventListener('yaram-route-back', handleRouteBack);
-    return () => window.removeEventListener('yaram-route-back', handleRouteBack);
+    return () => {
+      cancelled = true;
+      clearTimeout(safety);
+      window.removeEventListener('yaram-route-back', handleRouteBack);
+    };
   }, []);
 
   // Featured tiles enrichies avec le count reel

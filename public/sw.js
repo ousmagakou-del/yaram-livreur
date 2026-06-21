@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════
-// YARAM Service Worker v6 — VANILLA PERFORMANT
+// YARAM Service Worker v8 — VANILLA PERFORMANT
 // ════════════════════════════════════════════════
 // Stratégies par bucket :
 //   - precache : shells critiques (/, manifest, icônes) — installé au boot
@@ -16,7 +16,7 @@
 // Compat : iOS Safari + Chrome Android. Skip-waiting + clients.claim().
 // ════════════════════════════════════════════════
 
-const SW_BUILD = 'yaram-v7-2026-06-21';
+const SW_BUILD = 'yaram-v8-2026-06-21-rls-fix';
 const C_PRECACHE = `${SW_BUILD}-precache`;
 const C_ASSETS   = `${SW_BUILD}-assets`;
 const C_IMAGES   = `${SW_BUILD}-images`;
@@ -44,7 +44,7 @@ const GENERIC_FETCH_TIMEOUT_MS = 12000;
 
 // ─── INSTALL ───────────────────────────────────────
 self.addEventListener('install', (event) => {
-  console.log('[SW v6] install', SW_BUILD);
+  console.log('[SW v8] install', SW_BUILD);
   event.waitUntil(
     (async () => {
       const cache = await caches.open(C_PRECACHE);
@@ -52,9 +52,9 @@ self.addEventListener('install', (event) => {
       try {
         await cache.addAll(PRECACHE_URLS);
       } catch (e) {
-        console.warn('[SW v6] precache addAll partial fail, retry unit', e);
+        console.warn('[SW v8] precache addAll partial fail, retry unit', e);
         await Promise.all(
-          PRECACHE_URLS.map(u => cache.add(u).catch(err => console.warn('[SW v6] skip', u, err)))
+          PRECACHE_URLS.map(u => cache.add(u).catch(err => console.warn('[SW v8] skip', u, err)))
         );
       }
       await self.skipWaiting();
@@ -64,14 +64,14 @@ self.addEventListener('install', (event) => {
 
 // ─── ACTIVATE ──────────────────────────────────────
 self.addEventListener('activate', (event) => {
-  console.log('[SW v6] activate', SW_BUILD);
+  console.log('[SW v8] activate', SW_BUILD);
   event.waitUntil(
     (async () => {
       // Purge tous les caches qui ne correspondent pas à la version courante
       const names = await caches.keys();
       await Promise.all(
         names.filter(n => !KNOWN_CACHES.has(n)).map(n => {
-          console.log('[SW v6] delete old cache', n);
+          console.log('[SW v8] delete old cache', n);
           return caches.delete(n);
         })
       );
@@ -264,7 +264,7 @@ self.addEventListener('push', (event) => {
       data: { ...inner, url },
     }));
   } catch (e) {
-    console.error('[SW v6] push error', e);
+    console.error('[SW v8] push error', e);
   }
 });
 
