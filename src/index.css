@@ -43,9 +43,79 @@
   --primary-light: #1A3A2A;
 }
 
+/* ─── Mode sombre AUTO si OS en mode sombre + pas d'override manuel ─── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1115;
+    --bg-soft: #1A1D24;
+    --bg-card: #1A1D24;
+    --ink: #F2F2F2;
+    --ink-soft: #A0A0A0;
+    --ink-mute: #6B6B6B;
+    --line: #2A2E36;
+    --line-soft: #1F2229;
+    --excellent-bg: #1A3A2A;
+    --good-bg: #1F3520;
+    --medium-bg: #3A2D14;
+    --bad-bg: #3A1716;
+    --primary-light: #1A3A2A;
+  }
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 button { background: none; border: none; cursor: pointer; font: inherit; color: inherit; }
 input, textarea, select { font: inherit; }
+
+/* ─── A11y : focus visible YARAM (WCAG 2.1 AA) ─── */
+:focus-visible {
+  outline: 2px solid var(--primary, #1F8B4C);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--primary, #1F8B4C);
+  outline-offset: 3px;
+}
+
+/* ─── A11y : touch targets minimum 44×44 (Apple HIG + WCAG) ─── */
+/* On garde le rendu visuel custom, mais on agrandit la zone de tap */
+button, a, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+/* Exceptions : icônes inline dans du texte, badges, micro-éléments */
+button.icon-only-inline,
+a.icon-only-inline,
+.badge,
+.chip-tiny {
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ─── A11y : prefers-reduced-motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── A11y : skip-link pour screen readers ─── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 html, body, #root {
   height: 100%;

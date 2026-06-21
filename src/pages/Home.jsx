@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNav, useUser } from '../App';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../lib/queries';
 import {
   getAllProducts,
   getAllPharmacies,
@@ -18,6 +20,7 @@ import HeroBanner from '../components/HeroBanner';
 import BonsPlansWidget from '../components/BonsPlansWidget';
 import InternationalShowcase from '../components/InternationalShowcase';
 import { getCartCount } from '../lib/cart';
+import { imgSrc } from '../lib/imgSrc';
 import { getUnreadNotificationsCount, subscribeNotificationsCount } from '../lib/supabase';
 import { usePageSEO } from '../lib/seo';
 import { trackEvent } from '../lib/analytics';
@@ -101,9 +104,15 @@ export default function Home() {
     trackEvent('home_viewed');
   }, []);
 
+  // ─── TanStack Query : hydrate depuis IndexedDB AVANT le 1er render ───
+  // Permet le cold start INSTANT à la 2e ouverture de l'app.
+  const qc = useQueryClient();
+
   // ─── Hydrate depuis le cache module-level si dispo (instantane) ───
-  const [products, setProducts] = useState(homeDataCache.products || []);
-  const [pharmacies, setPharmacies] = useState(homeDataCache.pharmacies || []);
+  // Priorité : homeDataCache (session courante) → TanStack cache persisté
+  // (IndexedDB, survit fermeture app). Plus aucun cold start visuellement vide.
+  const [products, setProducts] = useState(homeDataCache.products || qc.getQueryData(QUERY_KEYS.products) || []);
+  const [pharmacies, setPharmacies] = useState(homeDataCache.pharmacies || qc.getQueryData(QUERY_KEYS.pharmacies) || []);
   const [nearbyPharmacies, setNearbyPharmacies] = useState([]);
   const [userPos, setUserPos] = useState(null);
   const [gpsStatus, setGpsStatus] = useState('unknown');
@@ -147,15 +156,22 @@ export default function Home() {
     try { localStorage.setItem('yaram_selected_addr_id', id); } catch {}
     setShowAddrPicker(false);
   };
-  const [categories, setCategories] = useState(homeDataCache.categories || []);
-  const [topBrands, setTopBrands] = useState(homeDataCache.topBrands || []);
-  const [banners, setBanners] = useState(homeDataCache.banners || []);
+  // ─── TanStack Query : hydrate depuis IndexedDB AVANT le 1er render ───
+  // (qc déjà déclaré plus haut)
+  const tsProducts   = qc.getQueryData(QUERY_KEYS.products);
+  const tsCategories = qc.getQueryData(QUERY_KEYS.categories);
+  const tsBrands     = qc.getQueryData(QUERY_KEYS.brands);
+  const tsBanners    = qc.getQueryData(QUERY_KEYS.banners);
+
+  const [categories, setCategories] = useState(homeDataCache.categories || tsCategories || []);
+  const [topBrands, setTopBrands] = useState(homeDataCache.topBrands || tsBrands?.slice(0, 10) || []);
+  const [banners, setBanners] = useState(homeDataCache.banners || tsBanners || []);
   const [activeBannerIdx, setActiveBannerIdx] = useState(0);
   const [favIds, setFavIds] = useState([]);
   const [bestSellers, setBestSellers] = useState(homeDataCache.bestSellers || []);
   const [latestScan, setLatestScan] = useState(null);
-  // Loading = true SEULEMENT au tout premier load (pas de cache)
-  const [loading, setLoading] = useState(!homeDataCache.products);
+  // Loading = true SEULEMENT au tout premier load (ni cache custom NI cache TanStack)
+  const [loading, setLoading] = useState(!homeDataCache.products && !tsProducts);
   const [scannerOpen, setScannerOpen] = useState(false);
   // ─── Badge count panier en haut header (sync via yaram-cart-updated) ───
   const [cartCount, setCartCount] = useState(() => getCartCount());
@@ -256,6 +272,9 @@ export default function Home() {
 
       setProducts(p);
       homeDataCache.products = p;
+      // PERF : pousse dans le cache TanStack persisté (IndexedDB)
+      // → la prochaine ouverture de l'app aura la Home INSTANT.
+      qc.setQueryData(QUERY_KEYS.products, p);
 
       // Compute categories
       let newCategories;
@@ -282,6 +301,7 @@ export default function Home() {
       }
       setCategories(newCategories);
       homeDataCache.categories = newCategories;
+      qc.setQueryData(QUERY_KEYS.categories, newCategories);
 
       // L'utilisateur peut maintenant voir la page → unblock loading
       setLoading(false);
@@ -295,6 +315,7 @@ export default function Home() {
       ]).then(([ph, br, bn]) => {
         setPharmacies(ph);
         homeDataCache.pharmacies = ph;
+        qc.setQueryData(QUERY_KEYS.pharmacies, ph);
 
         // Top brands
         const brandCount = {};
@@ -305,6 +326,8 @@ export default function Home() {
           .slice(0, 10);
         setTopBrands(sortedBrands);
         homeDataCache.topBrands = sortedBrands;
+        qc.setQueryData(QUERY_KEYS.brands, br); // tous les brands pour TanStack
+
 
         // Banners (filtre par dates)
         const now = new Date();
@@ -316,6 +339,7 @@ export default function Home() {
         });
         setBanners(activeBn);
         homeDataCache.banners = activeBn;
+        qc.setQueryData(QUERY_KEYS.banners, activeBn);
         // PERSIST Phase 2 dans sessionStorage + localStorage
         persistHomeCache();
       }).catch(e => console.warn('[Home] phase 2 enrichissement failed (non-bloquant):', e?.message));
@@ -873,7 +897,7 @@ export default function Home() {
             <div className="yhome-banner-wrap yhome-banner-wrap--premium" onClick={() => handleBannerClick(banners[activeBannerIdx])}>
               {banners[activeBannerIdx]?.image_url ? (
                 <img
-                  src={banners[activeBannerIdx].image_url}
+                  src={imgSrc(banners[activeBannerIdx].image_url, { w: 800, q: 82 })}
                   alt={banners[activeBannerIdx].title || 'Promo'}
                   loading="lazy"
                   decoding="async"

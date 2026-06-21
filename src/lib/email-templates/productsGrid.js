@@ -54,7 +54,7 @@ function renderCard(p) {
         <a href="${href}" style="display:block;text-decoration:none">
           <img src="${img}" alt="${name}" width="100%" style="display:block;width:100%;max-width:280px;height:auto;aspect-ratio:1;object-fit:cover" />
         </a>
-        ${hasDiscount ? `<div style="position:absolute;top:10px;left:10px;background:${BRAND_ACCENT};color:#0E5B33;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:0.3px">-${discountPct}%</div>` : ''}
+        ${hasDiscount ? `<div class="yp-pulse" style="position:absolute;top:10px;left:10px;background:${BRAND_ACCENT};color:#0E5B33;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;letter-spacing:0.3px;animation:ypPulse 2.4s ease-in-out infinite">-${discountPct}%</div>` : ''}
       </td>
     </tr>
     <tr>

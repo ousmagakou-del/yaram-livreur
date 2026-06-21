@@ -3,6 +3,7 @@ import { useNav } from '../App';
 import { scoreClass, formatPrice } from '../lib/utils';
 import { isFavorite, toggleFavorite } from '../lib/supabase';
 import { haptic } from '../lib/haptic';
+import { imgSrc } from '../lib/imgSrc';
 import './ProductTile.css';
 
 function ProductTile({ product, size = 'normal' }) {
@@ -23,8 +24,17 @@ function ProductTile({ product, size = 'normal' }) {
     e.stopPropagation();
     e.preventDefault();
     haptic('light');
-    const next = await toggleFavorite(product.id);
-    setFav(next);
+    // OPTIMISTIC : on flip l'état immédiatement, rollback si serveur refuse
+    const optimistic = !fav;
+    setFav(optimistic);
+    try {
+      const next = await toggleFavorite(product.id);
+      // Si le serveur retourne un état différent, on s'aligne
+      if (next !== optimistic) setFav(next);
+    } catch {
+      // Rollback en cas d'erreur réseau
+      setFav(!optimistic);
+    }
   };
 
   const handleOpen = () => {
@@ -38,7 +48,7 @@ function ProductTile({ product, size = 'normal' }) {
     <div className={`product-tile ${size}`} onClick={handleOpen} role="button" tabIndex={0}>
       <div className="pt-img-wrap">
         <img
-          src={product.img}
+          src={imgSrc(product.img, { w: size === 'large' ? 600 : 400, q: 80 })}
           alt={`${product.brand || ''} ${product.name || 'Produit'}`.trim()}
           loading="lazy"
           decoding="async"

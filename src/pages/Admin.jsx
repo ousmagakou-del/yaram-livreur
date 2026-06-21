@@ -103,16 +103,22 @@ export default function Admin() {
 
   useEffect(() => {
     if (!session) return;
-    // Vague E : broadcast realtime (instant) + polling 60s comme fallback
+    // PERF : 3 couches de détection nouvelle commande (du + rapide au + lent) :
+    //   1. broadcast realtime (instant, déclenché par client)
+    //   2. postgres_changes INSERT sur orders (instant, déclenché par DB)
+    //   3. polling 120s safety net (au cas où realtime tombe)
     const channel = supabase
       .channel('yaram-new-orders')
       .on('broadcast', { event: 'new_order' }, () => {
-        // Admin voit TOUTES les commandes, donc on incremente sans filtrer
         setNewOrdersCount(c => c + 1);
       })
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        () => { setNewOrdersCount(c => c + 1); }
+      )
       .subscribe();
 
-    // Polling 60s comme filet (au cas ou un broadcast a ete rate)
+    // Polling 120s comme filet (rare, juste si realtime down)
     let lastSeen = null;
     let cancelled = false;
     const tick = async () => {
@@ -128,7 +134,7 @@ export default function Admin() {
       } catch { /* silencieux */ }
     };
     tick();
-    const id = setInterval(tick, 60000);
+    const id = setInterval(tick, 120000);
     return () => {
       cancelled = true;
       clearInterval(id);

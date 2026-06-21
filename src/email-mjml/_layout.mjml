@@ -18,5 +18,24 @@
   <mj-style>
     .yaram-link { color: #1F8B4C; text-decoration: none; font-weight: 600; }
     .yaram-divider { border: none; border-top: 1px solid #EFEFEF; margin: 22px 0; }
+    /* Pulse subtle sur badge -X% promo (iOS Mail + Gmail mobile) */
+    @keyframes ypPulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.06); box-shadow: 0 4px 12px rgba(244,181,58,0.4); }
+    }
+    /* CTA buttons hover shine (iOS Mail uniquement) */
+    @keyframes ypShine {
+      0%   { background-position: -100% 0; }
+      100% { background-position: 200% 0; }
+    }
+    /* Fade-up subtle au load (Apple Mail effet doux) */
+    @keyframes ypFadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    /* Respect prefers-reduced-motion */
+    @media (prefers-reduced-motion: reduce) {
+      .yp-pulse { animation: none !important; }
+    }
   </mj-style>
 </mj-head>
