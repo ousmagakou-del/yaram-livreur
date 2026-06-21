@@ -47,18 +47,27 @@ export async function createOrder({
 export async function getMyOrders() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return [];
+  // FIX juin 2026 : on désactive le cache localStorage (persistLS=false) parce
+  // qu'un cache vide stale persisté hier était servi en boucle → la page
+  // "Mes commandes" restait vide alors que la DB avait 30+ orders.
+  // On garde le memory cache (rapide pour les retours rapides) mais avec un
+  // TTL court (30s) et on évite que les '[]' soient gardés.
   return cachedFetch(`my_orders_${session.user.id}`, async () => {
     // PERF : SELECT explicite des colonnes utilisées par Orders.jsx
-    // Avant : SELECT * ramenait 30+ colonnes par order = 5-10 KB chacune.
-    // Maintenant : ~1 KB par order, 5× plus rapide sur réseau lent.
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('orders')
       .select('id, status, total, subtotal, shipping, payment_method, items, address, created_at, is_preorder, deposit_amount, balance_amount, expected_arrival_date, lead_time_days')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false })
       .limit(50);
+    if (error) {
+      console.warn('[getMyOrders] supabase error:', error.message);
+      // Sur erreur RLS/réseau on throw au lieu de retourner [] pour ne PAS
+      // empoisonner le cache avec du vide.
+      throw error;
+    }
     return data || [];
-  }, { ttl: 60 * 1000 }); // 1 min (les commandes changent souvent)
+  }, { ttl: 30 * 1000, persistLS: false });
 }
 
 export async function updateOrderStatus(id, status) {

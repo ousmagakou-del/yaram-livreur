@@ -37,6 +37,25 @@ export default function Orders() {
     let cancelled = false;
     (async () => {
       try {
+        // FIX juin 2026 : purge agressive du cache au mount.
+        // Cause du bug "aucune commande visible" : un cache vide (peut-être
+        // posé alors que la session n'était pas encore active) restait collé
+        // en localStorage et était re-servi en boucle.
+        // 1. Cleanup module-level (mem + LS) pour cet user
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
+        } catch {}
+        // 2. Cleanup brute force des vieux prefix yaram_cache_v*_my_orders_*
+        try {
+          const toDel = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && /^yaram_cache_v\d+_my_orders_/.test(k)) toDel.push(k);
+          }
+          toDel.forEach(k => localStorage.removeItem(k));
+        } catch {}
+
         const data = await getMyOrders();
         if (!cancelled) setOrders(data || []);
       } catch (e) {
