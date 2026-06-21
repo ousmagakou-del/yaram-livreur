@@ -153,10 +153,21 @@ export default function Profile() {
   }, [user?.id]);
 
   const handleLogout = async () => {
-    if (await confirmDialog('Te déconnecter ?', { confirmLabel: 'Déconnexion', danger: true })) {
-      await signOut();
-      await refreshUser(null);
-      navigate({ name: 'home', params: {} });
+    if (!(await confirmDialog('Te déconnecter ?', { confirmLabel: 'Déconnexion', danger: true }))) {
+      return;
+    }
+    // Chaque étape en try/catch séparé : même si une échoue, on continue.
+    // Objectif : que l'user revienne TOUJOURS sur Home déconnectée.
+    try { await signOut(); } catch (e) {
+      console.warn('[handleLogout] signOut error (non-fatal):', e?.message);
+    }
+    try { await refreshUser(null); } catch (e) {
+      console.warn('[handleLogout] refreshUser error (non-fatal):', e?.message);
+    }
+    try { navigate({ name: 'home', params: {} }); } catch (e) {
+      // Fallback navigation hard reload si le router est cassé
+      console.warn('[handleLogout] navigate error, fallback reload:', e?.message);
+      try { window.location.href = '/'; } catch {}
     }
   };
 

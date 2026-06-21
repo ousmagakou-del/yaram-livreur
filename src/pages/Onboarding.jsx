@@ -570,12 +570,14 @@ export default function Onboarding({ onComplete }) {
         <div className="ob-auth-top">
           <div className="ob-logo-circle">Y</div>
           <h2 className="ob-auth-title">
-            {authView === 'login' ? 'Re-bonjour' : 'Bienvenue sur YARAM'}
+            {authView === 'signup' ? 'Crée ton compte' : 'Connecte-toi'}
           </h2>
           <p className="ob-auth-desc">
-            {authView === 'login'
-              ? 'Connecte-toi pour continuer ta routine'
-              : 'Crée ton compte en 30 secondes'}
+            {authView === 'signup'
+              ? 'En 30 secondes, et tu profites de YARAM 💚'
+              : authView === 'login'
+                ? 'Retrouve ta routine et tes commandes'
+                : 'Choisis comment tu veux te connecter'}
           </p>
         </div>
 
@@ -662,20 +664,22 @@ export default function Onboarding({ onComplete }) {
 
               <div className="auth-divider"><span>ou avec email</span></div>
 
+              {/* CTA principal : SE CONNECTER (l'utilisatrice est plus souvent une qui revient
+                  qu'une nouvelle inscription, surtout après la 1ère ouverture). */}
               <button
-                onClick={() => { haptic('light'); setAuthView('signup'); setError(null); }}
+                onClick={() => { haptic('light'); setAuthView('login'); setError(null); }}
                 className="ob-btn-email-primary ripple"
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                  <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/>
                 </svg>
-                <span>Créer un compte avec email</span>
+                <span>Se connecter avec email</span>
               </button>
 
               <p className="ob-have-account">
-                Déjà un compte ?{' '}
-                <button onClick={() => { haptic('light'); setAuthView('login'); setError(null); }} className="ob-link-strong">
-                  J'ai déjà un compte
+                Pas encore de compte ?{' '}
+                <button onClick={() => { haptic('light'); setAuthView('signup'); setError(null); }} className="ob-link-strong">
+                  Créer un compte
                 </button>
               </p>
 
