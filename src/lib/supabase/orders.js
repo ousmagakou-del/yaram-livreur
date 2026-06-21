@@ -62,14 +62,22 @@ export async function getMyOrders() {
 }
 
 export async function updateOrderStatus(id, status) {
-  // Vague 13 RLS : UPDATE direct bloque pour anon. Cette fonction n'est
-  // utilisee QUE par Payment.jsx pour passer pending_payment -> paid.
-  // Donc on route vers la RPC dediee client_mark_order_paid.
+  // Vague 13 RLS : UPDATE direct bloque pour anon. Cette fonction est
+  // utilisee par Payment.jsx pour passer pending_payment vers paid (cash COD)
+  // OU vers awaiting_verification (Wave/OM/Card — anti-fraude, admin valide).
+  //
+  // Dans les 2 cas on route vers la RPC SECURITY DEFINER `client_mark_order_paid`
+  // qui decide cote SQL du status final selon order.payment_method :
+  //   - cod              -> 'paid'              (livraison immediate)
+  //   - wave / om / card -> 'awaiting_verification' (admin doit verifier)
+  //
+  // Cote client on accepte donc indifferemment 'paid' et 'awaiting_verification'
+  // : la RPC pose le bon status, le client passe juste son intention "j'ai paye".
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user?.id) invalidateCache(`my_orders_${session.user.id}`);
   } catch {}
-  if (status === 'paid') {
+  if (status === 'paid' || status === 'awaiting_verification') {
     const { data, error } = await supabase.rpc('client_mark_order_paid', { p_order_id: id });
     if (error) return { error };
     if (!data?.success) return { error: { message: data?.error || 'paiement refuse' } };
