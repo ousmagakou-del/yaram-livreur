@@ -9,9 +9,9 @@
   <!-- Logo centre : meme path que favicon.svg, scale x4 et centre -->
   <g transform="translate(1366 1366) scale(4) translate(-128 -128)">
     <rect fill="rgba(255,255,255,0.1)" x="0" y="0" width="256" height="256" rx="40" ry="40"/>
-    <g transform="translate(-23 -36) scale(1.45)">
+    <g transform="translate(-22 -8) scale(1.2)">
       <path fill="#fff" d="M153.9,64.45l-20.93,30.57-21.02-30.57h-24.32l28.48,41.39v58.66h23.8v-60.88l26.87-39.16h-12.87Z"/>
     </g>
-    <circle fill="#E94E1B" cx="206" cy="207" r="18"/>
+    <circle fill="#E94E1B" cx="195" cy="195" r="14"/>
   </g>
 </svg>

@@ -44,14 +44,21 @@ function generateNonce() {
  * @throws Error si l'utilisateur annule ou si l'échange de token échoue.
  */
 export async function signInWithApple() {
-  // ─── iOS NATIF : plugin AuthenticationServices ───
+  // ─── iOS NATIF : plugin AuthenticationServices (sheet IN-APP, ne sort PAS) ───
   if (isIOSApp()) {
+    console.log('[Apple Sign-In] iOS natif détecté → utilise AuthenticationServices natif');
     let SignInWithApple;
     try {
       const mod = await import('@capacitor-community/apple-sign-in');
       SignInWithApple = mod.SignInWithApple;
+      if (!SignInWithApple) {
+        throw new Error('Module loaded but SignInWithApple symbol missing');
+      }
     } catch (e) {
-      throw new Error('Plugin Apple Sign-In non installé. Lance `npm i && npx cap sync ios`.');
+      // ─── FAIL CLAIR : on NE tombe PAS sur le OAuth web qui sortirait de l'app.
+      // L'user voit un message explicite, et nous on a un Sentry breadcrumb.
+      console.error('[Apple Sign-In] Plugin import failed:', e?.message);
+      throw new Error('Apple Sign-In indisponible. Reconnecte-toi avec ton email ou contacte le support WhatsApp.');
     }
 
     const nonce = generateNonce();
@@ -94,7 +101,8 @@ export async function signInWithApple() {
     return { user: data.user, session: data.session };
   }
 
-  // ─── WEB / SAFARI : OAuth standard ───
+  // ─── WEB / SAFARI : OAuth standard (ouvre l'auth Apple dans le navigateur) ───
+  console.log('[Apple Sign-In] Web détecté → OAuth standard Safari');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'apple',
     options: {
