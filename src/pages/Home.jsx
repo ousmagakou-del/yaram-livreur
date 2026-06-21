@@ -498,9 +498,23 @@ export default function Home() {
 
   const handleBannerClick = (banner) => {
     if (banner.id) {
-      supabase.rpc('increment_banner_click', { banner_id: banner.id }).catch(() => {
-        supabase.from('banners').update({ click_count: (banner.click_count || 0) + 1 }).eq('id', banner.id);
-      });
+      // FIX Sentry a25ff93d : Supabase v2 retourne un PostgrestBuilder qui
+      // n'a pas TOUJOURS .catch() (Safari Mobile iOS 18.7 plantait).
+      // Wrap dans IIFE async + try/catch garantit zero crash quel que soit
+      // le retour de .rpc() ou de .from().update().
+      (async () => {
+        try {
+          const { error } = await supabase.rpc('increment_banner_click', { banner_id: banner.id });
+          if (error) throw error;
+        } catch {
+          try {
+            await supabase
+              .from('banners')
+              .update({ click_count: (banner.click_count || 0) + 1 })
+              .eq('id', banner.id);
+          } catch { /* fire-and-forget, on s'en moque */ }
+        }
+      })();
     }
     try {
       trackEvent('banner_clicked', {
