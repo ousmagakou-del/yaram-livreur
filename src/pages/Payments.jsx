@@ -65,39 +65,17 @@ export default function Payments() {
       tagColor: '#1DC8F2',
       default: true 
     },
-    { 
-      id: 'om', 
-      Logo: OrangeMoneyLogo,
-      name: 'Orange Money', 
-      desc: 'Code USSD #144#',
-      tag: 'Réseau Orange',
-      tagColor: '#FF7900',
-    },
-    { 
-      id: 'yas', 
-      Logo: YasLogo,
-      name: 'Yas Money', 
-      desc: 'Paiement via Yas (ex-Free Money)',
-      tag: 'Réseau Yas',
-      tagColor: '#E5004C',
-    },
-    { 
-      id: 'cod', 
+    {
+      id: 'cod',
       Logo: CashLogo,
-      name: 'Cash à la livraison', 
+      name: 'Cash à la livraison',
       desc: 'Tu paies au livreur en espèces',
       tag: '100% safe',
       tagColor: '#1F8B4C',
     },
-    { 
-      id: 'card', 
-      Logo: CardLogo,
-      name: 'Carte bancaire', 
-      desc: 'Visa / Mastercard',
-      tag: 'Bientôt disponible',
-      tagColor: '#9B9B9B',
-      disabled: true,
-    },
+    // ─── Méthodes désactivées (cachées de la page info) ───
+    // Orange Money, Yas Money, Carte bancaire : pas encore en prod côté Checkout.
+    // À réactiver dans le tableau + dans Checkout.jsx ALL_PAYMENT_METHODS quand prêt.
   ];
 
   return (
@@ -136,10 +114,10 @@ export default function Payments() {
           marginBottom: 16,
         }}>
           <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>
-            ✨ YARAM accepte tous les moyens de paiement
+            ✨ YARAM accepte Wave et le cash
           </div>
           <div style={{ fontSize: 12, opacity: 0.9 }}>
-            Wave, Orange Money, Yas et cash. Choisis ce qui te convient !
+            Paiement Wave instantané ou cash à la livraison. Choisis ce qui te convient !
           </div>
         </div>
 
@@ -213,7 +191,7 @@ export default function Payments() {
             🔒 Paiements 100% sécurisés
           </div>
           <p style={{ lineHeight: 1.5 }}>
-            Aucune donnée bancaire n'est stockée par YARAM. Les paiements sont sécurisés par Wave, Orange Money, Yas et notre partenaire BCEAO.
+            Aucune donnée bancaire n'est stockée par YARAM. Les paiements sont sécurisés par Wave et le réseau de paiement BCEAO.
           </p>
         </div>
 

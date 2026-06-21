@@ -6,6 +6,7 @@
 		"BiometricAuthNative",
 		"SecureStorage",
 		"AppPlugin",
+		"HapticsPlugin",
 		"PushNotificationsPlugin",
 		"CAPBrowserPlugin"
 	]

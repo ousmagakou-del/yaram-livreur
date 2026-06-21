@@ -1,78 +1,82 @@
-import { useState, useEffect } from 'react';
-import { adminListOrders, adminUsersStats } from '../lib/adminApi';
+import { useState, useEffect, useRef } from 'react';
+import { adminGetStats, adminUsersStats } from '../lib/adminApi';
+
+// Cache 5 min en memoire (par period). Evite de re-tirer le gros agregat
+// si l'admin switch 7j / 30j / 90j puis revient en arriere.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const cache = new Map(); // key = period string ; value = { at, payload }
 
 export default function StatsSection() {
   const [period, setPeriod] = useState('30');
-  const [stats, setStats] = useState({
-    orders: [], topProducts: [], topPharmacies: [], conversionRate: 0,
-  });
+  const [stats, setStats] = useState(null);
+  const [newUsers, setNewUsers] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const reqIdRef = useRef(0);
 
   useEffect(() => {
+    const myReq = ++reqIdRef.current;
     (async () => {
+      setLoading(true);
+
+      // 1) Cache hit ?
+      const cached = cache.get(period);
+      if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+        if (myReq !== reqIdRef.current) return;
+        setStats(cached.payload.stats);
+        setNewUsers(cached.payload.newUsers);
+        setLoading(false);
+        return;
+      }
+
+      // 2) Pull SQL agregat + stats users en parallele
       const since = new Date();
-      since.setDate(since.getDate() - parseInt(period));
+      since.setDate(since.getDate() - parseInt(period, 10));
+      const sinceIso = since.toISOString();
+      const nowIso   = new Date().toISOString();
 
-      // Note : on charge jusqu'a 10k commandes pour la periode courante.
-      // Si la boutique depasse 10k commandes/mois, il faudra une RPC dediee
-      // qui aggrege cote serveur (admin_stats_period).
-      const [ordersRes, statsRes] = await Promise.all([
-        adminListOrders({ limit: 10000, offset: 0 }),
-        adminUsersStats({ since: since.toISOString() }),
+      const [statsRes, usersRes] = await Promise.all([
+        adminGetStats({ periodStart: sinceIso, periodEnd: nowIso }),
+        adminUsersStats({ since: sinceIso }),
       ]);
-      const sinceMs = since.getTime();
-      const orders = (ordersRes.data || []).filter(o =>
-        new Date(o.created_at).getTime() >= sinceMs
-      );
-      const newUsersCount = statsRes.data?.new_this_period || 0;
-      const newUsers = { length: newUsersCount };
 
-      // Top produits
-      const productSales = {};
-      orders.forEach(o => {
-        (o.items || []).forEach(it => {
-          if (!productSales[it.productId]) productSales[it.productId] = { name: it.name, qty: 0, revenue: 0 };
-          productSales[it.productId].qty += it.qty;
-          productSales[it.productId].revenue += it.qty * it.price;
-        });
-      });
-      const topProducts = Object.values(productSales).sort((a, b) => b.qty - a.qty).slice(0, 10);
+      if (myReq !== reqIdRef.current) return; // requete superseded
 
-      // Top pharmacies
-      const phSales = {};
-      orders.forEach(o => {
-        (o.items || []).forEach(it => {
-          if (!phSales[it.pharmacyId]) phSales[it.pharmacyId] = { name: it.pharmacyName, qty: 0, revenue: 0 };
-          phSales[it.pharmacyId].qty += it.qty;
-          phSales[it.pharmacyId].revenue += it.qty * it.price;
-        });
-      });
-      const topPharmacies = Object.values(phSales).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+      const payload = {
+        stats:    statsRes.data || null,
+        newUsers: usersRes.data?.new_this_period || 0,
+      };
+      cache.set(period, { at: Date.now(), payload });
 
-      const conversionRate = newUsers.length > 0
-        ? Math.round((orders.length / newUsers.length) * 100)
-        : 0;
-
-      setStats({ orders, topProducts, topPharmacies, conversionRate, newUsers: newUsers.length });
+      setStats(payload.stats);
+      setNewUsers(payload.newUsers);
+      setLoading(false);
     })();
   }, [period]);
 
-  // Group orders by day for sparkline
-  const ordersByDay = {};
-  stats.orders.forEach(o => {
-    const day = new Date(o.created_at).toISOString().slice(0, 10);
-    ordersByDay[day] = (ordersByDay[day] || 0) + 1;
-  });
-  const days = Object.keys(ordersByDay).sort();
-  const maxDay = Math.max(...Object.values(ordersByDay), 1);
+  // Derive vues affichage à partir du payload agrégé SQL
+  const totalOrders   = stats?.total_orders   || 0;
+  const totalRev      = Number(stats?.total_revenue || 0);
+  const avgBasket     = Math.round(Number(stats?.avg_basket || 0));
+  const uniqueClients = stats?.unique_clients || 0;
+  const byStatus      = Array.isArray(stats?.by_status)      ? stats.by_status      : [];
+  const topProducts   = Array.isArray(stats?.top_products)   ? stats.top_products   : [];
+  const topPharmacies = Array.isArray(stats?.top_pharmacies) ? stats.top_pharmacies : [];
+  const daily         = Array.isArray(stats?.daily)          ? stats.daily          : [];
 
-  const totalRev = stats.orders.filter(o => o.status === 'delivered').reduce((s, o) => s + (o.total || 0), 0);
+  const deliveredCount = byStatus.find(s => s.status === 'delivered')?.count || 0;
+  const conversionRate = newUsers > 0 ? Math.round((totalOrders / newUsers) * 100) : 0;
+
+  const maxDay = Math.max(...daily.map(d => Number(d.count) || 0), 1);
 
   return (
     <div className="adm-section">
       <header className="adm-header">
         <div>
           <h1>Statistiques</h1>
-          <p>Analyse de la performance · {stats.orders.length} commandes</p>
+          <p>
+            Analyse de la performance · {totalOrders} commandes
+            {loading && ' · chargement…'}
+          </p>
         </div>
         <div className="adm-filters" style={{ margin: 0 }}>
           {['7', '30', '90'].map(d => (
@@ -89,53 +93,76 @@ export default function StatsSection() {
           <div className="adm-kpi-value" style={{ color: '#1F8B4C' }}>
             {totalRev.toLocaleString('fr-FR')}<small>FCFA</small>
           </div>
-          <div className="adm-kpi-meta">sur {period}j</div>
+          <div className="adm-kpi-meta">sur {period}j (livrées)</div>
         </div>
         <div className="adm-kpi">
           <div className="adm-kpi-label">COMMANDES</div>
-          <div className="adm-kpi-value">{stats.orders.length}</div>
-          <div className="adm-kpi-meta">{stats.orders.filter(o => o.status === 'delivered').length} livrées</div>
+          <div className="adm-kpi-value">{totalOrders}</div>
+          <div className="adm-kpi-meta">{deliveredCount} livrées</div>
+        </div>
+        <div className="adm-kpi">
+          <div className="adm-kpi-label">PANIER MOYEN</div>
+          <div className="adm-kpi-value">{avgBasket.toLocaleString('fr-FR')}<small>FCFA</small></div>
+          <div className="adm-kpi-meta">{uniqueClients} clientes uniques</div>
         </div>
         <div className="adm-kpi">
           <div className="adm-kpi-label">NOUVELLES CLIENTES</div>
-          <div className="adm-kpi-value">{stats.newUsers || 0}</div>
+          <div className="adm-kpi-value">{newUsers}</div>
           <div className="adm-kpi-meta">inscriptions</div>
         </div>
         <div className="adm-kpi">
           <div className="adm-kpi-label">TAUX CONVERSION</div>
-          <div className="adm-kpi-value" style={{ color: '#1F8B4C' }}>{stats.conversionRate}<small>%</small></div>
+          <div className="adm-kpi-value" style={{ color: '#1F8B4C' }}>{conversionRate}<small>%</small></div>
           <div className="adm-kpi-meta">commandes / inscriptions</div>
         </div>
       </div>
 
-      {days.length > 0 && (
+      {daily.length > 0 && (
         <div className="adm-recent-card">
           <h3>Commandes par jour</h3>
           <div className="adm-sparkline">
-            {days.map(d => (
-              <div key={d} className="adm-spark-bar-wrap" title={`${d}: ${ordersByDay[d]} commandes`}>
-                <div className="adm-spark-bar" style={{ height: `${(ordersByDay[d] / maxDay) * 100}%` }} />
-                <span className="adm-spark-day">{d.slice(8, 10)}/{d.slice(5, 7)}</span>
+            {daily.map(d => (
+              <div key={d.day} className="adm-spark-bar-wrap" title={`${d.day}: ${d.count} commandes · ${Number(d.revenue || 0).toLocaleString('fr-FR')} FCFA`}>
+                <div className="adm-spark-bar" style={{ height: `${(Number(d.count) / maxDay) * 100}%` }} />
+                <span className="adm-spark-day">{d.day.slice(8, 10)}/{d.day.slice(5, 7)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {byStatus.length > 0 && (
+        <div className="adm-recent-card" style={{ marginTop: 16 }}>
+          <h3>Répartition par statut</h3>
+          <table className="adm-table">
+            <thead><tr><th>Statut</th><th>Nombre</th><th>CA</th></tr></thead>
+            <tbody>
+              {byStatus.map(s => (
+                <tr key={s.status}>
+                  <td><strong>{s.status}</strong></td>
+                  <td>{s.count}</td>
+                  <td>{Number(s.revenue || 0).toLocaleString('fr-FR')} FCFA</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
         <div className="adm-recent-card">
           <h3>🏆 Top produits</h3>
-          {stats.topProducts.length === 0 ? (
+          {topProducts.length === 0 ? (
             <div className="adm-empty" style={{ padding: 20 }}>Aucune vente</div>
           ) : (
             <table className="adm-table">
               <thead><tr><th>Produit</th><th>Qté</th><th>CA</th></tr></thead>
               <tbody>
-                {stats.topProducts.map((p, i) => (
-                  <tr key={i}>
-                    <td><strong>{p.name}</strong></td>
+                {topProducts.map((p, i) => (
+                  <tr key={p.product_id || i}>
+                    <td><strong>{p.name || '—'}</strong></td>
                     <td>{p.qty}</td>
-                    <td>{p.revenue.toLocaleString('fr-FR')} FCFA</td>
+                    <td>{Number(p.revenue || 0).toLocaleString('fr-FR')} FCFA</td>
                   </tr>
                 ))}
               </tbody>
@@ -145,17 +172,17 @@ export default function StatsSection() {
 
         <div className="adm-recent-card">
           <h3>🏥 Top pharmacies</h3>
-          {stats.topPharmacies.length === 0 ? (
+          {topPharmacies.length === 0 ? (
             <div className="adm-empty" style={{ padding: 20 }}>Aucune vente</div>
           ) : (
             <table className="adm-table">
               <thead><tr><th>Pharmacie</th><th>Articles</th><th>CA</th></tr></thead>
               <tbody>
-                {stats.topPharmacies.map((p, i) => (
-                  <tr key={i}>
-                    <td><strong>{p.name}</strong></td>
+                {topPharmacies.map((p, i) => (
+                  <tr key={p.pharmacy_id || i}>
+                    <td><strong>{p.pharmacy_name || '—'}</strong></td>
                     <td>{p.qty}</td>
-                    <td>{p.revenue.toLocaleString('fr-FR')} FCFA</td>
+                    <td>{Number(p.revenue || 0).toLocaleString('fr-FR')} FCFA</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════
-   YARAM — Page Catégories
-   Grille 4 col mobile, tiles colorées avec icône SVG
+   YARAM — Page Catégories (refonte premium)
+   Style : Sephora / App Store browse
    ═══════════════════════════════════════════════════ */
 
 .ycat-screen {
@@ -14,15 +14,32 @@
   flex: 1;
   overflow-y: auto;
   padding-bottom: calc(var(--tabbar-height, 64px) + 20px);
+  -webkit-overflow-scrolling: touch;
 }
 
-/* ─── HEADER ─── */
+/* ─── HEADER STICKY ─── */
 .ycat-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  padding: calc(var(--safe-top, 14px) + 10px) 16px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.ycat-header-top {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: calc(var(--safe-top, 14px) + 14px) 16px 16px;
-  background: white;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ycat-header-spacer {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
 }
 
 .ycat-back-btn {
@@ -38,114 +55,335 @@
   cursor: pointer;
   flex-shrink: 0;
   font-family: inherit;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.ycat-back-btn:active {
+  transform: scale(0.92);
+  background: #ECECE8;
 }
 
 .ycat-header h1 {
-  font-size: 22px;
+  flex: 1;
+  text-align: center;
+  font-size: 17px;
   font-weight: 800;
   margin: 0;
   color: #1A1A1A;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.3px;
 }
 
-.ycat-header p {
-  font-size: 12px;
-  color: #6B6B6B;
-  margin: 2px 0 0;
-}
-
-/* ─── ÉTATS ─── */
-.ycat-loading {
-  padding: 40px;
-  text-align: center;
-  color: #9B9B9B;
-}
-
-.ycat-empty {
-  padding: 60px 24px;
-  text-align: center;
-  color: #6B6B6B;
-}
-
-.ycat-empty p {
-  margin-top: 12px;
-}
-
-/* ─── GRILLE 4 COLONNES ─── */
-.ycat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  padding: 16px;
-}
-
-.ycat-item {
-  background: none;
+/* search compact qui pousse vers /search */
+.ycat-searchbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
   border: none;
-  cursor: pointer;
-  padding: 0;
-  text-align: center;
+  background: #F4F4F2;
+  color: #8A8A8A;
+  font-size: 14px;
   font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.ycat-searchbar:active {
+  transform: scale(0.985);
+  background: #ECECE8;
+}
+
+.ycat-searchbar svg {
+  flex-shrink: 0;
+  color: #8A8A8A;
+}
+
+.ycat-searchbar span {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── SECTIONS ─── */
+.ycat-section {
+  padding: 18px 16px 4px;
+}
+
+.ycat-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+
+.ycat-section-head h2 {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+  color: #1A1A1A;
+  letter-spacing: -0.3px;
+}
+
+.ycat-section-sub {
+  font-size: 12px;
+  color: #9B9B9B;
+  font-weight: 500;
+}
+
+/* ─── HERO (carrousel horizontal 160x160) ─── */
+.ycat-hero-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 12px;
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.ycat-hero-row::-webkit-scrollbar { display: none; }
+
+.ycat-hero-card {
+  flex: 0 0 160px;
+  height: 160px;
+  border-radius: 22px;
+  border: none;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  /* Empêche le débordement */
-  min-width: 0;
-  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  scroll-snap-align: start;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  opacity: 0;
+  transform: translateY(10px);
+  animation: ycat-stagger 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.ycat-tile {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 16px;
+.ycat-hero-card:active {
+  transform: scale(0.95);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.ycat-hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
-  font-size: 24px;
-  font-weight: 800;
-  overflow: hidden;
-  /* Empêche le débordement vertical */
-  flex-shrink: 0;
 }
 
-.ycat-tile img {
-  width: 65%;
-  height: 65%;
+.ycat-hero-name {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1.1;
+  margin-top: auto;
+}
+
+.ycat-hero-count {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+/* ─── GRILLE 2 COL (toutes catégories) ─── */
+.ycat-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.ycat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 10px;
+  border-radius: 16px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  min-width: 0;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: ycat-stagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.ycat-row:active {
+  transform: scale(0.96);
+  background: #FAFAF8;
+}
+
+.ycat-row-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.ycat-row-icon img {
+  width: 70%;
+  height: 70%;
   object-fit: contain;
 }
 
-.ycat-name {
+.ycat-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ycat-row-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A1A1A;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ycat-row-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9B9B9B;
+  margin-top: 2px;
+}
+
+.ycat-row-chev {
+  color: #BFBFBF;
+  flex-shrink: 0;
+}
+
+/* ─── MARQUES (carrousel horizontal 80x96) ─── */
+.ycat-brand-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0 12px;
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.ycat-brand-row::-webkit-scrollbar { display: none; }
+
+.ycat-brand-card {
+  flex: 0 0 80px;
+  height: 96px;
+  border-radius: 16px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: ycat-stagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ycat-brand-card:active {
+  transform: scale(0.94);
+}
+
+.ycat-brand-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #F4F4F2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #6B6B6B;
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.ycat-brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ycat-brand-name {
   font-size: 11px;
   font-weight: 700;
   color: #1A1A1A;
-  line-height: 1.2;
+  line-height: 1.1;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
   width: 100%;
-  /* Padding pour respirer */
-  padding: 0 2px;
-  box-sizing: border-box;
+  text-align: center;
 }
 
-.ycat-count {
-  font-size: 10px;
-  color: #9B9B9B;
-  margin-top: 2px;
-  line-height: 1;
-  width: 100%;
-  white-space: nowrap;
+/* ─── ÉTATS ─── */
+.ycat-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: #6B6B6B;
 }
 
-/* ─── Sur écrans plus larges (tablette) ─── */
-@media (min-width: 480px) {
-  .ycat-grid {
-    grid-template-columns: repeat(6, 1fr);
-  }
+/* ─── SKELETONS ─── */
+.ycat-skel {
+  background: linear-gradient(90deg, #EEEEEA 0%, #F6F6F4 50%, #EEEEEA 100%);
+  background-size: 200% 100%;
+  animation: ycat-shimmer 1.4s linear infinite, ycat-stagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  opacity: 0;
 }
 
-/* ─── Animation entrée ─── */
+.ycat-row-skel {
+  height: 64px;
+  border-radius: 16px;
+}
+
+@keyframes ycat-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Stagger + entrée ─── */
+@keyframes ycat-stagger {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .page-anim {
   animation: ycat-fade-in 0.25s ease-out;
 }
@@ -153,4 +391,31 @@
 @keyframes ycat-fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Tablette / + large ─── */
+@media (min-width: 480px) {
+  .ycat-grid2 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ─── prefers-reduced-motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  .ycat-hero-card,
+  .ycat-row,
+  .ycat-brand-card,
+  .ycat-skel,
+  .page-anim {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .ycat-back-btn,
+  .ycat-searchbar,
+  .ycat-hero-card,
+  .ycat-row,
+  .ycat-brand-card {
+    transition: none !important;
+  }
 }

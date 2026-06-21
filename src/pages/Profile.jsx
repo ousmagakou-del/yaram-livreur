@@ -16,10 +16,12 @@ export default function Profile() {
 
   // Stats dynamiques chargées depuis Supabase
   const [stats, setStats] = useState({
-    skinScore: null,        // ex: 70 (depuis skin_scans.diagnosis.skin_score)
-    concernsCount: null,    // ex: 3 (depuis skin_scans.diagnosis.concerns.length)
-    favoritesCount: null,   // count favoris du user
-    lastScan: null,         // le dernier scan complet pour le skin_type/phototype
+    skinScore: null,
+    concernsCount: null,
+    favoritesCount: null,
+    ordersCount: null,
+    savings: null,
+    lastScan: null,
     loading: true,
   });
 
@@ -54,17 +56,29 @@ export default function Profile() {
       const skinScore = lastScan?.skin_score ?? diag.skin_score ?? null;
       const concernsCount = Array.isArray(diag.concerns) ? diag.concerns.length : null;
 
-      // 2. Count favoris (head: true → renvoie juste le count sans data)
+      // 2. Count favoris
       const { count: favCount } = await supabase
         .from('favorites')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
+
+      // 3. Count commandes (best-effort)
+      let ordersCount = 0;
+      try {
+        const { count } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+        ordersCount = count || 0;
+      } catch { /* silent */ }
 
       if (cancelled) return;
       setStats({
         skinScore,
         concernsCount,
         favoritesCount: favCount ?? 0,
+        ordersCount,
+        savings: null,
         lastScan,
         loading: false,
       });
@@ -88,11 +102,7 @@ export default function Profile() {
   const handleLogout = async () => {
     if (await confirmDialog('Te déconnecter ?', { confirmLabel: 'Déconnexion', danger: true })) {
       await signOut();
-      // Force user a null immediatement (refreshUser() refait un getCurrentUser
-      // qui peut renvoyer un cache residuel et reaffiche l'utilisateur 1s avant
-      // que la session locale soit purgee).
       await refreshUser(null);
-      // Redirige vers Home pour que la TabBar et le routing reflètent l'état déconnecté
       navigate({ name: 'home', params: {} });
     }
   };
@@ -114,7 +124,6 @@ export default function Profile() {
         validate: (v) => {
           const t = (v || '').trim();
           if (!t) return false;
-          // Accepte +221xxxxxxxxx OU 7xxxxxxxx (9 chiffres, commence par 7)
           const cleaned = t.replace(/[\s.-]/g, '');
           return /^(\+?221)?7\d{8}$/.test(cleaned);
         },
@@ -122,7 +131,6 @@ export default function Profile() {
     );
     if (value == null) return;
     const cleaned = value.replace(/[\s.-]/g, '');
-    // Normalise toujours en format international
     const intl = cleaned.startsWith('+221')
       ? cleaned
       : cleaned.startsWith('221') ? `+${cleaned}` : `+221${cleaned}`;
@@ -187,33 +195,32 @@ export default function Profile() {
   };
 
   const firstName = user?.first_name || 'Toi';
-  const avatar = user?.avatar || ('https://ui-avatars.com/api/?background=fff&color=1F8B4C&bold=true&size=200&name=' + encodeURIComponent(firstName));
-  // Priorité : adresse par défaut → user.city → null (n'affiche rien)
+  const initial = (firstName.trim().charAt(0) || 'Y').toUpperCase();
+  const hasPhoto = !!user?.avatar;
+  const avatar = user?.avatar;
   const city = defaultAddr?.city || user?.city || null;
   const neighborhood = defaultAddr?.neighborhood || user?.neighborhood || null;
 
-  // skin_type / phototype : priorité au dernier scan, fallback user
-  const skinType = stats.lastScan?.skin_type || stats.lastScan?.diagnosis?.skin_type || user?.skin_type || null;
-  const phototype = user?.skin_phototype || stats.lastScan?.diagnosis?.phototype || null;
   const loyaltyPoints = user?.loyalty_points || 0;
-
   const hasScan = !!stats.lastScan;
 
-  // Couleur du score selon la valeur
-  const scoreColor = (s) => {
-    if (s == null) return 'var(--text-muted, #9B9B9B)';
-    if (s >= 75) return 'var(--excellent, #1F8B4C)';
-    if (s >= 50) return 'var(--medium, #F4B53A)';
-    return 'var(--bad, #D9342B)';
-  };
+  // "Membre depuis" — depuis user.created_at si dispo
+  const memberSince = (() => {
+    const raw = user?.created_at || user?.createdAt;
+    if (!raw) return null;
+    try {
+      const d = new Date(raw);
+      const m = d.toLocaleDateString('fr-FR', { month: 'long' });
+      const y = d.getFullYear();
+      return `${m.charAt(0).toUpperCase() + m.slice(1)} ${y}`;
+    } catch { return null; }
+  })();
 
   // Pull-to-refresh : refetch stats user + adresse + scan
   const handlePullRefresh = async () => {
     try {
       if (user?.id) {
-        // Re-fetch user pour les données fraîches
         await refreshUser();
-        // Re-fetch adresses (cache invalidé)
         const { invalidateCache } = await import('../lib/supabase');
         invalidateCache(`my_addresses_${user.id}`);
         const list = await getMyAddresses();
@@ -226,290 +233,316 @@ export default function Profile() {
     }
   };
 
+  // Helper render — item de menu premium
+  const MenuItem = ({ icon, tint, label, sub, onClick, href, danger, trailing }) => {
+    const inner = (
+      <>
+        <div className="prof2-row-icon" style={{ background: tint || 'rgba(31,139,76,0.10)' }}>
+          <span aria-hidden>{icon}</span>
+        </div>
+        <div className="prof2-row-text">
+          <strong style={danger ? { color: '#D9342B' } : undefined}>{label}</strong>
+          {sub ? <span>{sub}</span> : null}
+        </div>
+        <div className="prof2-row-trailing">
+          {trailing || <span className="prof2-row-arrow" aria-hidden>›</span>}
+        </div>
+      </>
+    );
+    if (href) {
+      return (
+        <a className="prof2-row" href={href} target="_blank" rel="noopener noreferrer">
+          {inner}
+        </a>
+      );
+    }
+    return (
+      <button className="prof2-row" onClick={onClick} type="button">
+        {inner}
+      </button>
+    );
+  };
+
   return (
-    <div className="prof-screen page-anim">
-      <div className="prof-scroll">
-      <PullToRefresh onRefresh={handlePullRefresh}>
-        {/* Cover verte avec photo en blend */}
-        <div className="prof-cover">
-          <div className="prof-cover-overlay" />
-          <div className="prof-cover-inner">
-            <img src={avatar} alt={firstName} className="prof-avatar" />
-            <h1 className="prof-name">{firstName}</h1>
-            {city ? (
-              <p className="prof-loc">{neighborhood ? `${neighborhood}, ` : ''}{city}</p>
-            ) : (
-              <p className="prof-loc" style={{ opacity: 0.7 }}>📍 Ajoute ton adresse →</p>
-            )}
-            {(skinType || phototype) && (
-              <div className="prof-skin-badge">
-                ✨ {skinType ? skinType.charAt(0).toUpperCase() + skinType.slice(1) : 'Peau'}
-                {phototype ? ` · Phototype ${phototype}` : ''}
+    <div className="prof2-screen page-anim">
+      <div className="prof2-scroll">
+        <PullToRefresh onRefresh={handlePullRefresh}>
+
+          {/* HERO — Apple Wallet style, blanc clean */}
+          <section className="prof2-hero prof2-anim" style={{ animationDelay: '0ms' }}>
+            <div className="prof2-avatar-wrap">
+              {hasPhoto ? (
+                <img src={avatar} alt={firstName} className="prof2-avatar" />
+              ) : (
+                <div className="prof2-avatar prof2-avatar-fallback">{initial}</div>
+              )}
+            </div>
+            <h1 className="prof2-name">{firstName}</h1>
+            <p className="prof2-sub">
+              {user?.phone || user?.email || (city ? city : 'Bienvenue sur YARAM')}
+            </p>
+            {memberSince && (
+              <div className="prof2-badge">
+                <span className="prof2-badge-dot" />
+                Membre depuis {memberSince}
               </div>
             )}
-            {!skinType && !phototype && !stats.loading && (
-              <div className="prof-skin-badge">✨ Fais ton 1er scan</div>
+            {!memberSince && (
+              <div className="prof2-badge">
+                <span className="prof2-badge-dot" />
+                Membre YARAM
+              </div>
             )}
-          </div>
-        </div>
+          </section>
 
-        {/* Stats dynamiques */}
-        <div className="prof-stats">
-          <div className="prof-stat">
-            <div className="prof-stat-num" style={{ color: scoreColor(stats.skinScore) }}>
-              {stats.loading ? '…' : (stats.skinScore != null ? stats.skinScore : '—')}
-            </div>
-            <div className="prof-stat-lbl">Score peau</div>
-          </div>
-          <div className="prof-stat-sep" />
-          <div className="prof-stat">
-            <div className="prof-stat-num" style={{
-              color: stats.concernsCount > 0 ? 'var(--bad, #D9342B)' : 'var(--excellent, #1F8B4C)'
-            }}>
-              {stats.loading ? '…' : (stats.concernsCount != null ? stats.concernsCount : '—')}
-            </div>
-            <div className="prof-stat-lbl">À surveiller</div>
-          </div>
-          <div className="prof-stat-sep" />
-          <div className="prof-stat">
-            <div className="prof-stat-num" style={{ color: 'var(--medium, #F4B53A)' }}>
-              {stats.loading ? '…' : stats.favoritesCount}
-            </div>
-            <div className="prof-stat-lbl">Favoris</div>
-          </div>
-        </div>
-
-        {/* CTA Mettre à jour diagnostic */}
-        <button className="prof-update-cta" onClick={() => navigate({ name: 'scan', params: {} })}>
-          <span className="prof-update-icon">📷</span>
-          <div className="prof-update-text">
-            <strong>{hasScan ? 'Mettre à jour mon diagnostic' : 'Faire mon 1er scan peau'}</strong>
-            <span>Photo + quiz · 2 min · plus précis dans le temps</span>
-          </div>
-          <span className="prof-update-arrow">→</span>
-        </button>
-
-        {/* CTA Mes points fidélité */}
-        <button
-          className="prof-update-cta"
-          onClick={() => navigate({ name: 'loyalty', params: {} })}
-          style={{
-            background: 'linear-gradient(135deg, #F4B53A 0%, #E8385C 100%)',
-            marginTop: 12,
-          }}
-        >
-          <span className="prof-update-icon">💎</span>
-          <div className="prof-update-text">
-            <strong>Mes points fidélité</strong>
-            <span>{loyaltyPoints.toLocaleString('fr-FR')} points · Voir mes récompenses</span>
-          </div>
-          <span className="prof-update-arrow">→</span>
-        </button>
-
-        {/* Menu sections */}
-        <div className="prof-menu">
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'evolution', params: {} })}>
-            <div className="prof-menu-icon">📈</div>
-            <div className="prof-menu-text">
-              <strong>Mon évolution peau</strong>
-              <span>Avant/Après mensuel</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate('/orders')}>
-            <div className="prof-menu-icon">📦</div>
-            <div className="prof-menu-text">
-              <strong>Mes commandes</strong>
-              <span>Voir l'historique</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'favorites', params: {} })}>
-            <div className="prof-menu-icon">❤️</div>
-            <div className="prof-menu-text">
-              <strong>Mes favoris</strong>
-              <span>{stats.favoritesCount > 0 ? `${stats.favoritesCount} produit${stats.favoritesCount > 1 ? 's' : ''}` : 'Tes coups de cœur'}</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={handleEditFirstName}>
-            <div className="prof-menu-icon">👤</div>
-            <div className="prof-menu-text">
-              <strong>Mon prénom</strong>
-              <span>{user?.first_name || 'À renseigner'}</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={handleEditPhone}>
-            <div className="prof-menu-icon">📱</div>
-            <div className="prof-menu-text">
-              <strong>Mon WhatsApp</strong>
-              <span>{user?.phone || 'À renseigner — requis pour les notifs commande'}</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'scan', params: {} })}>
-            <div className="prof-menu-icon">✨</div>
-            <div className="prof-menu-text">
-              <strong>Mon diagnostic peau</strong>
-              <span>{hasScan ? `Dernier scan : ${safeFormatDate(stats.lastScan?.created_at)}` : 'Refaire le scan'}</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'addresses', params: {} })}>
-            <div className="prof-menu-icon">📍</div>
-            <div className="prof-menu-text">
-              <strong>Mes adresses</strong>
-              <span>{city}</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'payments', params: {} })}>
-            <div className="prof-menu-icon">💳</div>
-            <div className="prof-menu-text">
-              <strong>Moyens de paiement</strong>
-              <span>Wave · OM · Cash · Carte</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          {/* "Notifications" : page de gestion des web push (API navigateur).
-              Sur iOS app native (Capacitor), c'est géré par iOS Settings → YARAM → Notifications.
-              On cache donc l'option pour éviter la confusion. */}
-          {!isIOSApp() && (
-            <>
-              <div className="prof-menu-sep" />
-              <button className="prof-menu-row" onClick={() => navigate({ name: 'notifications', params: {} })}>
-                <div className="prof-menu-icon">🔔</div>
-                <div className="prof-menu-text">
-                  <strong>Notifications</strong>
-                  <span>Rappels routine peau · Commandes</span>
+          {/* STATS — 3 cards scrollables */}
+          <section className="prof2-stats-wrap prof2-anim" style={{ animationDelay: '50ms' }}>
+            <div className="prof2-stats">
+              <div className="prof2-stat-card">
+                <div className="prof2-stat-icon prof2-stat-icon-green">📦</div>
+                <div className="prof2-stat-num">
+                  {stats.loading ? '—' : (stats.ordersCount ?? 0)}
                 </div>
-                <span className="prof-menu-arrow">→</span>
-              </button>
-            </>
-          )}
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => toggleTheme()}>
-            <div className="prof-menu-icon">{getTheme() === 'dark' ? '🌙' : '☀️'}</div>
-            <div className="prof-menu-text">
-              <strong>Apparence</strong>
-              <span>Mode {getTheme() === 'dark' ? 'sombre' : 'clair'}</span>
+                <div className="prof2-stat-lbl">Commandes</div>
+              </div>
+              <div className="prof2-stat-card">
+                <div className="prof2-stat-icon prof2-stat-icon-amber">⭐</div>
+                <div className="prof2-stat-num">
+                  {loyaltyPoints.toLocaleString('fr-FR')}
+                </div>
+                <div className="prof2-stat-lbl">Points</div>
+              </div>
+              <div className="prof2-stat-card">
+                <div className="prof2-stat-icon prof2-stat-icon-pink">💰</div>
+                <div className="prof2-stat-num">
+                  {stats.loading
+                    ? '—'
+                    : `${((stats.savings ?? loyaltyPoints * 10)).toLocaleString('fr-FR')}`}
+                </div>
+                <div className="prof2-stat-lbl">FCFA éco.</div>
+              </div>
             </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
+          </section>
 
-          <div className="prof-menu-sep" />
+          {/* CTA Diagnostic — preservé */}
+          <section className="prof2-section prof2-anim" style={{ animationDelay: '100ms' }}>
+            <button
+              className="prof2-cta prof2-cta-primary"
+              onClick={() => navigate({ name: 'scan', params: {} })}
+              type="button"
+            >
+              <span className="prof2-cta-icon" aria-hidden>📷</span>
+              <div className="prof2-cta-text">
+                <strong>{hasScan ? 'Mettre à jour mon diagnostic' : 'Faire mon 1er scan peau'}</strong>
+                <span>Photo + quiz · 2 min</span>
+              </div>
+              <span className="prof2-cta-arrow" aria-hidden>›</span>
+            </button>
+          </section>
 
-          <button className="prof-menu-row" onClick={() => toast.info('Bientôt : Wolof + Anglais')}>
-            <div className="prof-menu-icon">🌍</div>
-            <div className="prof-menu-text">
-              <strong>Langue</strong>
-              <span>Français</span>
+          {/* SECTION : COMPTE */}
+          <section className="prof2-section prof2-anim" style={{ animationDelay: '150ms' }}>
+            <h2 className="prof2-section-title">Compte</h2>
+            <div className="prof2-card">
+              <MenuItem
+                icon="📍"
+                tint="rgba(31,139,76,0.10)"
+                label="Mes adresses"
+                sub={city ? `${neighborhood ? neighborhood + ', ' : ''}${city}` : 'Ajouter une adresse'}
+                onClick={() => navigate({ name: 'addresses', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="📦"
+                tint="rgba(31,139,76,0.10)"
+                label="Mes commandes"
+                sub={stats.ordersCount > 0 ? `${stats.ordersCount} commande${stats.ordersCount > 1 ? 's' : ''}` : "Voir l'historique"}
+                onClick={() => navigate('/orders')}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="💳"
+                tint="rgba(31,139,76,0.10)"
+                label="Moyens de paiement"
+                sub="Wave · OM · Cash · Carte"
+                onClick={() => navigate({ name: 'payments', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="❤️"
+                tint="rgba(232,56,92,0.10)"
+                label="Favoris"
+                sub={stats.favoritesCount > 0 ? `${stats.favoritesCount} produit${stats.favoritesCount > 1 ? 's' : ''}` : 'Tes coups de cœur'}
+                onClick={() => navigate({ name: 'favorites', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="⭐"
+                tint="rgba(244,181,58,0.14)"
+                label="Programme fidélité"
+                sub={`${loyaltyPoints.toLocaleString('fr-FR')} points · Voir mes récompenses`}
+                onClick={() => navigate({ name: 'loyalty', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="🎁"
+                tint="rgba(244,181,58,0.14)"
+                label="Parrainage"
+                sub="+3 000 FCFA offerts"
+                onClick={() => navigate({ name: 'referral', params: {} })}
+              />
             </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
+          </section>
 
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'referral', params: {} })}>
-            <div className="prof-menu-icon">🎁</div>
-            <div className="prof-menu-text">
-              <strong>Parrainer une amie</strong>
-              <span>+3 000 FCFA offerts</span>
+          {/* SECTION : DIAGNOSTIC & DONNÉES */}
+          <section className="prof2-section prof2-anim" style={{ animationDelay: '200ms' }}>
+            <h2 className="prof2-section-title">Mon profil peau</h2>
+            <div className="prof2-card">
+              <MenuItem
+                icon="✨"
+                tint="rgba(31,139,76,0.10)"
+                label="Mon diagnostic peau"
+                sub={hasScan ? `Dernier scan : ${safeFormatDate(stats.lastScan?.created_at)}` : 'Faire le scan'}
+                onClick={() => navigate({ name: 'scan', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="📈"
+                tint="rgba(31,139,76,0.10)"
+                label="Mon évolution"
+                sub="Avant/Après mensuel"
+                onClick={() => navigate({ name: 'evolution', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="👤"
+                tint="rgba(31,139,76,0.10)"
+                label="Mon prénom"
+                sub={user?.first_name || 'À renseigner'}
+                onClick={handleEditFirstName}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="📱"
+                tint="rgba(31,139,76,0.10)"
+                label="Mon WhatsApp"
+                sub={user?.phone || 'Requis pour les notifs commande'}
+                onClick={handleEditPhone}
+              />
             </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
+          </section>
 
-          <div className="prof-menu-sep" />
-
-          <a className="prof-menu-row" href={`https://wa.me/${getWhatsAppNumber()}`} target="_blank" rel="noopener noreferrer" style={{textDecoration: 'none', color: 'inherit'}}>
-            <div className="prof-menu-icon">💬</div>
-            <div className="prof-menu-text">
-              <strong>Aide & contact</strong>
-              <span>WhatsApp {getWhatsAppDisplay().replace('+221 ', '')}</span>
+          {/* SECTION : PRÉFÉRENCES */}
+          <section className="prof2-section prof2-anim" style={{ animationDelay: '250ms' }}>
+            <h2 className="prof2-section-title">Préférences</h2>
+            <div className="prof2-card">
+              {!isIOSApp() && (
+                <>
+                  <MenuItem
+                    icon="🔔"
+                    tint="rgba(244,181,58,0.14)"
+                    label="Notifications"
+                    sub="Push · Rappels · Commandes"
+                    onClick={() => navigate({ name: 'notif_settings', params: {} })}
+                  />
+                  <div className="prof2-sep" />
+                </>
+              )}
+              <MenuItem
+                icon="🌍"
+                tint="rgba(31,139,76,0.10)"
+                label="Langue"
+                sub="Français"
+                onClick={() => toast.info('Bientôt : Wolof + Anglais')}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon={getTheme() === 'dark' ? '🌙' : '☀️'}
+                tint="rgba(0,0,0,0.06)"
+                label="Apparence"
+                sub={`Mode ${getTheme() === 'dark' ? 'sombre' : 'clair'}`}
+                onClick={() => toggleTheme()}
+                trailing={
+                  <span className={`prof2-toggle ${getTheme() === 'dark' ? 'is-on' : ''}`} aria-hidden>
+                    <span className="prof2-toggle-knob" />
+                  </span>
+                }
+              />
             </div>
-            <span className="prof-menu-arrow">→</span>
-          </a>
+          </section>
 
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={handleExportData}>
-            <div className="prof-menu-icon">📥</div>
-            <div className="prof-menu-text">
-              <strong>Télécharger mes données</strong>
-              <span>Export RGPD (JSON)</span>
+          {/* SECTION : SUPPORT */}
+          <section className="prof2-section prof2-anim" style={{ animationDelay: '300ms' }}>
+            <h2 className="prof2-section-title">Support</h2>
+            <div className="prof2-card">
+              <MenuItem
+                icon="💬"
+                tint="rgba(37,211,102,0.12)"
+                label="WhatsApp YARAM"
+                sub={getWhatsAppDisplay()}
+                href={`https://wa.me/${getWhatsAppNumber()}`}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="❓"
+                tint="rgba(31,139,76,0.10)"
+                label="Aide & FAQ"
+                sub="Réponses aux questions courantes"
+                onClick={() => navigate({ name: 'help', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="📥"
+                tint="rgba(0,0,0,0.06)"
+                label="Télécharger mes données"
+                sub="Export RGPD (JSON)"
+                onClick={handleExportData}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="🔒"
+                tint="rgba(0,0,0,0.06)"
+                label="Politique de confidentialité"
+                sub="Comment on protège tes données"
+                onClick={() => navigate({ name: 'privacy', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="📄"
+                tint="rgba(0,0,0,0.06)"
+                label="Conditions générales"
+                sub="CGU YARAM"
+                onClick={() => navigate({ name: 'terms', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="🗑️"
+                tint="rgba(217,52,43,0.10)"
+                label="Supprimer mon compte"
+                sub="Action irréversible"
+                danger
+                onClick={() => navigate({ name: 'delete_account', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="↩️"
+                tint="rgba(217,52,43,0.10)"
+                label="Déconnexion"
+                sub="À bientôt"
+                danger
+                onClick={handleLogout}
+              />
             </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
+          </section>
 
-          <div className="prof-menu-sep" />
+          {/* FOOTER */}
+          <div className="prof2-footer prof2-anim" style={{ animationDelay: '350ms' }}>
+            <div className="prof2-footer-logo">YARAM</div>
+            <div className="prof2-footer-meta">v0.1 · Beauté Sénégal</div>
+          </div>
 
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'privacy', params: {} })}>
-            <div className="prof-menu-icon">🔒</div>
-            <div className="prof-menu-text">
-              <strong>Confidentialité</strong>
-              <span>Comment on protège tes données</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'terms', params: {} })}>
-            <div className="prof-menu-icon">📄</div>
-            <div className="prof-menu-text">
-              <strong>Conditions générales</strong>
-              <span>CGU YARAM</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-
-          <div className="prof-menu-sep" />
-
-          <button className="prof-menu-row" onClick={() => navigate({ name: 'delete_account', params: {} })} style={{ color: '#D9342B' }}>
-            <div className="prof-menu-icon">🗑️</div>
-            <div className="prof-menu-text">
-              <strong style={{ color: '#D9342B' }}>Supprimer mon compte</strong>
-              <span>Action irréversible</span>
-            </div>
-            <span className="prof-menu-arrow">→</span>
-          </button>
-        </div>
-
-        <button className="prof-logout" onClick={handleLogout}>
-          Se déconnecter
-        </button>
-
-        <div className="prof-footer">
-          YARAM v0.1 · Beauté Sénégal 🇸🇳
-        </div>
-
-        <div style={{ height: 30 }} />
-      </PullToRefresh>
+          <div style={{ height: 30 }} />
+        </PullToRefresh>
       </div>
       <TabBar active="profile" />
     </div>

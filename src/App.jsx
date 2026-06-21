@@ -21,7 +21,9 @@ import Categories from './pages/Categories';
 import Loyalty from './pages/Loyalty';
 import Referral from './pages/Referral';
 import NotifSettings from './pages/NotifSettings';
+import Notifications from './pages/Notifications';
 import Promos from './pages/Promos';
+import Help from './pages/Help';
 import InstallPrompt from './components/InstallPrompt';
 import WhatsAppButton from './components/WhatsAppButton';
 import Toaster from './components/Toaster';
@@ -29,6 +31,7 @@ import InterstitialPromo from './components/InterstitialPromo';
 import { getNextPromo, computeUserStats } from './lib/promos';
 import NetworkStatus from './components/NetworkStatus';
 import ErrorBoundary from './components/ErrorBoundary';
+import { initAnalytics, identifyUser, resetAnalytics, trackEvent, trackPageview } from './lib/analytics';
 
 // ─── Lazy-load : pages lourdes / rarement visitees par le client lambda ───
 // Ces chunks ne sont telecharges qu'au moment ou la page est demandee.
@@ -106,7 +109,7 @@ function pathToRoute(pathname, search = '') {
   if (parts[0] === 'scan' && parts[1] === 'result' && parts[2]) return { name: 'scan_result', params: { scanId: parts[2] } };
   if (parts[0] === 'payment' && parts[1]) return { name: 'payment', params: { orderId: parts[1] } };
   
-  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'promos', 'privacy', 'terms', 'delete_account', 'international'];
+  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'notif_settings', 'promos', 'privacy', 'terms', 'delete_account', 'international', 'help'];
   if (simpleRoutes.includes(parts[0])) {
     const params = {};
     if (parts[0] === 'search') {
@@ -170,6 +173,13 @@ function ClientApp() {
   // un meilleur taux d'acceptation : "j'ai mon compte, j'autorise les notifs").
   useEffect(() => {
     initPush().catch(() => { /* silent : push optionnel, ne doit pas bloquer */ });
+  }, []);
+
+  // ─── ANALYTICS (PostHog) : init au boot + app_opened event ───
+  // No-op en dev (MODE !== 'production') ou si VITE_POSTHOG_KEY pas défini.
+  useEffect(() => {
+    initAnalytics();
+    trackEvent('app_opened', { platform: 'web' });
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
@@ -299,7 +309,19 @@ function ClientApp() {
   useEffect(() => {
     let cancelled = false;
     let isFirstLoad = true;
-    
+    // Dedup in-memory : evite que getSession() ET onAuthStateChange(SIGNED_IN)
+    // declenchent tous les 2 maybeSendWelcomeEmail avant que welcomed_at soit
+    // persiste en DB (race au premier signup). Onboarding.jsx envoie aussi un
+    // welcome au signup direct ; maybeSendWelcomeEmail short-circuit via
+    // welcomed_at une fois persiste, mais cet in-memory guard couvre la fenetre.
+    const welcomeAttempted = new Set();
+    const tryWelcome = (userObj) => {
+      if (!userObj?.id) return;
+      if (welcomeAttempted.has(userObj.id)) return;
+      welcomeAttempted.add(userObj.id);
+      maybeSendWelcomeEmail(userObj).catch(() => { /* non-bloquant */ });
+    };
+
     // 1. Premier chargement : check session + fetch profil une seule fois
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
@@ -312,7 +334,7 @@ function ClientApp() {
             setUser(userObj);
             setAuthChecked(true);
             // Welcome email si jamais envoye (Google OAuth, magic link, etc.)
-            maybeSendWelcomeEmail(userObj).catch(() => { /* non-bloquant */ });
+            tryWelcome(userObj);
           }
         }).catch(() => {
           if (!cancelled) {
@@ -341,7 +363,7 @@ function ClientApp() {
       isFirstLoad = false;
       // Ignore les refresh de token qui ne changent pas l'user
       if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
-      
+
       if (session?.user) {
         try {
           const u = await getCurrentUser();
@@ -349,7 +371,7 @@ function ClientApp() {
             const userObj = u || { id: session.user.id, email: session.user.email };
             setUser(userObj);
             // Welcome email si jamais envoye (couvre Google OAuth + signup email/password)
-            maybeSendWelcomeEmail(userObj).catch(() => { /* non-bloquant */ });
+            tryWelcome(userObj);
           }
         } catch (e) {
           if (!cancelled) setUser({ id: session.user.id, email: session.user.email });
@@ -358,7 +380,7 @@ function ClientApp() {
         if (!cancelled) setUser(null);
       }
     });
-    
+
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
@@ -478,6 +500,7 @@ function ClientApp() {
           privacy: 'privacy',
           terms: 'terms',
           delete_account: 'delete_account',
+          help: 'help',
         };
         const routeName = map[path];
         if (!routeName) {
@@ -529,7 +552,14 @@ function ClientApp() {
 
   const refreshUser = async (directUser) => {
     // Permet refreshUser(null) explicite pour deconnecter immediatement
-    if (directUser !== undefined) { setUser(directUser); return; }
+    if (directUser !== undefined) {
+      setUser(directUser);
+      // ANALYTICS : reset PostHog session quand user se deconnecte
+      if (directUser === null) {
+        try { resetAnalytics(); } catch {}
+      }
+      return;
+    }
     try {
       const u = await getCurrentUser();
       setUser(u);
@@ -537,6 +567,19 @@ function ClientApp() {
       console.error('refreshUser error:', e);
     }
   };
+
+  // ─── ANALYTICS : identify quand user disponible, pageview à chaque route ───
+  useEffect(() => {
+    if (user?.id) {
+      try { identifyUser(user); } catch {}
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (route?.name) {
+      try { trackPageview(route.name); } catch {}
+    }
+  }, [route?.name, route?.params?.id, route?.params?.orderId, route?.params?.scanId]);
 
   // ─── SPLASH (auth pas check OU splash min duration pas atteint) ───
   if (!authChecked || !splashDone) {
@@ -600,8 +643,12 @@ function ClientApp() {
     case 'quiz': page = <SkinQuiz onComplete={refreshUser} />; break;
     case 'loyalty': page = <Loyalty />; break;
     case 'referral': page = <Referral />; break;
-    case 'notifications': page = <NotifSettings />; break;
+    // notifications = vraie liste (Notifications.jsx)
+    // notif_settings = paramètres push/email (NotifSettings.jsx)
+    case 'notifications': page = <Notifications />; break;
+    case 'notif_settings': page = <NotifSettings />; break;
     case 'promos': page = <Promos />; break;
+    case 'help': page = <Help />; break;
     case 'international': page = <Suspense fallback={<LazyFallback />}><International /></Suspense>; break;
     case 'privacy': page = <Suspense fallback={<LazyFallback />}><Privacy /></Suspense>; break;
     case 'terms': page = <Suspense fallback={<LazyFallback />}><Terms /></Suspense>; break;

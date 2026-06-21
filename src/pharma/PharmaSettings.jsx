@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-const BANNED_PINS = ['0000','1111','2222','3333','4444','5555','6666','7777','8888','9999','1234','4321','0123','9876'];
+// PINs trop evidents (6 chiffres) : suites, repetitions, dates de naissance type.
+const BANNED_PINS = [
+  '000000','111111','222222','333333','444444','555555','666666','777777','888888','999999',
+  '123456','654321','012345','543210','111222','121212','123123','112233',
+];
 
 // Suggestions Unsplash : photos libres de droits, déjà optimisées
 const UNSPLASH_SUGGESTIONS = [
@@ -109,7 +113,7 @@ export default function PharmaSettings({ pharmacy, onUpdate }) {
     setPinError('');
     setPinOk('');
     // Validations cote client (le serveur revalide aussi)
-    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) return setPinError('Le nouveau PIN doit faire 4 chiffres');
+    if (newPin.length !== 6 || !/^\d{6}$/.test(newPin)) return setPinError('Le nouveau PIN doit faire 6 chiffres');
     if (BANNED_PINS.includes(newPin)) return setPinError('PIN trop évident, choisis-en un autre');
     if (newPin === oldPin) return setPinError('Le nouveau PIN doit être différent de l\'ancien');
     if (newPin !== confirmPin) return setPinError('Les deux PIN ne correspondent pas');
@@ -140,50 +144,50 @@ export default function PharmaSettings({ pharmacy, onUpdate }) {
         <div className="phar-header">
           <div>
             <h1>🔑 Modifier mon PIN</h1>
-            <p>Choisis un nouveau code PIN à 4 chiffres</p>
+            <p>Choisis un nouveau code PIN à 6 chiffres</p>
           </div>
         </div>
 
         <div className="phar-settings-form">
           <div className="phar-card">
             <div className="phar-field">
-              <label className="phar-label">Ancien PIN</label>
+              <label className="phar-label">Ancien PIN (6 chiffres)</label>
               <input
                 className="phar-input"
                 type="password"
                 inputMode="numeric"
-                maxLength={4}
+                maxLength={6}
                 value={oldPin}
                 onChange={e => { setOldPin(e.target.value.replace(/\D/g, '')); setPinError(''); }}
-                placeholder="••••"
+                placeholder="••••••"
                 autoFocus
               />
             </div>
 
             <div className="phar-field">
-              <label className="phar-label">Nouveau PIN</label>
+              <label className="phar-label">Nouveau PIN (6 chiffres)</label>
               <input
                 className="phar-input"
                 type="password"
                 inputMode="numeric"
-                maxLength={4}
+                maxLength={6}
                 value={newPin}
                 onChange={e => { setNewPin(e.target.value.replace(/\D/g, '')); setPinError(''); }}
-                placeholder="••••"
+                placeholder="••••••"
               />
-              <p className="phar-hint">💡 Évite 1234, 0000, 1111 et autres PIN évidents</p>
+              <p className="phar-hint">💡 Évite 123456, 000000, 111111 et autres PIN évidents</p>
             </div>
 
             <div className="phar-field">
-              <label className="phar-label">Confirme le nouveau PIN</label>
+              <label className="phar-label">Confirme le nouveau PIN (6 chiffres)</label>
               <input
                 className="phar-input"
                 type="password"
                 inputMode="numeric"
-                maxLength={4}
+                maxLength={6}
                 value={confirmPin}
                 onChange={e => { setConfirmPin(e.target.value.replace(/\D/g, '')); setPinError(''); }}
-                placeholder="••••"
+                placeholder="••••••"
                 onKeyDown={e => e.key === 'Enter' && handleChangePin()}
               />
             </div>

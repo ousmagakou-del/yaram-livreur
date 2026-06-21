@@ -49,3 +49,27 @@ yaram-firebase-adminsdk*.json
 *.keystore
 *.jks
 android/keystore.properties
+
+# ═══ iOS build artifacts (NE JAMAIS COMMIT, énorme) ═══
+build/
+ios/App/build/
+ios/App/Pods/
+ios/App/.build/
+ios/App/.swiftpm/
+ios/App/CapApp-SPM/.build/
+ios/App/CapApp-SPM/.swiftpm/
+ios/App/CapApp-SPM/Package.resolved
+ios/App/App/public/
+DerivedData/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+
+# ═══ Secrets locaux (ne pas commit) ═══
+.env*.local
+*.p8
+AuthKey_*.p8
+
+# ═══ OS / éditeurs ═══
+Thumbs.db
+.DS_Store

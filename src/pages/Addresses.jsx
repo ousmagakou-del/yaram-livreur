@@ -173,9 +173,20 @@ function AddressEditor({ address, onSave, onCancel }) {
   };
 
   const handleSubmit = async () => {
+    // ─── FIX SPINNER BLOQUE ───
+    // Avant : si onSave rejette (réseau, RLS, validation côté parent), setSaving(false)
+    // n'était jamais appelé → bouton "Enregistrer" coincé en "Enregistrement..."
+    // pour toujours. Maintenant : try/finally garantit le reset, et un toast
+    // explique l'erreur à la cliente.
     setSaving(true);
-    await onSave(a);
-    setSaving(false);
+    try {
+      await onSave(a);
+    } catch (e) {
+      console.warn('[Addresses] save failed:', e?.message);
+      toast.error(e?.message || 'Impossible d\'enregistrer l\'adresse. Réessaie.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

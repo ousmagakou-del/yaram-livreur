@@ -102,7 +102,7 @@ serve(async (req) => {
   // ─── Récupère la commande ───
   const { data: order, error: orderErr } = await admin
     .from("orders")
-    .select("id, user_id, status, total, items, address, is_preorder")
+    .select("id, user_id, status, total, items, address, is_preorder, deposit_amount")
     .eq("id", refCommand)
     .maybeSingle();
   if (orderErr || !order) {
@@ -110,10 +110,50 @@ serve(async (req) => {
     return json({ success: false, error: "order_not_found" }, 404);
   }
 
+  // ─── ANTI-FRAUDE : vérifie que le montant payé correspond à ce qu'on attend ───
+  // PayTech IPN nous renvoie item_price. Si user a payé moins que le total
+  // attendu (ex : il a édité l'URL Wave côté client), on REFUSE.
+  // Pour preorder, on attend l'acompte (deposit_amount), pas le total.
+  // Tolérance : 1 FCFA pour absorber les arrondis (XOF n'a pas de centimes
+  // mais PayTech parfois renvoie 199999.5 pour 200000).
+  if (eventType === 'sale_complete') {
+    const expectedAmount = order.is_preorder && order.deposit_amount
+      ? Number(order.deposit_amount)
+      : Number(order.total);
+
+    if (!Number.isFinite(amount) || Math.abs(amount - expectedAmount) > 1) {
+      console.warn(
+        `[paytech-webhook] FRAUD ATTEMPT: order=${refCommand} ` +
+        `expected=${expectedAmount} received=${amount} is_preorder=${order.is_preorder}`
+      );
+      // Log dans payment_logs pour audit
+      try {
+        await admin.from("payment_logs").insert({
+          order_id: order.id,
+          provider: 'paytech',
+          event_type: 'fraud_amount_mismatch',
+          amount,
+          payment_method: paymentMethod,
+          client_phone: clientPhone,
+          raw_payload: payload,
+        });
+      } catch { /* swallow */ }
+      return json({
+        success: false,
+        error: "amount_mismatch",
+        expected: expectedAmount,
+        received: amount,
+      }, 400);
+    }
+  }
+
   // ─── Traite selon le type d'événement ───
   let newStatus: string | null = null;
   if (eventType === 'sale_complete') {
-    newStatus = order.is_preorder ? 'paid' : 'paid'; // pour preorder : acompte payé
+    // Pour preorder : 'confirmed' = acompte reçu, en attente d'import.
+    // Le solde 50% sera réclamé à l'arrivée → ne PAS passer en 'paid' direct.
+    // Pour commande classique : 'paid' = tout est réglé.
+    newStatus = order.is_preorder ? 'confirmed' : 'paid';
   } else if (eventType === 'sale_cancel') {
     newStatus = 'cancelled';
   } else {
@@ -128,14 +168,17 @@ serve(async (req) => {
   }
 
   // ─── Update la commande ───
+  const nowIso = new Date().toISOString();
+  const isPaymentSuccess = newStatus === 'paid' || newStatus === 'confirmed';
   const updates: Record<string, unknown> = {
     status: newStatus,
-    payment_confirmed_at: newStatus === 'paid' ? new Date().toISOString() : null,
+    payment_confirmed_at: isPaymentSuccess ? nowIso : null,
     paytech_payment_method: paymentMethod,
     paytech_client_phone: clientPhone,
   };
-  if (order.is_preorder && newStatus === 'paid') {
-    updates.deposit_paid_at = new Date().toISOString();
+  // Preorder + sale_complete → acompte reçu, status='confirmed'
+  if (order.is_preorder && newStatus === 'confirmed') {
+    updates.deposit_paid_at = nowIso;
   }
 
   const { error: updateErr } = await admin
@@ -148,7 +191,14 @@ serve(async (req) => {
   }
 
   // ─── Notifs auto (non-bloquant) ───
-  if (newStatus === 'paid' && INTERNAL_SECRET) {
+  if (isPaymentSuccess && INTERNAL_SECRET) {
+    const notifTitle = newStatus === 'confirmed'
+      ? '✅ Acompte reçu !'
+      : '✅ Paiement confirmé !';
+    const notifMessage = newStatus === 'confirmed'
+      ? `Acompte reçu pour ta commande ${order.id}. Import en cours, on te tient au courant ✈️`
+      : `Ta commande ${order.id} est payée. On la prépare pour toi 🚀`;
+
     const notifPromise = fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -156,8 +206,8 @@ serve(async (req) => {
         internal_secret: INTERNAL_SECRET,
         user_id: order.user_id,
         type: 'order_status',
-        title: '✅ Paiement confirmé !',
-        message: `Ta commande ${order.id} est payée. On la prépare pour toi 🚀`,
+        title: notifTitle,
+        message: notifMessage,
         url: `https://yaram.app/tracking/${order.id}`,
       }),
     }).catch(e => console.warn("[paytech-webhook] push notif failed:", e?.message));

@@ -4,6 +4,14 @@ import { adminListOrdersFull, adminUpdateOrder } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 import SignedImage from '../components/SignedImage';
 
+// Token livreur cryptographiquement secure (128 bits via crypto.getRandomValues)
+// Format : LIV-<24 chars base36 upper>
+function generateSecureToken() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return 'LIV-' + Array.from(bytes).map(b => b.toString(36).padStart(2, '0')).join('').slice(0, 12).toUpperCase();
+}
+
 export default function DeliveriesSection() {
   const [orders, setOrders] = useState([]);
   const [trackings, setTrackings] = useState({});
@@ -43,10 +51,11 @@ export default function DeliveriesSection() {
   };
 
   const assignDriver = async (order, name, phone) => {
-    const token = 'LIV-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const token = generateSecureToken();
     await supabase.from('delivery_tracking').insert({
       order_id: order.id,
       delivery_token: token,
+      delivery_token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       delivery_person_name: name,
       delivery_person_phone: phone,
       status: 'assigned',

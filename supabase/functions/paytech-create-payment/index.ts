@@ -34,6 +34,7 @@ const json = (body: unknown, status = 200) =>
 type Body = {
   order_id: string;
   amount: number;
+  is_preorder?: boolean;
   item_name?: string;
   target_payment?: 'Wave' | 'Orange Money' | 'Free Money' | string | null;
 };
@@ -81,7 +82,7 @@ serve(async (req) => {
   // ─── Vérifie que la commande appartient bien à l'user ───
   const { data: order, error: orderErr } = await admin
     .from("orders")
-    .select("id, user_id, total, status, payment_method")
+    .select("id, user_id, total, status, payment_method, is_preorder, deposit_amount")
     .eq("id", body.order_id)
     .maybeSingle();
   if (orderErr || !order) {
@@ -90,8 +91,26 @@ serve(async (req) => {
   if (order.user_id !== user.id) {
     return json({ success: false, error: "order_not_owned" }, 403);
   }
-  if (order.status === 'paid' || order.status === 'shipped' || order.status === 'delivered') {
+  if (
+    order.status === 'paid' ||
+    order.status === 'confirmed' ||
+    order.status === 'shipped' ||
+    order.status === 'delivered'
+  ) {
     return json({ success: false, error: "order_already_paid", status: order.status }, 400);
+  }
+
+  // ─── ANTI-FRAUDE : on IGNORE le body.amount envoyé par le client et on
+  // recalcule côté serveur depuis la commande. Empêche le client de demander
+  // un PayTech sur 100 FCFA pour une commande de 200 000 FCFA. ───
+  const expectedAmount = order.is_preorder && order.deposit_amount
+    ? Math.round(Number(order.deposit_amount))
+    : Math.round(Number(order.total));
+  // body.amount n'est plus que indicatif — on log la divergence si elle existe
+  if (Number(body.amount) && Math.abs(Number(body.amount) - expectedAmount) > 1) {
+    console.warn(
+      `[paytech-create] amount mismatch ignored : client=${body.amount} server=${expectedAmount} order=${order.id}`
+    );
   }
 
   // ─── Construit l'IPN URL (notre webhook) ───────────────
@@ -104,7 +123,8 @@ serve(async (req) => {
   // Doc : https://docs.intech.sn/doc_paytech.php
   const payTechPayload: Record<string, unknown> = {
     item_name: body.item_name || `YARAM ${order.id}`,
-    item_price: Math.round(Number(body.amount)),
+    // SOURCE DE VÉRITÉ : montant calculé serveur, pas le body client
+    item_price: expectedAmount,
     currency: "XOF",
     ref_command: order.id,
     command_name: `YARAM Commande ${order.id}`,

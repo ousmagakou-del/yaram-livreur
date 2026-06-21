@@ -1,124 +1,172 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase } from '../lib/supabase';
-import { confirmDialog } from '../lib/toast';
+import { haptic } from '../lib/haptic';
 import TabBar from '../components/TabBar';
 import './Loyalty.css';
 
-const TIER_INFO = {
-  bronze: {
+/* ─── Paliers (Bronze → Platine) ─── */
+const TIERS = [
+  {
+    id: 'bronze',
     name: 'Bronze',
-    color: '#CD7F32',
-    bg: 'linear-gradient(135deg, #C8956A 0%, #8C5A2C 100%)',
     icon: '🥉',
+    min: 0,
     next: 500,
-    nextName: 'Silver',
+    bg: 'linear-gradient(135deg, #C8956A 0%, #8C5A2C 100%)',
+    perks: ['Accès à la fidélité', 'Offres newsletter exclusives'],
   },
-  silver: {
-    name: 'Silver',
-    color: '#7F8C95',
-    bg: 'linear-gradient(135deg, #BBC5CB 0%, #6B7780 100%)',
+  {
+    id: 'silver',
+    name: 'Argent',
     icon: '🥈',
+    min: 500,
     next: 2000,
-    nextName: 'Gold',
+    bg: 'linear-gradient(135deg, #BBC5CB 0%, #6B7780 100%)',
+    perks: ['Livraison réduite (-50%)', '+5% de points sur tes commandes'],
   },
-  gold: {
-    name: 'Gold',
-    color: '#D4AF37',
-    bg: 'linear-gradient(135deg, #F6D365 0%, #BF9B25 100%)',
+  {
+    id: 'gold',
+    name: 'Or',
     icon: '🏆',
-    next: null,
-    nextName: null,
+    min: 2000,
+    next: 5000,
+    bg: 'linear-gradient(135deg, #F6D365 0%, #BF9B25 100%)',
+    perks: ['Livraison gratuite', '10% sur les marques premium', 'Accès anticipé aux nouveautés'],
   },
-};
-
-const REDEEM_OPTIONS = [
-  { points: 100, fcfa: 1000 },
-  { points: 200, fcfa: 2000 },
-  { points: 500, fcfa: 5000 },
-  { points: 1000, fcfa: 10000 },
+  {
+    id: 'platinum',
+    name: 'Platine',
+    icon: '💎',
+    min: 5000,
+    next: null,
+    bg: 'linear-gradient(135deg, #B4E0E8 0%, #4A90A8 100%)',
+    perks: ['Tout les avantages Or', 'Conseillère dédiée', 'Cadeaux d\'anniversaire'],
+  },
 ];
+
+/* Détermine palier courant depuis totalEarned */
+function getTierFromTotal(total) {
+  let current = TIERS[0];
+  for (const t of TIERS) {
+    if (total >= t.min) current = t;
+  }
+  return current;
+}
+
+/* Hook counter animé */
+function useCounter(target, duration = 1100) {
+  const [value, setValue] = useState(0);
+  const raf = useRef(null);
+
+  useEffect(() => {
+    const start = performance.now();
+    const from = 0;
+    const ease = (t) => 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const tick = (now) => {
+      const p = Math.min(1, (now - start) / duration);
+      setValue(Math.round(from + (target - from) * ease(p)));
+      if (p < 1) raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => { if (raf.current) cancelAnimationFrame(raf.current); };
+  }, [target, duration]);
+
+  return value;
+}
 
 export default function Loyalty() {
   const { navigate } = useNav();
   const { user, refreshUser } = useUser();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [redeeming, setRedeeming] = useState(null);
   const [toast, setToast] = useState('');
+  const [progressPct, setProgressPct] = useState(0);
 
+  /* PRESERVE : fetch loyalty transactions */
   useEffect(() => {
-    if (!user?.id) return;
-    refreshTransactions();
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('loyalty_transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        if (!error) setTransactions(data || []);
+      } catch (e) {
+        console.warn('[Loyalty] fetch failed:', e?.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [user?.id]);
 
-  const refreshTransactions = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('loyalty_transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(30);
-      if (!error) setTransactions(data || []);
-    } catch (e) {
-      console.warn('[Loyalty] fetch failed:', e?.message);
-    } finally {
-      // Garantit que loading repasse à false même si erreur réseau / Supabase down
-      setLoading(false);
-    }
-  };
+  const balance = user?.loyalty_points || 0;
+  const totalEarned = user?.loyalty_total_earned || balance || 0;
+  const currentTier = getTierFromTotal(totalEarned);
+  const animatedPoints = useCounter(balance);
+  const equivFCFA = Math.floor(balance / 100) * 1000; // 100 pts = 1000 FCFA
+  const fmt = (n) => Number(n).toLocaleString('fr-FR');
+
+  /* Progression palier */
+  const tierProgressPct = currentTier.next
+    ? Math.min(100, ((totalEarned - currentTier.min) / (currentTier.next - currentTier.min)) * 100)
+    : 100;
+
+  // animate progress fill on mount
+  useEffect(() => {
+    const t = setTimeout(() => setProgressPct(tierProgressPct), 250);
+    return () => clearTimeout(t);
+  }, [tierProgressPct]);
+
+  /* Prochain palier */
+  const nextTier = TIERS.find(t => t.min === currentTier.next);
+  const pointsToNext = currentTier.next ? Math.max(0, currentTier.next - totalEarned) : 0;
+  const fcfaToNextEquiv = pointsToNext * 10; // approximation 1 pt ≈ 10 FCFA d'avantage
 
   const showToast = (text) => {
     setToast(text);
     setTimeout(() => setToast(''), 2500);
   };
 
-  const handleRedeem = async (points) => {
-    if (!(await confirmDialog(`Échanger ${points} points contre ${(points / 100) * 1000} FCFA de réduction ?`, { confirmLabel: 'Échanger' }))) return;
-    setRedeeming(points);
-    const { data, error } = await supabase.rpc('redeem_loyalty_points', {
-      p_user_id: user.id,
-      p_points: points,
-    });
-    setRedeeming(null);
-
-    if (error) {
-      showToast('Erreur : ' + error.message);
+  /* CTA : utiliser mes points → set credit + redirect */
+  const useMyPoints = () => {
+    if (balance < 100) {
+      showToast('Il te faut au moins 100 points');
       return;
     }
-
-    if (!data?.success) {
-      showToast(data?.error || 'Échec');
-      return;
-    }
-
-    // Stocke le crédit dans localStorage pour utilisation au checkout
+    haptic('medium');
+    const fcfa = Math.floor(balance / 100) * 1000;
     try {
-      const existing = JSON.parse(localStorage.getItem('yaram_loyalty_credit') || '0');
-      const newCredit = parseInt(existing) + parseInt(data.fcfa_credit);
-      localStorage.setItem('yaram_loyalty_credit', String(newCredit));
+      localStorage.setItem('yaram_loyalty_credit', String(fcfa));
+      localStorage.setItem('yaram_loyalty_credit_pts', String(Math.floor(balance / 100) * 100));
     } catch {}
-
-    showToast(`✓ ${data.fcfa_credit} FCFA crédités sur ta prochaine cmd`);
-    refreshUser?.();
-    refreshTransactions();
+    showToast(`✓ ${fmt(fcfa)} FCFA prêts à l'usage`);
+    setTimeout(() => navigate('/cart'), 700);
   };
 
-  const balance = user?.loyalty_points || 0;
-  const totalEarned = user?.loyalty_total_earned || 0;
-  const tier = user?.loyalty_tier || 'bronze';
-  const tierData = TIER_INFO[tier];
-  const progressPct = tierData.next
-    ? Math.min(100, (totalEarned / tierData.next) * 100)
-    : 100;
-
-  const fmt = (n) => Number(n).toLocaleString('fr-FR');
+  /* Icon mapping pour transactions */
+  const txMeta = (type) => {
+    switch (type) {
+      case 'earn_order':    return { icon: '📦', defaultLabel: 'Commande livrée' };
+      case 'earn_admin':    return { icon: '🎁', defaultLabel: 'Bonus offert' };
+      case 'earn_review':   return { icon: '⭐', defaultLabel: 'Avis publié' };
+      case 'earn_referral': return { icon: '👯', defaultLabel: 'Parrainage validé' };
+      case 'redeem':        return { icon: '💸', defaultLabel: 'Points utilisés' };
+      case 'adjust_admin':  return { icon: '⚙️', defaultLabel: 'Ajustement' };
+      default:              return { icon: '✨', defaultLabel: type };
+    }
+  };
 
   return (
     <div className="yloy-screen page-anim">
       <div className="yloy-scroll">
+        {/* HEADER */}
         <header className="yloy-header">
           <button className="yloy-back" onClick={() => navigate(-1)} aria-label="Retour">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
@@ -126,138 +174,156 @@ export default function Loyalty() {
               <polyline points="12 19 5 12 12 5"/>
             </svg>
           </button>
-          <div>
-            <h1>Fidélité</h1>
-            <p>Gagne des points à chaque commande</p>
-          </div>
+          <h1 className="yloy-header-title">Fidélité</h1>
         </header>
 
-        {/* Carte solde + tier */}
-        <div className="yloy-card" style={{ background: tierData.bg }}>
-          <div className="yloy-tier-badge">
-            <span className="yloy-tier-icon">{tierData.icon}</span>
-            <span className="yloy-tier-name">{tierData.name}</span>
-          </div>
-          <div className="yloy-balance-label">Mes points</div>
-          <div className="yloy-balance-value">{fmt(balance)}</div>
-          <div className="yloy-balance-equiv">
-            ≈ {fmt(Math.floor(balance / 100) * 1000)} FCFA disponibles
-          </div>
+        {/* HERO GRADIENT */}
+        <div className="yloy-hero">
+          <div className="yloy-hero-inner">
+            <div className="yloy-hero-tier">
+              <span>{currentTier.icon}</span>
+              <span>Palier {currentTier.name}</span>
+            </div>
+            <div className="yloy-hero-points">{fmt(animatedPoints)}</div>
+            <div className="yloy-hero-label">points fidélité</div>
+            <div className="yloy-hero-equiv">
+              <span>≈</span>
+              <strong>{fmt(equivFCFA)} FCFA</strong>
+              <span>disponibles</span>
+            </div>
 
-          {tierData.next && (
-            <>
-              <div className="yloy-progress-info">
-                <span>{fmt(totalEarned)} / {fmt(tierData.next)} pour {tierData.nextName}</span>
+            {nextTier && (
+              <div className="yloy-hero-progress">
+                <div className="yloy-hero-progress-label">
+                  <span>Plus que <strong>{fmt(pointsToNext)} pts</strong> pour {nextTier.name}</span>
+                  <span><strong>{Math.round(progressPct)}%</strong></span>
+                </div>
+                <div className="yloy-hero-progress-bar">
+                  <div className="yloy-hero-progress-fill" style={{ width: `${progressPct}%` }} />
+                </div>
               </div>
-              <div className="yloy-progress-bar">
-                <div className="yloy-progress-fill" style={{ width: `${progressPct}%` }} />
+            )}
+            {!nextTier && (
+              <div className="yloy-hero-progress">
+                <div className="yloy-hero-progress-label">
+                  <span>🏆 Tu es au palier maximum, bravo !</span>
+                </div>
+                <div className="yloy-hero-progress-bar">
+                  <div className="yloy-hero-progress-fill" style={{ width: '100%' }} />
+                </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Options d'échange */}
+        {/* COMMENT ÇA MARCHE — 3 cards horizontales */}
         <section className="yloy-section">
-          <h2 className="yloy-section-title">💰 Échanger mes points</h2>
-          <div className="yloy-section-sub">100 points = 1 000 FCFA de réduction</div>
+          <h2 className="yloy-section-title">Comment ça marche</h2>
+          <p className="yloy-section-sub">Gagne des points à chaque achat et débloque des avantages.</p>
+        </section>
+        <div className="yloy-how-scroll">
+          <div className="yloy-how-card">
+            <div className="yloy-how-num">1</div>
+            <div className="yloy-how-icon">🛒</div>
+            <h3 className="yloy-how-title">Tu commandes</h3>
+            <p className="yloy-how-desc">1 FCFA dépensé = 1 point fidélité crédité dès la livraison.</p>
+          </div>
+          <div className="yloy-how-card">
+            <div className="yloy-how-num">2</div>
+            <div className="yloy-how-icon">💰</div>
+            <h3 className="yloy-how-title">Tu accumules</h3>
+            <p className="yloy-how-desc">1 000 points = 1 000 FCFA de crédit utilisable directement.</p>
+          </div>
+          <div className="yloy-how-card">
+            <div className="yloy-how-num">3</div>
+            <div className="yloy-how-icon">🎁</div>
+            <h3 className="yloy-how-title">Tu profites</h3>
+            <p className="yloy-how-desc">Utilise ton crédit au checkout ou attends de débloquer le palier suivant.</p>
+          </div>
+        </div>
 
-          <div className="yloy-redeem-grid">
-            {REDEEM_OPTIONS.map(opt => {
-              const canRedeem = balance >= opt.points;
+        {/* PALIERS */}
+        <section className="yloy-section">
+          <h2 className="yloy-section-title">Mes paliers</h2>
+          <p className="yloy-section-sub">Plus tu commandes, plus tu débloques d'avantages.</p>
+          <div className="yloy-tier-grid">
+            {TIERS.map(t => {
+              const isCurrent = t.id === currentTier.id;
               return (
-                <button
-                  key={opt.points}
-                  className={`yloy-redeem-btn ${canRedeem ? '' : 'disabled'} ${redeeming === opt.points ? 'loading' : ''}`}
-                  onClick={() => canRedeem && handleRedeem(opt.points)}
-                  disabled={!canRedeem || redeeming != null}
-                >
-                  <div className="yloy-redeem-pts">{fmt(opt.points)} pts</div>
-                  <div className="yloy-redeem-arrow">↓</div>
-                  <div className="yloy-redeem-fcfa">{fmt(opt.fcfa)} FCFA</div>
-                  {!canRedeem && <div className="yloy-redeem-miss">Manque {opt.points - balance}</div>}
-                </button>
+                <div key={t.id} className={`yloy-tier-card ${isCurrent ? 'current' : ''}`}>
+                  <div className="yloy-tier-icon-wrap" style={{ background: t.bg }}>
+                    <span>{t.icon}</span>
+                  </div>
+                  <div className="yloy-tier-info">
+                    <div className="yloy-tier-name-row">
+                      <h3 className="yloy-tier-name">{t.name}</h3>
+                      {isCurrent && <span className="yloy-tier-badge">Actuel</span>}
+                    </div>
+                    <p className="yloy-tier-req">
+                      {t.next
+                        ? `${fmt(t.min)} → ${fmt(t.next)} pts cumulés`
+                        : `${fmt(t.min)}+ pts cumulés`}
+                    </p>
+                    <ul className="yloy-tier-perks">
+                      {t.perks.map((p, i) => <li key={i}>{p}</li>)}
+                    </ul>
+                  </div>
+                </div>
               );
             })}
           </div>
         </section>
 
-        {/* Comment gagner */}
+        {/* HISTORIQUE */}
         <section className="yloy-section">
-          <h2 className="yloy-section-title">✨ Comment gagner des points</h2>
-          <div className="yloy-earn-list">
-            <div className="yloy-earn-item">
-              <div className="yloy-earn-icon">🛍️</div>
-              <div className="yloy-earn-text">
-                <strong>Commande livrée</strong>
-                <span>+10 points par commande</span>
-              </div>
-              <button className="yloy-earn-cta" onClick={() => navigate('/')}>Voir →</button>
-            </div>
-            <div className="yloy-earn-item">
-              <div className="yloy-earn-icon">⭐</div>
-              <div className="yloy-earn-text">
-                <strong>Laisser un avis</strong>
-                <span>+50 points avec photo</span>
-              </div>
-              <button className="yloy-earn-cta" onClick={() => navigate({ name: 'orders', params: {} })}>Mes cmds →</button>
-            </div>
-            <div className="yloy-earn-item">
-              <div className="yloy-earn-icon">👯</div>
-              <div className="yloy-earn-text">
-                <strong>Parrainer une amie</strong>
-                <span>+500 points si elle commande</span>
-              </div>
-              <button className="yloy-earn-cta" onClick={() => navigate({ name: 'referral', params: {} })}>Inviter →</button>
-            </div>
-            <div className="yloy-earn-item">
-              <div className="yloy-earn-icon">🧴</div>
-              <div className="yloy-earn-text">
-                <strong>Scan IA peau</strong>
-                <span>+25 points (1 fois/mois)</span>
-              </div>
-              <button className="yloy-earn-cta" onClick={() => navigate({ name: 'scan', params: {} })}>Scanner →</button>
-            </div>
-          </div>
-        </section>
-
-        {/* Historique */}
-        <section className="yloy-section">
-          <h2 className="yloy-section-title">📜 Historique</h2>
+          <h2 className="yloy-section-title">Historique</h2>
+          <p className="yloy-section-sub">Tes 30 dernières transactions de points.</p>
           {loading ? (
             <div className="yloy-loading">Chargement…</div>
           ) : transactions.length === 0 ? (
             <div className="yloy-empty">
               <div style={{ fontSize: 36, opacity: 0.4 }}>📭</div>
               <p>Aucune transaction pour l'instant</p>
-              <p style={{ fontSize: 11, color: '#9B9B9B' }}>Passe ta 1ère commande pour gagner +10 points !</p>
+              <p style={{ fontSize: 11, color: '#9B9B9B' }}>Passe ta 1ère commande pour gagner tes premiers points.</p>
             </div>
           ) : (
             <div className="yloy-tx-list">
-              {transactions.map(tx => (
-                <div key={tx.id} className="yloy-tx-item">
-                  <div className="yloy-tx-icon">
-                    {tx.type === 'earn_order'   && '🛍️'}
-                    {tx.type === 'earn_admin'   && '🎁'}
-                    {tx.type === 'adjust_admin' && '⚙️'}
-                    {tx.type === 'redeem'       && '💰'}
-                    {tx.type === 'earn_review'  && '⭐'}
-                    {tx.type === 'earn_referral'&& '👯'}
-                    {!['earn_order','earn_admin','adjust_admin','redeem','earn_review','earn_referral'].includes(tx.type) && '•'}
+              {transactions.map((tx, i) => {
+                const meta = txMeta(tx.type);
+                return (
+                  <div
+                    key={tx.id}
+                    className="yloy-tx-item"
+                    style={{ animationDelay: `${Math.min(i * 30, 600)}ms` }}
+                  >
+                    <div className="yloy-tx-icon">{meta.icon}</div>
+                    <div className="yloy-tx-text">
+                      <strong>{tx.reason || meta.defaultLabel}</strong>
+                      <span>{new Date(tx.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                    <div className={`yloy-tx-pts ${tx.points > 0 ? 'positive' : 'negative'}`}>
+                      {tx.points > 0 ? '+' : ''}{fmt(tx.points)} pts
+                    </div>
                   </div>
-                  <div className="yloy-tx-text">
-                    <strong>{tx.reason || tx.type}</strong>
-                    <span>{new Date(tx.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                  </div>
-                  <div className={`yloy-tx-pts ${tx.points > 0 ? 'positive' : 'negative'}`}>
-                    {tx.points > 0 ? '+' : ''}{tx.points} pts
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
+      </div>
 
-        <div style={{ height: 40 }} />
+      {/* CTA BOTTOM */}
+      <div className="yloy-cta-wrap">
+        <button
+          className="yloy-cta"
+          onClick={useMyPoints}
+          disabled={balance < 100}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+            <circle cx="9" cy="21" r="1.5"/><circle cx="20" cy="21" r="1.5"/><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6"/>
+          </svg>
+          Utiliser mes points {balance >= 100 && `(${fmt(equivFCFA)} FCFA)`}
+        </button>
       </div>
 
       {toast && <div className="yloy-toast">{toast}</div>}

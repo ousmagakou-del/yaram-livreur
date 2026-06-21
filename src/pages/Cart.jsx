@@ -1,18 +1,132 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNav } from '../App';
 import { formatPrice, getShippingZone } from '../lib/utils';
 import { getCart, setCart } from '../lib/cart';
 import { getMyAddresses } from '../lib/supabase';
 import { buildPreorderSummary } from '../lib/preorder';
 import TabBar from '../components/TabBar';
+import { trackEvent } from '../lib/analytics';
 import "./cart.css";
+
+// ───────────────────────────────────────────────────────────────────
+// Sub-component : Item card avec swipe-to-delete (mobile)
+// On isole pour clean state du swipe (translateX, isDeleting, etc.)
+// Pas de lib externe — touchstart/move/end + transform CSS.
+// ───────────────────────────────────────────────────────────────────
+function CartItem({ item, index, onQty, onRemove }) {
+  const [translateX, setTranslateX] = useState(0);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [bumpKey, setBumpKey] = useState(0); // re-trigger pop sur qty
+  const touchStart = useRef({ x: 0, y: 0, time: 0 });
+  const isSwiping = useRef(false);
+  const SWIPE_THRESHOLD = 80; // px pour declencher delete
+  const MAX_SWIPE = 110;
+
+  const handleTouchStart = useCallback((e) => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    isSwiping.current = false;
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    const t = e.touches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    // Lock direction : si plus horizontal que vertical, on swipe
+    if (!isSwiping.current && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      isSwiping.current = true;
+    }
+    if (isSwiping.current && dx < 0) {
+      // Clamp + rubber-band leger au-dela de MAX_SWIPE
+      const clamped = Math.max(dx, -MAX_SWIPE - 20);
+      setTranslateX(clamped);
+    } else if (isSwiping.current && dx > 0 && translateX < 0) {
+      // Permettre de revenir si deja swipe
+      setTranslateX(Math.min(0, translateX + dx));
+    }
+  }, [translateX]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (translateX <= -SWIPE_THRESHOLD) {
+      // Anim de sortie puis remove
+      setIsRemoving(true);
+      setTranslateX(-window.innerWidth);
+      setTimeout(() => onRemove(index), 260);
+    } else {
+      // Snap-back
+      setTranslateX(0);
+    }
+    isSwiping.current = false;
+  }, [translateX, index, onRemove]);
+
+  const handleQty = (delta) => {
+    onQty(index, delta);
+    setBumpKey((k) => k + 1); // re-trigger pop animation
+  };
+
+  return (
+    <div
+      className={`cart-item-wrap ${isRemoving ? 'is-removing' : ''}`}
+      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+    >
+      <div className="cart-item-delete-bg" aria-hidden="true">
+        <span className="cart-item-delete-icon">🗑</span>
+        <span>Supprimer</span>
+      </div>
+      <div
+        className="cart-item"
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transition: isSwiping.current ? 'none' : 'transform 220ms cubic-bezier(.25,.8,.25,1)',
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        <div className="cart-item-img-wrap">
+          <img src={item.img} alt={item.name || 'Produit'} loading="lazy" decoding="async" />
+          {item.is_imported && (
+            <span className="cart-item-import-badge" aria-label="Produit importe">✈️</span>
+          )}
+        </div>
+        <div className="cart-item-info">
+          <div className="cart-item-brand">{item.brand}</div>
+          <div className="cart-item-name">{item.name}</div>
+          <div className="cart-item-price">{formatPrice(item.price)} FCFA</div>
+        </div>
+        <div className="cart-item-qty" key={bumpKey}>
+          <button
+            onClick={() => handleQty(-1)}
+            aria-label="Diminuer la quantite"
+            className="qty-btn qty-minus"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+          <span className="qty-count">{item.qty}</span>
+          <button
+            onClick={() => handleQty(1)}
+            aria-label="Augmenter la quantite"
+            className="qty-btn qty-plus"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Cart() {
   const { navigate } = useNav();
   const [items, setItems] = useState(() => getCart());
-  // Adresse par defaut de la cliente pour calculer la vraie zone de livraison
-  // (avant on hardcodait 1500 FCFA peu importe la ville).
   const [defaultCity, setDefaultCity] = useState('Dakar');
+  const [totalBumpKey, setTotalBumpKey] = useState(0);
+  const prevTotal = useRef(null);
 
   // Sync si une autre vue modifie le panier (ex: badge TabBar)
   useEffect(() => {
@@ -21,10 +135,8 @@ export default function Cart() {
       else setItems(getCart());
     };
     window.addEventListener('yaram-cart-updated', onUpdate);
-    // Aussi : si le user revient sur cette page apres edit ailleurs
     setItems(getCart());
 
-    // Auto-refresh sur retour navigation (popstate iOS)
     const handleRouteBack = (e) => {
       const target = e?.detail?.to?.name;
       if (target && target !== 'cart') return;
@@ -49,24 +161,37 @@ export default function Cart() {
     })();
   }, []);
 
-  const updateQty = (idx, delta) => {
-    const next = [...items];
-    next[idx].qty = Math.max(0, (next[idx].qty || 0) + delta);
-    if (next[idx].qty === 0) next.splice(idx, 1);
-    setCart(next); // dispatch yaram-cart-updated -> badge TabBar a jour
-    setItems(next);
-  };
+  const updateQty = useCallback((idx, delta) => {
+    setItems((curr) => {
+      const next = [...curr];
+      if (!next[idx]) return curr;
+      next[idx] = { ...next[idx], qty: Math.max(0, (next[idx].qty || 0) + delta) };
+      if (next[idx].qty === 0) next.splice(idx, 1);
+      setCart(next);
+      return next;
+    });
+  }, []);
 
-  const removeItem = (idx) => {
-    const next = items.filter((_, i) => i !== idx);
-    setCart(next);
-    setItems(next);
-  };
+  const removeItem = useCallback((idx) => {
+    setItems((curr) => {
+      const removed = curr[idx];
+      const next = curr.filter((_, i) => i !== idx);
+      setCart(next);
+      // ─── ANALYTICS : product_removed_from_cart ───
+      try {
+        if (removed) trackEvent('product_removed_from_cart', { product_id: removed.productId || removed.id });
+      } catch {}
+      return next;
+    });
+  }, []);
 
-  // ─── BULLETPROOF compute : on isole tout le calcul dans un try/catch.
-  //     Si UN helper throw (libelle.js, utils.js cache settings…), on ne crash plus,
-  //     on continue avec des valeurs par défaut sûres. L'erreur est loggée en console
-  //     pour Sentry, l'utilisateur peut au moins voir et vider son panier.
+  const clearCart = useCallback(() => {
+    if (!window.confirm('Vider tout le panier ?')) return;
+    setCart([]);
+    setItems([]);
+  }, []);
+
+  // ─── BULLETPROOF compute (préservé tel quel)
   let grouped = {};
   let subtotal = 0;
   let zone = { zone: 'Dakar', price: 1500, freeFrom: 30000 };
@@ -74,7 +199,6 @@ export default function Cart() {
   let total = 0;
   let preorderSummary = { isPreorder: false, breakdown: { depositAmount: 0, balanceAmount: 0 }, leadTimeDays: 1, expectedArrivalFormatted: '' };
   let isPreorder = false;
-  let computeError = null;
 
   try {
     grouped = items.reduce((acc, it) => {
@@ -84,32 +208,82 @@ export default function Cart() {
       return acc;
     }, {});
 
-    // SAFETY : price ou qty peuvent être null/string ; éviter NaN qui propage partout
-    subtotal = items.reduce((s, it) => s + ((Number(it?.price) || 0) * (Number(it?.qty) || 0)), 0);
-    // Vraie zone de livraison (Dakar 1500, Thies 2500, autre Senegal 3500…)
+    subtotal = items.reduce((s, it) => {
+      const price = Number(it?.price) || 0;
+      const qty = Number(it?.qty) || 0;
+      const line = price * qty;
+      return s + (Number.isFinite(line) ? line : 0);
+    }, 0);
+    subtotal = Number.isFinite(subtotal) ? Math.max(0, subtotal) : 0;
     zone = getShippingZone(defaultCity) || zone;
-    shipping = subtotal > 0 && subtotal < (zone?.freeFrom || 0) ? (zone?.price || 0) : 0;
-    total = subtotal + shipping;
+    const freeFrom = Number(zone?.freeFrom) || 0;
+    const zonePrice = Number(zone?.price) || 0;
+    shipping = subtotal > 0 && subtotal < freeFrom ? zonePrice : 0;
+    total = Math.max(0, (Number(subtotal) || 0) + (Number(shipping) || 0));
 
-    // Detecte si la commande contient des produits import (preorder 50/50)
     preorderSummary = buildPreorderSummary(items, shipping) || preorderSummary;
     isPreorder = !!preorderSummary?.isPreorder;
   } catch (e) {
-    // Tout helper qui throw → on log mais on continue à render le panier
-    // avec des valeurs par défaut. Le user voit ses items, peut au moins les supprimer.
     console.error('[Cart] compute error:', e);
-    computeError = e?.message || String(e);
   }
+
+  // Pop anim sur le total quand il change
+  useEffect(() => {
+    if (prevTotal.current !== null && prevTotal.current !== total) {
+      setTotalBumpKey((k) => k + 1);
+    }
+    prevTotal.current = total;
+  }, [total]);
+
+  const freeFromValue = Number(zone?.freeFrom) || 0;
+  const remainingForFree = Math.max(0, freeFromValue - subtotal);
+  const freeProgress = freeFromValue > 0 ? Math.min(100, (subtotal / freeFromValue) * 100) : 0;
+  const showFreeProgress = subtotal > 0 && freeFromValue > 0 && subtotal < freeFromValue;
+
+  const handleCheckout = () => {
+    // Haptic leger si supporte
+    try { if (navigator?.vibrate) navigator.vibrate(8); } catch { /* noop */ }
+    navigate({ name: 'checkout', params: { items, total, subtotal, shipping, preorderSummary } });
+  };
+
+  // ─── ANALYTICS : cart_viewed à chaque mount (snapshot du panier au moment de la vue) ───
+  useEffect(() => {
+    try {
+      trackEvent('cart_viewed', {
+        items_count: items.length,
+        total,
+        has_preorder: !!isPreorder,
+      });
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (items.length === 0) {
     return (
       <div className="cart-screen page-anim">
+        <div className="cart-header cart-header-glass">
+          <button className="icon-back-btn" onClick={() => navigate(-1)} aria-label="Retour">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <div className="cart-header-title">
+            <h1>Mon panier</h1>
+          </div>
+          <span className="cart-header-spacer" aria-hidden="true" />
+        </div>
         <div className="cart-empty">
-          <div style={{fontSize: 64, opacity: 0.2}}>🛒</div>
+          <div className="cart-empty-illu">
+            <div className="cart-empty-bubble" />
+            <div className="cart-empty-emoji">🛒</div>
+          </div>
           <h3>Ton panier est vide</h3>
-          <p>Découvre notre catalogue et ajoute des produits</p>
-          <button className="btn-primary" onClick={() => navigate('/')} style={{maxWidth: 240, marginTop: 24}}>
-            Voir le catalogue →
+          <p>Découvre notre catalogue et ajoute tes produits préférés</p>
+          <button className="cart-empty-cta" onClick={() => navigate('/')}>
+            Voir le catalogue
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
           </button>
         </div>
         <TabBar active="cart" />
@@ -119,21 +293,25 @@ export default function Cart() {
 
   return (
     <div className="cart-screen page-anim">
-      <div className="cart-header">
-        <button className="icon-back-btn" onClick={() => navigate(-1)}>
+      {/* ═══ Header sticky glass ═══ */}
+      <div className="cart-header cart-header-glass">
+        <button className="icon-back-btn" onClick={() => navigate(-1)} aria-label="Retour">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
           </svg>
         </button>
-        <div>
+        <div className="cart-header-title">
           <h1>Mon panier</h1>
           <p>{items.length} article{items.length > 1 ? 's' : ''} · {Object.keys(grouped).length} pharmacie{Object.keys(grouped).length > 1 ? 's' : ''}</p>
         </div>
+        <button className="cart-clear-btn" onClick={clearCart} aria-label="Vider le panier">
+          Vider
+        </button>
       </div>
 
       <div className="cart-scroll">
         {isPreorder && (
-          <div className="cart-preorder-banner">
+          <div className="cart-preorder-banner cart-fade-in">
             <div className="cart-preorder-icon">✈️</div>
             <div className="cart-preorder-text">
               <strong>Commande Import</strong>
@@ -144,95 +322,120 @@ export default function Cart() {
           </div>
         )}
 
-        {Object.entries(grouped).map(([phId, group]) => (
-          <div key={phId} className="cart-group">
-            <div className="cart-group-head">🏥 {group.name}</div>
-            {group.items.map((it) => {
-              const globalIdx = items.indexOf(it);
-              return (
-                <div key={it.productId + phId} className="cart-item">
-                  <img src={it.img} alt={it.name || 'Produit'} loading="lazy" decoding="async" />
-                  <div className="cart-item-info">
-                    <div className="cart-item-brand">
-                      {it.brand}
-                      {it.is_imported && (
-                        <span className="cart-item-import-tag">✈️ Import {it.lead_time_days || 15}j</span>
-                      )}
-                    </div>
-                    <div className="cart-item-name">{it.name}</div>
-                    <div className="cart-item-price">{formatPrice(it.price)} FCFA</div>
-                  </div>
-                  <div className="cart-item-qty">
-                    <button onClick={() => updateQty(globalIdx, -1)} aria-label="Diminuer">−</button>
-                    <span>{it.qty}</span>
-                    <button onClick={() => updateQty(globalIdx, 1)} aria-label="Augmenter">+</button>
-                  </div>
-                  <button
-                    onClick={() => removeItem(globalIdx)}
-                    aria-label="Supprimer cet article"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#D9342B',
-                      fontSize: 18,
-                      cursor: 'pointer',
-                      padding: '4px 6px',
-                      marginLeft: 4,
-                    }}
-                  >🗑</button>
-                </div>
-              );
-            })}
+        {/* ═══ Items groupés par pharmacie ═══ */}
+        {Object.entries(grouped).map(([phId, group], gIdx) => (
+          <div
+            key={phId}
+            className="cart-group cart-fade-in"
+            style={{ animationDelay: `${gIdx * 60}ms` }}
+          >
+            <div className="cart-group-head">
+              <span className="cart-group-icon" aria-hidden="true">🏥</span>
+              <span className="cart-group-name">{group.name}</span>
+              <span className="cart-group-count">{group.items.length} article{group.items.length > 1 ? 's' : ''}</span>
+            </div>
+            <div className="cart-group-items">
+              {group.items.map((it) => {
+                const globalIdx = items.indexOf(it);
+                return (
+                  <CartItem
+                    key={(it.productId || it.id || it.name) + '-' + phId}
+                    item={it}
+                    index={globalIdx}
+                    onQty={updateQty}
+                    onRemove={removeItem}
+                  />
+                );
+              })}
+            </div>
           </div>
         ))}
 
-        <div className="cart-summary">
-          <div className="cart-row"><span>Sous-total</span><strong>{formatPrice(subtotal)} FCFA</strong></div>
+        {/* ═══ Summary premium ═══ */}
+        <div className="cart-summary cart-fade-in" style={{ animationDelay: '120ms' }}>
           <div className="cart-row">
-            <span>Livraison ({zone.zone})</span>
-            <strong>{shipping === 0 ? 'Gratuit' : `${formatPrice(shipping)} FCFA`}</strong>
+            <span className="cart-row-label">Sous-total</span>
+            <strong>{formatPrice(subtotal)} FCFA</strong>
           </div>
-          {subtotal > 0 && subtotal < zone.freeFrom && (
-            <div className="cart-row" style={{ fontSize: 11, color: '#1F8B4C' }}>
-              <span>+{formatPrice(zone.freeFrom - subtotal)} FCFA pour la livraison gratuite</span>
+          <div className="cart-row">
+            <span className="cart-row-label">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle', marginRight: 6}}>
+                <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              Livraison <span className="cart-zone-chip">{zone.zone}</span>
+            </span>
+            <strong className={shipping === 0 ? 'cart-shipping-free' : ''}>
+              {shipping === 0 ? 'Gratuit' : `${formatPrice(shipping)} FCFA`}
+            </strong>
+          </div>
+
+          {showFreeProgress && (
+            <div className="cart-free-progress">
+              <div className="cart-free-progress-label">
+                <span>+{formatPrice(remainingForFree)} FCFA pour la <strong>livraison gratuite</strong></span>
+              </div>
+              <div className="cart-free-progress-bar">
+                <div
+                  className="cart-free-progress-fill"
+                  style={{ width: `${freeProgress}%` }}
+                />
+              </div>
             </div>
           )}
-          <div className="cart-row cart-row-total"><span>Total</span><strong>{formatPrice(total)} FCFA</strong></div>
+
+          <div className="cart-row cart-row-total" key={totalBumpKey}>
+            <span>Total</span>
+            <strong className="cart-total-amount">{formatPrice(total)} FCFA</strong>
+          </div>
 
           {isPreorder && (
             <div className="cart-preorder-breakdown">
               <div className="cart-row">
-                <span>💳 Acompte à payer maintenant (50%)</span>
+                <span className="cart-row-label">💳 Acompte maintenant (50%)</span>
                 <strong style={{ color: '#0066CC' }}>{formatPrice(preorderSummary.breakdown.depositAmount)} FCFA</strong>
               </div>
               <div className="cart-row">
-                <span>📦 Solde à l'arrivée à Dakar (50%)</span>
+                <span className="cart-row-label">📦 Solde à l'arrivée Dakar (50%)</span>
                 <strong>{formatPrice(preorderSummary.breakdown.balanceAmount)} FCFA</strong>
               </div>
-              <div className="cart-row" style={{ fontSize: 11, color: 'var(--muted)' }}>
-                <span>Arrivée estimée : {preorderSummary.expectedArrivalFormatted}</span>
+              <div className="cart-preorder-eta">
+                Arrivée estimée le {preorderSummary.expectedArrivalFormatted}
               </div>
             </div>
           )}
         </div>
 
         {Object.keys(grouped).length > 1 && (
-          <div className="cart-info-banner">
-            ℹ️ Commande chez {Object.keys(grouped).length} pharmacies, livrée en une seule fois par YARAM
+          <div className="cart-info-banner cart-fade-in">
+            <span aria-hidden="true">ℹ️</span>
+            <span>Commande chez {Object.keys(grouped).length} pharmacies, livrée en une seule fois par YARAM</span>
           </div>
         )}
 
-        <div style={{height: 100}} />
+        <div className="cart-swipe-hint">← Glisse un article pour le supprimer</div>
+
+        <div style={{height: 120}} />
       </div>
 
+      {/* ═══ CTA bottom premium ═══ */}
       <div className="cart-cta">
         <button
-          className="btn-primary"
-          onClick={() => navigate({ name: 'checkout', params: { items, total, subtotal, shipping, preorderSummary } })}
+          className="cart-cta-btn"
+          onClick={handleCheckout}
+          aria-label={isPreorder ? 'Payer l\'acompte' : 'Passer commande'}
         >
-          {isPreorder
-            ? `Payer l'acompte · ${formatPrice(preorderSummary.breakdown.depositAmount)} FCFA →`
-            : `Passer commande · ${formatPrice(total)} FCFA →`}
+          <span className="cart-cta-label">
+            {isPreorder ? "Payer l'acompte" : 'Passer commande'}
+          </span>
+          <span className="cart-cta-sep" aria-hidden="true">·</span>
+          <span className="cart-cta-amount">
+            {isPreorder
+              ? `${formatPrice(preorderSummary.breakdown.depositAmount)} FCFA`
+              : `${formatPrice(total)} FCFA`}
+          </span>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="cart-cta-arrow">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+          </svg>
         </button>
       </div>
     </div>

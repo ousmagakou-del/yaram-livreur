@@ -9,12 +9,22 @@
          tant que la clé APNs OneSignal couvre "Sandbox & Production" -->
     <key>aps-environment</key>
     <string>production</string>
-    <!-- ⚠️ Universal Links désactivés temporairement le temps de configurer
-         la capability dans Xcode UI (Signing & Capabilities > + Capability >
-         Associated Domains). À réactiver pour le prochain build :
-         <key>com.apple.developer.associated-domains</key>
-         <array><string>applinks:yaram.app</string></array>
-         L'AASA file public/.well-known/apple-app-site-association reste
-         déployé sur le web (zéro effet tant que iOS n'a pas l'entitlement). -->
+
+    <!-- Sign in with Apple : obligatoire car YARAM propose Google OAuth.
+         Apple rejette toute app qui offre une connexion sociale sans
+         proposer aussi Sign in with Apple (App Store Review Guideline 4.8).
+         Le code JS / flow Supabase est traité séparément. -->
+    <key>com.apple.developer.applesignin</key>
+    <array>
+        <string>Default</string>
+    </array>
+
+    <!-- Universal Links : AASA déployé sur https://yaram.app/.well-known/apple-app-site-association.
+         Permet aux liens https://yaram.app/... d'ouvrir directement l'app
+         (deep links produits, reset password, magic links Supabase, etc.). -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>applinks:yaram.app</string>
+    </array>
 </dict>
 </plist>

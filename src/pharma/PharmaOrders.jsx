@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
-import { getPharmacyOrders, acceptOrder, refuseOrder, markOrderReady, sendWhatsApp, getCachedSetting } from '../lib/supabase';
+import { getPharmacyOrders, acceptOrder, refuseOrder, markOrderReady, sendWhatsApp, getCachedSetting, supabase, getPharmaToken } from '../lib/supabase';
 import { getWhatsAppIntl } from '../lib/utils';
 import { toast, confirmDialog } from '../lib/toast';
+
+// Helper local : revert preparing -> paid (pour refus tardif). Le serveur
+// (pharma_revert_to_paid) verifie que l'order appartient bien a la pharmacie
+// du token et qu'elle est bien en 'preparing'.
+async function revertOrderToPaid(orderId) {
+  const token = getPharmaToken();
+  if (!token) return { error: { message: 'Session pharma expirée' } };
+  return supabase.rpc('pharma_revert_to_paid', {
+    p_token: token, p_order_id: orderId,
+  });
+}
 
 const REFUSAL_REASONS = [
   'Produit en rupture de stock',
@@ -71,8 +82,18 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
   };
 
   const handleRefuse = async (order, reason) => {
+    // CAS REFUS TARDIF : order deja en 'preparing' (la pharma a accepte puis
+    // s'est rendu compte d'un probleme). On revert d'abord vers 'paid', sinon
+    // pharma_update_order(refuse) rejettera la transition.
+    if (order.status === 'preparing') {
+      const revert = await revertOrderToPaid(order.id);
+      if (!rpcSucceeded(revert, 'revert preparing→paid')) return;
+    }
+
     const result = await refuseOrder(order.id, reason);
     if (!rpcSucceeded(result, 'refus')) return;
+
+    const lateLabel = order.status === 'preparing' ? ' (refus tardif après acceptation)' : '';
 
     // WhatsApp à la cliente
     if (order.address?.phone) {
@@ -81,7 +102,7 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
     }
 
     // WhatsApp à YARAM admin
-    sendWhatsApp(getWhatsAppIntl(), `⚠️ REFUS YARAM\n\n${pharmacyName} a refusé la commande ${order.id}\nMotif : ${reason}\n\nClient : ${order.address?.name} · ${order.address?.phone}\nMontant : ${order.total?.toLocaleString('fr-FR')} FCFA`);
+    sendWhatsApp(getWhatsAppIntl(), `⚠️ REFUS YARAM${lateLabel}\n\n${pharmacyName} a refusé la commande ${order.id}\nMotif : ${reason}\n\nClient : ${order.address?.name} · ${order.address?.phone}\nMontant : ${order.total?.toLocaleString('fr-FR')} FCFA`);
 
     setRefusing(null);
     setSelectedOrder(null);
@@ -243,9 +264,18 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
                   )}
                   
                   {o.status === 'preparing' && (
-                    <button className="phar-btn-success" onClick={() => handleReady(o)}>
-                      ✅ Prête à livrer
-                    </button>
+                    <>
+                      <button className="phar-btn-success" onClick={() => handleReady(o)}>
+                        ✅ Prête à livrer
+                      </button>
+                      <button
+                        className="phar-btn-danger"
+                        onClick={() => setRefusing(o)}
+                        title="Annuler l'acceptation et refuser la commande (rupture, problème...)"
+                      >
+                        ⚠️ Refuser finalement
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -279,12 +309,16 @@ function RefuseModal({ order, onRefuse, onCancel }) {
     onRefuse(final);
   };
 
+  const isLate = order.status === 'preparing';
+
   return (
     <div className="phar-modal-overlay" onClick={onCancel}>
       <div className="phar-modal" onClick={e => e.stopPropagation()}>
-        <h3>❌ Refuser la commande {order.id}</h3>
+        <h3>{isLate ? '⚠️ Refus tardif' : '❌ Refuser'} la commande {order.id}</h3>
         <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 16 }}>
-          La cliente sera notifiée et remboursée si paiement digital
+          {isLate
+            ? 'Tu avais accepté cette commande. En la refusant maintenant, on annule l\'acceptation, on prévient la cliente et YARAM (livreur à débriefer si déjà en route).'
+            : 'La cliente sera notifiée et remboursée si paiement digital'}
         </p>
         
         <div className="phar-refuse-reasons">

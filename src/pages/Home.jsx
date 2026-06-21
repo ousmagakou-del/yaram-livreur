@@ -14,7 +14,11 @@ import ProductTile from '../components/ProductTile';
 import PullToRefresh from '../components/PullToRefresh';
 import TabBar from '../components/TabBar';
 import BarcodeScannerClient from '../components/BarcodeScannerClient';
+import HeroBanner from '../components/HeroBanner';
+import { getCartCount } from '../lib/cart';
+import { getUnreadNotificationsCount, subscribeNotificationsCount } from '../lib/supabase';
 import { usePageSEO } from '../lib/seo';
+import { trackEvent } from '../lib/analytics';
 import '../components/BarcodeScannerClient.css';
 import './Home.css';
 
@@ -90,6 +94,11 @@ export default function Home() {
     canonical: 'https://yaram.app/',
   });
 
+  // ─── ANALYTICS : home_viewed à chaque mount Home ───
+  useEffect(() => {
+    trackEvent('home_viewed');
+  }, []);
+
   // ─── Hydrate depuis le cache module-level si dispo (instantane) ───
   const [products, setProducts] = useState(homeDataCache.products || []);
   const [pharmacies, setPharmacies] = useState(homeDataCache.pharmacies || []);
@@ -146,6 +155,35 @@ export default function Home() {
   // Loading = true SEULEMENT au tout premier load (pas de cache)
   const [loading, setLoading] = useState(!homeDataCache.products);
   const [scannerOpen, setScannerOpen] = useState(false);
+  // ─── Badge count panier en haut header (sync via yaram-cart-updated) ───
+  const [cartCount, setCartCount] = useState(() => getCartCount());
+  useEffect(() => {
+    const onUpdate = () => setCartCount(getCartCount());
+    window.addEventListener('yaram-cart-updated', onUpdate);
+    return () => window.removeEventListener('yaram-cart-updated', onUpdate);
+  }, []);
+
+  // ─── Badge count notifs non-lues (real-time Supabase subscription) ───
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    getUnreadNotificationsCount().then(c => { if (!cancelled) setUnreadCount(c); });
+    const unsub = subscribeNotificationsCount(user.id, (c) => {
+      if (!cancelled) setUnreadCount(c);
+    });
+    return () => { cancelled = true; unsub?.(); };
+  }, [user?.id]);
+
+  // ─── Haptic feedback léger au tap (Capacitor iOS + fallback vibrate) ───
+  const haptic = async () => {
+    try {
+      const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+      await Haptics.impact({ style: ImpactStyle.Light });
+    } catch {
+      if (navigator.vibrate) navigator.vibrate(15);
+    }
+  };
   const [couponDismissed, setCouponDismissed] = useState(() => {
     try { return localStorage.getItem('yaram_coupon_dismissed') === '1'; } catch { return false; }
   });
@@ -462,6 +500,14 @@ export default function Home() {
         supabase.from('banners').update({ click_count: (banner.click_count || 0) + 1 }).eq('id', banner.id);
       });
     }
+    try {
+      trackEvent('banner_clicked', {
+        banner_id: banner.id,
+        title: banner.title,
+        link_type: banner.link_type,
+        link_target: banner.link_target,
+      });
+    } catch {}
     if (banner.link_type === 'scan') navigate({ name: 'scan', params: {} });
     else if (banner.link_type === 'pharmacy') navigate({ name: 'pharmacies', params: {} });
     else if (banner.link_type === 'product' && banner.link_target) navigate({ name: 'product', params: { id: banner.link_target } });
@@ -526,18 +572,10 @@ export default function Home() {
         {/* ════════ HEADER VERT YARAM ════════ */}
         <header className="yhome-hero">
           <div className="yhome-hero-top">
-            <div className="yhome-avatar-btn" style={{ background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                onClick={() => navigate('/profile')}
-                style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-                aria-label="Mon profil"
-              >
-                {user?.avatar ? (
-                  <img src={user.avatar} alt={user.first_name || 'Avatar'} loading="eager" decoding="async" className="yhome-avatar-img" />
-                ) : (
-                  <div className="yhome-avatar-letter">{avatarLetter}</div>
-                )}
-              </button>
+            {/* ─── Bloc gauche : greeting + adresse (avatar profil retiré, il
+                est déjà dans la TabBar en bas → on libère la place pour les
+                actions à droite : notifications + panier) ─── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="yhome-hello">Salut {firstName} 👋</div>
                 <button
@@ -658,13 +696,39 @@ export default function Home() {
                 </div>
               </div>
             )}
-            <button className="yhome-bell" onClick={() => navigate('/orders')} aria-label="Notifications">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 01-3.46 0"/>
-              </svg>
-              <span className="yhome-bell-dot" />
-            </button>
+            {/* ─── Actions header droite : Notifs + Panier (glass + badges live) ─── */}
+            <div className="yhome-actions">
+
+              <button
+                className={`yhome-action-btn ${unreadCount > 0 ? 'has-badge' : ''}`}
+                onClick={() => { haptic(); navigate({ name: 'notifications', params: {} }); }}
+                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} non lue${unreadCount > 1 ? 's' : ''})` : ''}`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden="true">
+                  <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 01-3.46 0"/>
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="yhome-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                )}
+              </button>
+
+              <button
+                className={`yhome-action-btn ${cartCount > 0 ? 'has-badge' : ''}`}
+                onClick={() => { haptic(); navigate({ name: 'cart', params: {} }); }}
+                aria-label={`Panier${cartCount > 0 ? ` (${cartCount} article${cartCount > 1 ? 's' : ''})` : ''}`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden="true">
+                  <circle cx="9" cy="21" r="1"/>
+                  <circle cx="20" cy="21" r="1"/>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                </svg>
+                {cartCount > 0 && (
+                  <span className="yhome-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+                )}
+              </button>
+
+            </div>
           </div>
 
           <div className="yhome-search-row">
@@ -692,6 +756,9 @@ export default function Home() {
             </button>
           </div>
         </header>
+
+        {/* ════════ HERO BANNER (style Instacart, éditable via Admin) ════════ */}
+        <HeroBanner />
 
         {!couponDismissed && (
           <div className="yhome-coupon">
@@ -816,7 +883,10 @@ export default function Home() {
                 <button
                   key={cat.id}
                   className="yhome-cat-item"
-                  onClick={() => navigate({ name: 'search', params: { category: cat.slug } })}
+                  onClick={() => {
+                    try { trackEvent('category_clicked', { category: cat.slug, name: cat.name }); } catch {}
+                    navigate({ name: 'search', params: { category: cat.slug } });
+                  }}
                 >
                   <div
                     className="yhome-cat-tile"
@@ -925,7 +995,10 @@ export default function Home() {
               <button
                 key={ph.id}
                 className="yhome-pharma-card"
-                onClick={() => navigate({ name: 'pharmacy_detail', params: { id: ph.id } })}
+                onClick={() => {
+                  try { trackEvent('pharmacy_clicked', { pharmacy_id: ph.id, pharmacy_name: ph.name }); } catch {}
+                  navigate({ name: 'pharmacy_detail', params: { id: ph.id } });
+                }}
               >
                 <div
                   className="yhome-pharma-cover"

@@ -5,6 +5,7 @@ import { sendEmail, sendOrderEmail } from '../lib/emails';
 import { getWhatsAppDisplay, getWhatsAppNumber } from '../lib/utils';
 import { isNativeApp } from '../lib/platform';
 import { toast } from '../lib/toast';
+import { trackEvent } from '../lib/analytics';
 import "./payment.css";
 
 // Capacitor Browser : ouvre un browser in-app sur native (Safari View Controller iOS)
@@ -83,6 +84,14 @@ export default function Payment({ orderId }) {
 
   const handlePay = async () => {
     setPaying(true);
+    // ─── ANALYTICS : payment_started ───
+    try {
+      trackEvent('payment_started', {
+        order_id: orderId,
+        method: order?.payment_method,
+        amount: order?.total,
+      });
+    } catch {}
     try {
       // ─── 1. Marque la commande payée — avec timeout généreux + retry auto ───
       // 30s par tentative × 2 tentatives = 60s max. Réseau LTE sénégalais peut
@@ -92,8 +101,18 @@ export default function Payment({ orderId }) {
       const UPDATE_TIMEOUT_MS = 30000;
       const MAX_ATTEMPTS = 2;
 
+      // ─── ANTI-FRAUDE WAVE ───
+      // Pour Wave/OM/Card, le user passe en 'awaiting_verification' (pas 'paid').
+      // L'admin doit confirmer manuellement via le dashboard après vérif du
+      // virement réel (montant + référence). Empêche la fraude : user édite
+      // l'URL Wave pour payer 100 FCFA sur commande de 200 000 FCFA, clique
+      // "J'ai payé" → si on flippait direct en 'paid', il aurait la livraison.
+      // Pour COD (cash livraison), on garde le flux actuel : pas de paiement
+      // amont à vérifier, on passe en 'paid' (sera vérifié à la livraison).
+      const targetStatus = order?.payment_method === 'cod' ? 'paid' : 'awaiting_verification';
+
       const callWithTimeout = () => {
-        const p = updateOrderStatus(orderId, 'paid');
+        const p = updateOrderStatus(orderId, targetStatus);
         const t = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), UPDATE_TIMEOUT_MS)
         );
@@ -121,13 +140,32 @@ export default function Payment({ orderId }) {
         throw new Error('Réseau trop lent. Réessaie dans 30 secondes ou contacte-nous WhatsApp.');
       }
 
+      // ─── FIX crash timeout : si result === null (timeout a gagné Promise.race),
+      // on throw explicitement au lieu de laisser result?.error crash sur undefined. ───
+      if (!result) {
+        throw new Error('timeout');
+      }
+
       // updateOrderStatus retourne { error } ou { data } — pas un throw.
       if (result?.error) {
         throw new Error(result.error.message || 'Échec de la confirmation');
       }
 
       // ─── 2. Navigation immédiate vers le tracking ───
-      toast.success('Paiement confirmé');
+      toast.success(
+        targetStatus === 'awaiting_verification'
+          ? 'Merci ! On vérifie ton paiement, livraison déclenchée dès confirmation.'
+          : 'Paiement confirmé'
+      );
+      // ─── ANALYTICS : payment_succeeded (status 'paid' COD ou awaiting_verification autres) ───
+      try {
+        trackEvent('payment_succeeded', {
+          order_id: orderId,
+          method: order?.payment_method,
+          amount: order?.total,
+          status: targetStatus,
+        });
+      } catch {}
       setPaying(false);
       navigate({ name: 'order_tracking', params: { orderId } });
 
@@ -137,6 +175,14 @@ export default function Payment({ orderId }) {
       });
     } catch (e) {
       console.error('[Payment] handlePay error:', e);
+      // ─── ANALYTICS : payment_failed ───
+      try {
+        trackEvent('payment_failed', {
+          order_id: orderId,
+          method: order?.payment_method,
+          reason: e?.message || 'unknown',
+        });
+      } catch {}
       setPaying(false);
       toast.error(e?.message || 'Erreur inconnue');
     }
@@ -201,12 +247,28 @@ export default function Payment({ orderId }) {
   const handlePayTech = async () => {
     if (!order?.id) return;
     setCreatingPayTech(true);
+    // ─── ANALYTICS : payment_started (PayTech) ───
     try {
+      trackEvent('payment_started', {
+        order_id: order.id,
+        method: order?.payment_method || 'paytech',
+        amount: order?.total,
+        provider: 'paytech',
+      });
+    } catch {}
+    try {
+      // Pour preorder : on charge SEULEMENT l'acompte (50%) maintenant,
+      // pas le total. Le solde sera demandé à l'arrivée de l'import.
+      const chargeAmount = order.is_preorder && order.deposit_amount
+        ? Number(order.deposit_amount)
+        : Number(order.total);
+
       const { data, error: fnErr } = await supabase.functions.invoke('paytech-create-payment', {
         body: {
           order_id: order.id,
-          amount: order.total,
-          item_name: `YARAM Commande ${order.id}`,
+          amount: chargeAmount,
+          is_preorder: !!order.is_preorder,
+          item_name: `YARAM ${order.is_preorder ? 'Acompte ' : ''}Commande ${order.id}`,
           target_payment: order.payment_method === 'wave' ? 'Wave'
                        : order.payment_method === 'om'   ? 'Orange Money'
                        : null,
@@ -228,14 +290,14 @@ export default function Payment({ orderId }) {
           try {
             toast('Vérification du paiement…');
             const { data: refreshed } = await supabase.rpc('client_get_order_by_id', { p_order_id: order.id });
-            if (refreshed?.status === 'paid' || refreshed?.status === 'shipped' || refreshed?.status === 'delivered') {
+            if (refreshed?.status === 'paid' || refreshed?.status === 'confirmed' || refreshed?.status === 'shipped' || refreshed?.status === 'delivered') {
               toast.success('✅ Paiement confirmé !');
               navigate({ name: 'order_tracking', params: { orderId: order.id } });
             } else {
               // Pas encore confirmé (webhook PayTech en retard) → poll 5 sec puis re-check
               setTimeout(async () => {
                 const { data: r2 } = await supabase.rpc('client_get_order_by_id', { p_order_id: order.id });
-                if (r2?.status === 'paid' || r2?.status === 'shipped' || r2?.status === 'delivered') {
+                if (r2?.status === 'paid' || r2?.status === 'confirmed' || r2?.status === 'shipped' || r2?.status === 'delivered') {
                   toast.success('✅ Paiement confirmé !');
                   navigate({ name: 'order_tracking', params: { orderId: order.id } });
                 } else {
@@ -253,6 +315,15 @@ export default function Payment({ orderId }) {
       }
     } catch (e) {
       setCreatingPayTech(false);
+      // ─── ANALYTICS : payment_failed (PayTech) ───
+      try {
+        trackEvent('payment_failed', {
+          order_id: order?.id,
+          method: order?.payment_method || 'paytech',
+          reason: e?.message || 'unknown',
+          provider: 'paytech',
+        });
+      } catch {}
       toast.error('Paiement indisponible : ' + (e?.message || 'Erreur inconnue'));
     }
   };

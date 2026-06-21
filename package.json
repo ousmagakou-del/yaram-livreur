@@ -23,9 +23,11 @@
     "@capacitor/ios": "^8.3.4",
     "@capacitor/push-notifications": "^8.1.1",
     "@capacitor/browser": "^8.0.0",
+    "@capacitor-community/apple-sign-in": "^7.0.0",
     "@sentry/browser": "^8.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "@zxing/browser": "^0.2.0",
+    "posthog-js": "^1.196.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

@@ -60,6 +60,19 @@ const SETTINGS_FALLBACK = {
   email: 'contact@yaram.sn',
   primaryColor: '#1F8B4C',
   accentColor: '#FFD700',
+  // ─── Hero banner Home (éditable dans Admin → Settings → Hero) ───
+  heroEnabled: true,
+  heroLine1: 'Zéro',
+  heroLine2: 'frais de',
+  heroLine3: 'service',
+  heroSubtext: 'Livraison à 1 500 FCFA',
+  heroBackground: '#1F8B4C',
+  heroLine1Color: '#FFF8E5',
+  heroLineColor: '#FFFFFF',
+  heroSubBg: '#F4B53A',
+  heroSubColor: '#4A1B0C',
+  heroCtaLabel: 'Découvrir les promos',
+  heroCtaRoute: 'promos',
 };
 let settingsCache = { ...SETTINGS_FALLBACK };
 const settingsListeners = new Set();
@@ -1452,4 +1465,70 @@ export async function respondToReview(reviewId, response) {
     pharmacy_response: response,
     pharmacy_responded_at: new Date().toISOString(),
   }).eq('id', reviewId);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NOTIFICATIONS — list, mark as read, count unread
+// ═══════════════════════════════════════════════════════════════════
+
+export async function getMyNotifications(limit = 50) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, title, body, icon, url, type, read, sent_at')
+    .order('sent_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn('[notifs] getMy error:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
+export async function getUnreadNotificationsCount() {
+  try {
+    const { data, error } = await supabase.rpc('count_unread_notifications');
+    if (error) return 0;
+    return Number(data) || 0;
+  } catch { return 0; }
+}
+
+export async function markAllNotificationsRead() {
+  try {
+    const { data, error } = await supabase.rpc('mark_all_notifications_read');
+    if (error) return 0;
+    return Number(data) || 0;
+  } catch { return 0; }
+}
+
+export async function markNotificationRead(notificationId) {
+  try {
+    const { data, error } = await supabase.rpc('mark_notification_read', {
+      p_notification_id: notificationId,
+    });
+    if (error) return false;
+    return !!data;
+  } catch { return false; }
+}
+
+// Real-time subscription : appelle onUpdate(count) à chaque INSERT/UPDATE
+// sur la table notifications du user courant. Retourne unsubscribe.
+export function subscribeNotificationsCount(userId, onUpdate) {
+  if (!userId) return () => {};
+  const channel = supabase
+    .channel(`notif-count-${userId}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'notifications',
+      filter: `user_id=eq.${userId}`,
+    }, async () => {
+      try {
+        const c = await getUnreadNotificationsCount();
+        onUpdate(c);
+      } catch { /* ignore */ }
+    })
+    .subscribe();
+  return () => {
+    try { supabase.removeChannel(channel); } catch { /* ignore */ }
+  };
 }

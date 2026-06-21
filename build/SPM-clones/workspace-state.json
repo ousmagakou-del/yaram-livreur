@@ -133,6 +133,20 @@
       {
         "basedOn" : null,
         "packageRef" : {
+          "identity" : "haptics",
+          "kind" : "fileSystem",
+          "location" : "/Users/ousmanegakou/Documents/diaara/node_modules/@capacitor/haptics",
+          "name" : "haptics"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/ousmanegakou/Documents/diaara/node_modules/@capacitor/haptics"
+        },
+        "subpath" : "haptics"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
           "identity" : "keychain-swift",
           "kind" : "remoteSourceControl",
           "location" : "https://github.com/evgenyneu/keychain-swift.git",

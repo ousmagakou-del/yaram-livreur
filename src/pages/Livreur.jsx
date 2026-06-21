@@ -3,6 +3,7 @@ import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken, compre
 import { sendOrderEmail } from '../lib/emails';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { toast, confirmDialog } from '../lib/toast';
+import SignedImage from '../components/SignedImage';
 import './Livreur.css';
 
 // URL + key Supabase lus depuis import.meta.env ou fallback (centralise lib/supabase).
@@ -658,7 +659,7 @@ export default function Livreur() {
                 <div className="liv-step-content">
                   <strong>🏥 J'arrive à la pharmacie</strong>
                   <p>Photo de la pharmacie (preuve d'arrivée)</p>
-                  {tracking?.pickup_before_photo_url && <img src={tracking.pickup_before_photo_url} alt="" className="liv-thumb liv-fade-in" />}
+                  {tracking?.pickup_before_photo_url && <SignedImage src={tracking.pickup_before_photo_url} alt="" className="liv-thumb liv-fade-in" />}
                   <div className="liv-step-actions">
                     <button
                       className="liv-mini-btn"
@@ -773,7 +774,7 @@ export default function Livreur() {
                 <div className="liv-step-content">
                   <strong>📦 Produits récupérés</strong>
                   <p>Photo des produits avant de partir</p>
-                  {tracking?.pickup_after_photo_url && <img src={tracking.pickup_after_photo_url} alt="" className="liv-thumb liv-fade-in" />}
+                  {tracking?.pickup_after_photo_url && <SignedImage src={tracking.pickup_after_photo_url} alt="" className="liv-thumb liv-fade-in" />}
                   <div className="liv-step-actions">
                     <button
                       className="liv-mini-btn"
@@ -900,7 +901,7 @@ export default function Livreur() {
             {proofMethod && (
               <div className="liv-proof-preview">
                 {proofMethod === 'photo' && tracking?.delivery_photo_url && (
-                  <img src={tracking.delivery_photo_url} alt="" />
+                  <SignedImage src={tracking.delivery_photo_url} alt="" />
                 )}
                 {proofMethod === 'signature' && tracking?.delivery_signature && (
                   <img src={tracking.delivery_signature} alt="" style={{ background: 'white' }} />

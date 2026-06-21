@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, getPharmaToken } from '../lib/supabase';
+import { toast } from '../lib/toast';
 
 export default function PharmaInventory({ pharmacyId }) {
   const [products, setProducts] = useState([]);
@@ -39,44 +40,86 @@ export default function PharmaInventory({ pharmacyId }) {
     setLoading(false);
   };
 
+  // Helper : extrait le retour d'une RPC pharma_upsert_inventory.
+  // Retourne true si succes, false sinon (et toast l'erreur).
+  // ATTENTION : on capture l'etat AVANT le setState optimiste pour pouvoir
+  // rollback proprement en cas d'erreur reseau / refus RLS / 2e onglet qui
+  // a deja change le stock entre-temps.
+  const rpcUpsertOk = ({ data, error }, label) => {
+    if (error) {
+      console.error(`[Inventory] ${label} RPC error:`, error);
+      toast.error(`Erreur ${label} : ${error.message || 'connexion'}`);
+      return false;
+    }
+    if (data && data.success === false) {
+      console.error(`[Inventory] ${label} RPC refus:`, data);
+      toast.error(`Refusé : ${data.error || 'opération non autorisée'}`);
+      return false;
+    }
+    return true;
+  };
+
   const toggleAvailable = async (productId) => {
+    const token = getPharmaToken();
+    if (!token) {
+      toast.error('Session pharma expirée, reconnecte-toi');
+      return;
+    }
+
     const current = inventory[productId] || { stock: 0, available: false };
     const newAvailable = !current.available;
 
-    // Update local
-    setInventory(prev => ({
-      ...prev,
+    // Snapshot pour rollback si la RPC echoue
+    const prev = inventory;
+
+    // Optimistic update
+    setInventory(p => ({
+      ...p,
       [productId]: { ...current, available: newAvailable },
     }));
 
     // Vague 14 RLS : passe par pharma_upsert_inventory (token requis)
-    const token = getPharmaToken();
-    if (!token) return;
-    await supabase.rpc('pharma_upsert_inventory', {
+    const res = await supabase.rpc('pharma_upsert_inventory', {
       p_token: token,
       p_product_id: productId,
       p_stock: current.stock,
       p_active: newAvailable,
     });
+
+    if (!rpcUpsertOk(res, 'maj disponibilité')) {
+      // Rollback : on remet l'etat tel qu'il etait AVANT le setState optimiste
+      setInventory(prev);
+    }
   };
 
   const updateStock = async (productId, stock) => {
+    const token = getPharmaToken();
+    if (!token) {
+      toast.error('Session pharma expirée, reconnecte-toi');
+      return;
+    }
+
     const current = inventory[productId] || { stock: 0, available: true };
     const newStock = Math.max(0, parseInt(stock) || 0);
 
-    setInventory(prev => ({
-      ...prev,
+    // Snapshot pour rollback
+    const prev = inventory;
+
+    setInventory(p => ({
+      ...p,
       [productId]: { ...current, stock: newStock, available: newStock > 0 },
     }));
 
-    const token = getPharmaToken();
-    if (!token) return;
-    await supabase.rpc('pharma_upsert_inventory', {
+    const res = await supabase.rpc('pharma_upsert_inventory', {
       p_token: token,
       p_product_id: productId,
       p_stock: newStock,
       p_active: newStock > 0,
     });
+
+    if (!rpcUpsertOk(res, 'maj stock')) {
+      setInventory(prev);
+    }
   };
 
   const filtered = products.filter(p => {

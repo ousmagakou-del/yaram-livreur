@@ -37,6 +37,19 @@ const DEFAULTS = {
   email: 'contact@yaram.sn',
   primaryColor: '#1F8B4C',
   accentColor: '#FFD700',
+  // ─── Hero banner Home (3 lignes typo XXL + sous-titre + couleurs) ───
+  heroEnabled: true,
+  heroLine1: 'Zéro',
+  heroLine2: 'frais de',
+  heroLine3: 'service',
+  heroSubtext: 'Livraison à 1 500 FCFA',
+  heroBackground: '#1F8B4C',
+  heroLine1Color: '#FFF8E5',
+  heroLineColor: '#FFFFFF',
+  heroSubBg: '#F4B53A',
+  heroSubColor: '#4A1B0C',
+  heroCtaLabel: 'Découvrir les promos',
+  heroCtaRoute: 'promos',
 };
 
 export default function SettingsSection() {
@@ -132,6 +145,85 @@ export default function SettingsSection() {
             <h3>🎨 Couleurs <small style={{ color: '#9B9B9B', fontWeight: 500, fontSize: 11 }}>(à câbler côté CSS)</small></h3>
             <label>Couleur principale<input type="color" value={settings.primaryColor} onChange={e => setSettings({ ...settings, primaryColor: e.target.value })} style={{ height: 44 }} /></label>
             <label>Couleur accent<input type="color" value={settings.accentColor} onChange={e => setSettings({ ...settings, accentColor: e.target.value })} style={{ height: 44 }} /></label>
+          </div>
+
+          {/* ════════ HERO BANNER (page Home) ════════ */}
+          <div className="adm-form-section" style={{ gridColumn: '1 / -1' }}>
+            <h3>🎨 Hero banner (page Home)</h3>
+            <p style={{ fontSize: 12, color: '#6B6B6B', marginBottom: 12 }}>
+              Slogan typo XXL animé en haut de la home cliente. 3 lignes de texte
+              en très gros, sous-titre en pill, couleurs personnalisables. Les
+              utilisatrices voient ce nouveau texte au prochain refresh de l'app.
+            </p>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={settings.heroEnabled !== false}
+                onChange={e => setSettings({ ...settings, heroEnabled: e.target.checked })}
+              />
+              <span>Afficher le hero banner</span>
+            </label>
+
+            {/* ── Aperçu live ── */}
+            <div style={{
+              background: settings.heroBackground || '#1F8B4C',
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 16,
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                fontSize: 38, fontWeight: 900, color: settings.heroLine1Color,
+                lineHeight: 0.92, letterSpacing: -1.5, textTransform: 'uppercase',
+              }}>{settings.heroLine1 || 'Ligne 1'}</div>
+              <div style={{
+                fontSize: 30, fontWeight: 900, color: settings.heroLineColor,
+                lineHeight: 0.92, letterSpacing: -1.2, textTransform: 'uppercase', marginTop: 2,
+              }}>{settings.heroLine2 || 'Ligne 2'}</div>
+              <div style={{
+                fontSize: 30, fontWeight: 900, color: settings.heroLineColor,
+                lineHeight: 0.92, letterSpacing: -1.2, textTransform: 'uppercase', marginTop: 2,
+              }}>{settings.heroLine3 || 'Ligne 3'}</div>
+              {settings.heroSubtext && (
+                <div style={{
+                  display: 'inline-block', marginTop: 10,
+                  background: settings.heroSubBg, color: settings.heroSubColor,
+                  fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 999,
+                  fontStyle: 'italic',
+                }}>{settings.heroSubtext}</div>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <label>Ligne 1<input value={settings.heroLine1} onChange={e => setSettings({ ...settings, heroLine1: e.target.value })} maxLength={20} /></label>
+              <label>Ligne 2<input value={settings.heroLine2} onChange={e => setSettings({ ...settings, heroLine2: e.target.value })} maxLength={20} /></label>
+              <label>Ligne 3<input value={settings.heroLine3} onChange={e => setSettings({ ...settings, heroLine3: e.target.value })} maxLength={20} /></label>
+              <label>Sous-titre (pill)<input value={settings.heroSubtext} onChange={e => setSettings({ ...settings, heroSubtext: e.target.value })} maxLength={40} /></label>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginTop: 12 }}>
+              <label>Fond hero<input type="color" value={settings.heroBackground} onChange={e => setSettings({ ...settings, heroBackground: e.target.value })} style={{ height: 40 }} /></label>
+              <label>Couleur L1<input type="color" value={settings.heroLine1Color} onChange={e => setSettings({ ...settings, heroLine1Color: e.target.value })} style={{ height: 40 }} /></label>
+              <label>Couleur L2/L3<input type="color" value={settings.heroLineColor} onChange={e => setSettings({ ...settings, heroLineColor: e.target.value })} style={{ height: 40 }} /></label>
+              <label>Pill fond<input type="color" value={settings.heroSubBg} onChange={e => setSettings({ ...settings, heroSubBg: e.target.value })} style={{ height: 40 }} /></label>
+              <label>Pill texte<input type="color" value={settings.heroSubColor} onChange={e => setSettings({ ...settings, heroSubColor: e.target.value })} style={{ height: 40 }} /></label>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+              <label>CTA label (optionnel)<input value={settings.heroCtaLabel} onChange={e => setSettings({ ...settings, heroCtaLabel: e.target.value })} placeholder="Découvrir les promos" /></label>
+              <label>CTA route (au clic)
+                <select value={settings.heroCtaRoute} onChange={e => setSettings({ ...settings, heroCtaRoute: e.target.value })} style={{ height: 40 }}>
+                  <option value="promos">Promos</option>
+                  <option value="pharmacies">Pharmacies</option>
+                  <option value="categories">Catégories</option>
+                  <option value="international">International</option>
+                  <option value="cart">Panier</option>
+                  <option value="">Aucune (juste affichage)</option>
+                </select>
+              </label>
+            </div>
           </div>
 
           <div className="adm-form-section">

@@ -13,6 +13,7 @@
 
 import { supabase } from './supabase';
 import { formatArrivalDate } from './preorder';
+import { getAdminToken } from './adminAuth';
 
 // ─── Templates de notifs par statut ───
 function getTemplates({ orderId, customerName, deposit, balance, expectedDate, total }) {
@@ -179,18 +180,29 @@ export async function notifyPreorderStatusChange(order, newStatus, options = {})
   const results = { push: null, whatsapp: null };
 
   // ─── 1. Push OneSignal (vers le user_id) ───
+  // L'edge function send-push-notification attend user_id (singulier), un type,
+  // et soit un token admin (admin_sessions) soit un internal_secret pour
+  // l'auth. notifyPreorderStatusChange est appelé depuis ImportsSection (admin)
+  // donc on passe le token admin courant.
   if (sendPush && order.user_id) {
     try {
-      const { data, error } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          user_ids: [order.user_id],
-          title: tpl.push.title,
-          message: tpl.push.message,
-          url: `/orders`, // deep link vers Mes commandes
-          data: { order_id: order.id, status: newStatus },
-        },
-      });
-      results.push = error ? { ok: false, error: error.message } : { ok: true, data };
+      const token = getAdminToken();
+      if (!token) {
+        results.push = { ok: false, error: 'no_admin_token' };
+      } else {
+        const { data, error } = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            token,
+            type: 'order_status',
+            user_id: order.user_id,
+            title: tpl.push.title,
+            message: tpl.push.message,
+            url: `/orders`, // deep link vers Mes commandes
+            data: { order_id: order.id, status: newStatus },
+          },
+        });
+        results.push = error ? { ok: false, error: error.message } : { ok: true, data };
+      }
     } catch (e) {
       results.push = { ok: false, error: e?.message || String(e) };
     }

@@ -1,0 +1,172 @@
+/* ═══════════════════════════════════════════════════════════════════
+   YARAM Hero Banner — typo XXL bold style Instacart
+   Animations CSS pures, 60fps, will-change pour perf iOS Capacitor.
+   Couleurs sont injectées par les settings DB (background, line color,
+   etc.) en inline style. Ce CSS gère uniquement la typo et l'animation.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.yhero {
+  margin: 0 14px 16px;
+  border-radius: 24px;
+  padding: 22px 18px 18px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.yhero:active { transform: scale(0.99); transition: transform 0.1s; }
+
+.yhero-content {
+  position: relative;
+  z-index: 2;
+}
+
+/* ─── Typo XXL bold (style Instacart) ───────────────────────────── */
+.yhero-line {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: -2.5px;
+  text-transform: uppercase;
+  margin-top: 2px;
+  will-change: transform, opacity;
+}
+
+.yhero-line-1 { font-size: 64px; letter-spacing: -3px; }
+.yhero-line-2 { font-size: 52px; }
+.yhero-line-3 { font-size: 52px; }
+
+.yhero-sub {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  will-change: transform, opacity;
+}
+
+/* ─── Sparkles flottantes ──────────────────────────────────────── */
+.yhero-spark {
+  position: absolute;
+  will-change: transform, opacity;
+  z-index: 1;
+}
+
+.yhero-spark.s1 { animation: yheroSparkPulse 2.6s ease-in-out infinite; }
+.yhero-spark.s2 { animation: yheroSparkFloat 4s   ease-in-out infinite; animation-delay: 0.3s; }
+.yhero-spark.s3 { animation: yheroSparkPulse 3.1s ease-in-out infinite; animation-delay: 0.6s; }
+.yhero-spark.s4 { animation: yheroSparkPulse 2.4s ease-in-out infinite; animation-delay: 1.0s; }
+.yhero-spark.s5 { animation: yheroSparkFloat 3.6s ease-in-out infinite; animation-delay: 0.2s; }
+
+/* ─── Cards pharmacies en bas du hero ──────────────────────────── */
+.yhero-pharma-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.yhero-pharma-row::-webkit-scrollbar { display: none; }
+
+.yhero-pharma-card {
+  flex: 0 0 64px;
+  background: white;
+  border-radius: 14px;
+  padding: 10px 6px 8px;
+  text-align: center;
+  position: relative;
+  scroll-snap-align: start;
+  cursor: pointer;
+  will-change: transform, opacity;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease-out;
+}
+.yhero-pharma-card:active { transform: scale(0.95); }
+
+.yhero-pharma-badge-corner {
+  position: absolute;
+  top: -4px; left: -4px;
+  background: #FDE047;
+  color: #4A1B0C;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 6px;
+}
+
+.yhero-pharma-name {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.15;
+  margin-top: 6px;
+  white-space: pre-line;
+}
+
+.yhero-pharma-promo {
+  display: inline-block;
+  background: #FDE047;
+  color: #4A1B0C;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin-top: 6px;
+}
+
+/* Cards animation cascade */
+.yhero-pharma-card.lc1 { animation: yheroCardSlide 0.5s ease-out 0.85s backwards; }
+.yhero-pharma-card.lc2 { animation: yheroCardSlide 0.5s ease-out 0.95s backwards; }
+.yhero-pharma-card.lc3 { animation: yheroCardSlide 0.5s ease-out 1.05s backwards; }
+.yhero-pharma-card.lc4 { animation: yheroCardSlide 0.5s ease-out 1.15s backwards; }
+
+/* ─── Animations ──────────────────────────────────────────────── */
+.yhero-line-1 { animation: yheroWordIn 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s backwards; }
+.yhero-line-2 { animation: yheroWordIn 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.22s backwards; }
+.yhero-line-3 { animation: yheroWordIn 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.40s backwards; }
+.yhero-sub    { animation: yheroSubFadeIn 0.5s ease-out 0.65s backwards; }
+
+@keyframes yheroWordIn {
+  0%   { transform: translateX(-30px) scale(0.92); opacity: 0; letter-spacing: -4px; }
+  60%  { transform: translateX(2px) scale(1.02);   opacity: 1; letter-spacing: -2px; }
+  100% { transform: translateX(0) scale(1);        opacity: 1; }
+}
+
+@keyframes yheroSubFadeIn {
+  0%   { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0);   opacity: 1; }
+}
+
+@keyframes yheroSparkFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg);    opacity: 0.7; }
+  50%      { transform: translateY(-10px) rotate(180deg); opacity: 1; }
+}
+
+@keyframes yheroSparkPulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.55; }
+  50%      { transform: scale(1.45); opacity: 1; }
+}
+
+@keyframes yheroCardSlide {
+  0%   { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
+/* ─── Accessibilité : respecte prefers-reduced-motion ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  .yhero-line,
+  .yhero-sub,
+  .yhero-pharma-card,
+  .yhero-spark {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

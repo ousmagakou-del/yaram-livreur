@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNav } from '../App';
-import { getMyOrders, invalidateCache } from '../lib/supabase';
+import { getMyOrders, invalidateCache, supabase } from '../lib/supabase';
 import { safeFormatDate } from '../lib/utils';
 import TabBar from '../components/TabBar';
 import PullToRefresh from '../components/PullToRefresh';
@@ -26,7 +26,6 @@ export default function Orders() {
   // Pull-to-refresh : invalide cache + reload
   const handlePullRefresh = async () => {
     try {
-      const { supabase } = await import('../lib/supabase');
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
       await load();
@@ -48,11 +47,27 @@ export default function Orders() {
       }
     })();
 
-    // Auto-refresh sur retour navigation (popstate iOS)
+    // ─── Auto-refresh sur retour navigation (popstate iOS) ───
+    // FIX : la condition etait inversee → la page ne se rafraichissait jamais
+    // apres avoir passe une commande (retour depuis Checkout/OrderTracking).
+    // Maintenant : on rafraichit quand la destination est 'orders' OU quand
+    // 'to' est absent (popstate sans detail) → couvre les deux cas.
+    // Avant cache : `if (target && target !== 'orders') return;` ← inversé/cassé.
     const handleRouteBack = (e) => {
       const target = e?.detail?.to?.name;
+      // Si on connait la destination et que ce n'est PAS orders, on skip.
+      // Sinon (destination = orders, ou destination inconnue), on reload.
       if (target && target !== 'orders') return;
-      load();
+      // Invalide le cache avant de recharger pour forcer un vrai re-fetch DB.
+      // Sans ca, cachedFetch ressert l'ancien resultat → la nouvelle commande
+      // n'apparait pas tant que le TTL n'a pas expire.
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
+        } catch { /* silent */ }
+        load();
+      })();
     };
     window.addEventListener('yaram-route-back', handleRouteBack);
 
