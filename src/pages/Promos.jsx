@@ -52,17 +52,18 @@ export default function Promos() {
   useEffect(() => {
     (async () => {
       try {
-        const nowISO = new Date().toISOString();
+        // FIX juin 2026 : .or() chaînés timestamp cassaient l'URL → 400.
+        const now = Date.now();
         const { data: promosData } = await supabase
           .from('promo_codes')
           .select('*')
           .eq('active', true)
           .neq('is_referral', true)
-          .or(`expires_at.is.null,expires_at.gt.${nowISO}`)
-          .or(`starts_at.is.null,starts_at.lte.${nowISO}`)
           .order('created_at', { ascending: false });
 
         const filtered = (promosData || []).filter(p => {
+          if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
+          if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
           if (p.max_uses && p.uses_count >= p.max_uses) return false;
           return true;
         });

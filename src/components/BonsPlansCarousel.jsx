@@ -109,18 +109,21 @@ function BonsPlansCarousel() {
     let alive = true;
     (async () => {
       try {
-        const nowISO = new Date().toISOString();
+        // FIX juin 2026 : les .or() chaînés avec ISO timestamp produisaient
+        // une URL 400 (caractères spéciaux mal encodés). On simplifie : filter
+        // actif + non-referral côté SQL, dates côté client (peu de rows).
+        const now = Date.now();
         const { data } = await supabase
           .from('promo_codes')
           .select('*')
           .eq('active', true)
           .neq('is_referral', true)
-          .or(`expires_at.is.null,expires_at.gt.${nowISO}`)
-          .or(`starts_at.is.null,starts_at.lte.${nowISO}`)
           .order('created_at', { ascending: false })
-          .limit(8);
+          .limit(20);
 
         const filtered = (data || []).filter(p => {
+          if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
+          if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
           if (p.max_uses && p.uses_count >= p.max_uses) return false;
           return true;
         });

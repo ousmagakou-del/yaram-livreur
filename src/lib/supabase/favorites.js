@@ -13,7 +13,7 @@ export async function getMyFavorites() {
     // Pour la liste favoris on a juste besoin de quoi afficher les ProductTile.
     const { data } = await supabase
       .from('favorites')
-      .select('product_id, products(id, name, brand, price, old_price, img, score, rating, review_count, category, badges, is_imported, lead_time_days)')
+      .select('product_id, products(id, name, brand, price, img, score, rating, review_count, category, badges, is_imported, lead_time_days)')
       .eq('user_id', session.user.id)
       .limit(200);
     return (data || []).map(f => f.products).filter(Boolean);

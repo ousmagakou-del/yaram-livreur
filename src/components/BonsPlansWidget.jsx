@@ -53,17 +53,20 @@ export default function BonsPlansWidget() {
     // ─── 2. fetch best active promo ───
     (async () => {
       try {
-        const nowISO = new Date().toISOString();
+        // FIX juin 2026 : .or() chaînés cassaient l'URL → 400. Filter dates client.
+        const now = Date.now();
         const { data } = await supabase
           .from('promo_codes')
           .select('*')
           .eq('active', true)
           .neq('is_referral', true)
-          .or(`expires_at.is.null,expires_at.gt.${nowISO}`)
-          .or(`starts_at.is.null,starts_at.lte.${nowISO}`)
           .limit(20);
 
-        const usable = (data || []).filter(p => !p.max_uses || p.uses_count < p.max_uses);
+        const usable = (data || []).filter(p => {
+          if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
+          if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
+          return !p.max_uses || p.uses_count < p.max_uses;
+        });
         if (usable.length === 0) return;
 
         const best = usable.sort((a, b) => bestPromoScore(b) - bestPromoScore(a))[0];

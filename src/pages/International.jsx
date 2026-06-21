@@ -130,7 +130,7 @@ export default function International() {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('id, name, brand, price, image_url, image_urls, origin_country, is_imported')
+          .select('id, name, brand, price, image_url, img, origin_country, is_imported')
           .eq('active', true)
           .or('is_imported.eq.true,origin_country.not.is.null')
           .limit(20);
@@ -404,7 +404,7 @@ export default function International() {
           ) : (
             <div className="intlp-products-grid">
               {intlProducts.map(p => {
-                const img = p.image_url || (Array.isArray(p.image_urls) ? p.image_urls[0] : null);
+                const img = p.image_url || p.img || null;
                 return (
                   <button
                     key={p.id}
