@@ -1,7 +1,0 @@
-# Universal Links : laisser passer l'AASA brut (sinon Netlify renvoie index.html
-# et iOS reçoit du HTML au lieu du JSON → Universal Links cassés)
-/.well-known/apple-app-site-association  /.well-known/apple-app-site-association  200
-/.well-known/assetlinks.json             /.well-known/assetlinks.json             200
-
-# SPA fallback : toute autre route → index.html
-/*  /index.html  200

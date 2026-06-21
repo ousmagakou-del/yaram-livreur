@@ -1,1 +1,0 @@
-import{i as e}from"./definitions-CKZqBDbK.js";var t={[e.none]:``,[e.touchId]:`Touch ID`,[e.faceId]:`Face ID`,[e.fingerprintAuthentication]:`Fingerprint Authentication`,[e.faceAuthentication]:`Face Authentication`,[e.irisAuthentication]:`Iris Authentication`};function n(e){return t[e]||``}export{n as t};
