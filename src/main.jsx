@@ -8,6 +8,11 @@ import { initSentry } from './lib/sentry'
 import { registerServiceWorker } from './lib/sw-register'
 import { prefetchProbableRoutes } from './lib/prefetch'
 import { initWebVitals } from './lib/webVitals'
+// ─── TanStack Query : cache mémoire + persistance IndexedDB ───
+// Permet de réafficher instantanément les données vues précédemment
+// au cold start, puis revalider en arrière-plan.
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { queryClient, queryPersister } from './lib/queryClient'
 
 // ─── Init Sentry + SW DIFFÉRÉ à l'idle ───
 // Sentry charge ~80kb gzip de @sentry/browser. Le faire au boot bloque le
@@ -87,7 +92,31 @@ function BootedApp() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BootedApp />
+    {/* PersistQueryClientProvider hydrate depuis IndexedDB AVANT le 1er render
+        (asynchrone mais court-circuité par <PersistGate> implicite : si pas
+        de cache persisté, l'app monte normalement). Ensuite il persiste
+        toutes les mutations du queryClient en background, throttled 1s. */}
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: queryPersister,
+        maxAge: 24 * 60 * 60 * 1000, // 24 h max d'âge pour le cache persisté
+        buster: 'v1',
+        // Ne persister que les queries qui ne sont pas user-sensitive
+        // (pas d'auth token, pas de panier non commité).
+        dehydrateOptions: {
+          shouldDehydrateQuery: (q) => {
+            // Skip les queries qui ont explicitement opted-out via meta
+            if (q.meta?.persist === false) return false;
+            // Skip les erreurs
+            if (q.state.status !== 'success') return false;
+            return true;
+          },
+        },
+      }}
+    >
+      <BootedApp />
+    </PersistQueryClientProvider>
   </StrictMode>,
 )
 

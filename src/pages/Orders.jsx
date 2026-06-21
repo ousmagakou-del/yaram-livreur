@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNav, useUser } from '../App';
-import { getMyOrders, invalidateCache, supabase } from '../lib/supabase';
+import { invalidateCache, supabase } from '../lib/supabase';
+import { useMyOrders } from '../lib/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../lib/queries';
 import { safeFormatDate } from '../lib/utils';
 import TabBar from '../components/TabBar';
 import PullToRefresh from '../components/PullToRefresh';
@@ -9,106 +12,63 @@ import './Orders.css';
 export default function Orders() {
   const { navigate } = useNav();
   const { user } = useUser();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
 
-  const load = async () => {
-    try {
-      const data = await getMyOrders();
-      setOrders(data || []);
-    } catch (e) {
-      console.warn('[Orders] load failed:', e?.message);
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ════════════════════════════════════════════════════════════════
+  //  TanStack Query : cold start INSTANT
+  //  - Cache mémoire 1 min + persistance IndexedDB 24h
+  //  - 2e ouverture : affiche les commandes vues précédemment IMMÉDIATEMENT
+  //    pendant que le re-fetch silencieux tourne en arrière-plan
+  //  - Auto refetch on focus / on reconnect (Dakar 4G capricieuse)
+  // ════════════════════════════════════════════════════════════════
+  const { data: orders = [], isLoading, refetch } = useMyOrders(user?.id);
+  // isLoading = true UNIQUEMENT au 1er fetch jamais terminé.
+  // Si on a du cache persisté (cold start), isLoading sera direct false.
+  const loading = isLoading && orders.length === 0;
 
-  // Pull-to-refresh : invalide cache + reload
+  // Pull-to-refresh : on invalide le cache legacy ET TanStack
   const handlePullRefresh = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
-      await load();
+      await refetch();
       await new Promise(r => setTimeout(r, 300));
     } catch { /* silent */ }
   };
 
+  // ─── Invalidation au retour navigation + resume app ───
+  // TanStack Query gère déjà refetchOnWindowFocus et refetchOnReconnect, mais
+  // ces 2 events YARAM sont customs (popstate iOS, Capacitor resume), donc
+  // on doit forcer un invalidate manuel pour qu'il aille fetch.
   useEffect(() => {
-    let cancelled = false;
-    // FIX juin 2026 v2 : le useEffect attendait []. Si user n'était pas
-    // encore prêt au 1er mount → return [] → cache poison → page reste vide.
-    // Maintenant : on dépend de user?.id, on skip si pas user, et on re-fetch
-    // dès que user devient disponible.
-    if (!user?.id) {
-      setLoading(true);
-      return;
-    }
-    (async () => {
-      try {
-        // Purge brute force tout cache 'my_orders_*' (toutes versions LS)
-        try {
-          invalidateCache(`my_orders_${user.id}`);
-          const toDel = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && /^yaram_cache_v\d+_my_orders_/.test(k)) toDel.push(k);
-          }
-          toDel.forEach(k => localStorage.removeItem(k));
-        } catch {}
+    if (!user?.id) return;
 
-        const data = await getMyOrders();
-        if (!cancelled) setOrders(data || []);
-      } catch (e) {
-        console.warn('[Orders] load failed:', e?.message);
-        if (!cancelled) setOrders([]);
-      } finally {
-        if (!cancelled) setLoading(false);
+    // Purge brute force tout cache legacy 'my_orders_*' au mount
+    try {
+      invalidateCache(`my_orders_${user.id}`);
+      const toDel = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && /^yaram_cache_v\d+_my_orders_/.test(k)) toDel.push(k);
       }
-    })();
+      toDel.forEach(k => localStorage.removeItem(k));
+    } catch {}
 
-    // ─── Auto-refresh sur retour navigation (popstate iOS) ───
-    // FIX : la condition etait inversee → la page ne se rafraichissait jamais
-    // apres avoir passe une commande (retour depuis Checkout/OrderTracking).
-    // Maintenant : on rafraichit quand la destination est 'orders' OU quand
-    // 'to' est absent (popstate sans detail) → couvre les deux cas.
-    // Avant cache : `if (target && target !== 'orders') return;` ← inversé/cassé.
     const handleRouteBack = (e) => {
       const target = e?.detail?.to?.name;
-      // Si on connait la destination et que ce n'est PAS orders, on skip.
-      // Sinon (destination = orders, ou destination inconnue), on reload.
       if (target && target !== 'orders') return;
-      // Invalide le cache avant de recharger pour forcer un vrai re-fetch DB.
-      // Sans ca, cachedFetch ressert l'ancien resultat → la nouvelle commande
-      // n'apparait pas tant que le TTL n'a pas expire.
-      (async () => {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
-        } catch { /* silent */ }
-        load();
-      })();
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.orders(user.id) });
+    };
+    const handleAppResumed = () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.orders(user.id) });
     };
     window.addEventListener('yaram-route-back', handleRouteBack);
-
-    // FIX v7 : refresh aussi au resume app (Capacitor / PWA)
-    const handleAppResumed = () => {
-      (async () => {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) invalidateCache(`my_orders_${session.user.id}`);
-        } catch { /* silent */ }
-        load();
-      })();
-    };
     window.addEventListener('yaram-app-resumed', handleAppResumed);
-
     return () => {
-      cancelled = true;
       window.removeEventListener('yaram-route-back', handleRouteBack);
       window.removeEventListener('yaram-app-resumed', handleAppResumed);
     };
-  }, [user?.id]);
+  }, [user?.id, qc]);
 
   return (
     <div className="orders-screen page-anim">

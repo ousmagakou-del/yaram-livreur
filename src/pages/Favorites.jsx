@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNav } from '../App';
-import { getMyFavorites, toggleFavorite } from '../lib/supabase';
+import { toggleFavorite } from '../lib/supabase';
+import { useMyFavorites, QUERY_KEYS } from '../lib/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { haptic } from '../lib/haptic';
 import ProductTile from '../components/ProductTile';
 import TabBar from '../components/TabBar';
@@ -22,8 +24,25 @@ const TABS = [
 
 export default function Favorites() {
   const { navigate } = useNav();
-  const [favorites, setFavorites] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // ─── TanStack Query : cold start INSTANT depuis IndexedDB ───
+  // 2e ouverture : la liste des favoris s'affiche immédiatement (vue précédemment),
+  // pendant que le re-fetch silencieux tourne en arrière-plan.
+  const { data: favorites = [], isLoading, refetch } = useMyFavorites();
+  const loading = isLoading && favorites.length === 0;
+  const qc = useQueryClient();
+  // Helper : optimistic remove côté cache (pas de re-fetch attendu après remove)
+  const removeFromCache = (productId) => {
+    qc.setQueryData(QUERY_KEYS.favorites('me'), (old) =>
+      Array.isArray(old) ? old.filter(p => p.id !== productId) : old
+    );
+  };
+  const removeManyFromCache = (productIds) => {
+    const set = new Set(productIds);
+    qc.setQueryData(QUERY_KEYS.favorites('me'), (old) =>
+      Array.isArray(old) ? old.filter(p => !set.has(p.id)) : old
+    );
+  };
+
   const [tab, setTab] = useState('products');
   const [sort, setSort] = useState('recent');
   const [sortOpen, setSortOpen] = useState(false);
@@ -31,27 +50,6 @@ export default function Favorites() {
   const [selected, setSelected] = useState(new Set());
   const [toast, setToast] = useState('');
   const longPressTimer = useRef(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    // Safety net 12s : libère l'UI si getMyFavorites hang (RLS, session expiree)
-    const safety = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
-    (async () => {
-      try {
-        const data = await getMyFavorites();
-        if (!cancelled) setFavorites(data || []);
-      } catch (e) {
-        console.warn('[Favorites] load failed:', e?.message);
-        if (!cancelled) setFavorites([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
-      }
-    })();
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, []);
 
   const showToast = (text) => {
     setToast(text);
@@ -139,7 +137,7 @@ export default function Favorites() {
     for (const id of ids) {
       try { await toggleFavorite(id); } catch {}
     }
-    setFavorites(prev => prev.filter(p => !selected.has(p.id)));
+    removeManyFromCache(ids);
     showToast(`${ids.length} favori${ids.length > 1 ? 's' : ''} retiré${ids.length > 1 ? 's' : ''}`);
     exitSelect();
   };
@@ -182,7 +180,7 @@ export default function Favorites() {
       if (dx < -80) {
         haptic('medium');
         try { await toggleFavorite(product.id); } catch {}
-        setFavorites(prev => prev.filter(p => p.id !== product.id));
+        removeFromCache(product.id);
         showToast('Favori retiré');
       } else {
         setDx(0);
