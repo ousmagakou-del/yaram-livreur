@@ -6,6 +6,7 @@ import { getWhatsAppDisplay, getWhatsAppNumber } from '../lib/utils';
 import { isNativeApp } from '../lib/platform';
 import { toast } from '../lib/toast';
 import { trackEvent } from '../lib/analytics';
+import BackHeader from '../components/BackHeader';
 import "./payment.css";
 
 // Capacitor Browser : ouvre un browser in-app sur native (Safari View Controller iOS)
@@ -339,27 +340,36 @@ export default function Payment({ orderId }) {
 
   if (loading) return (
     /* PERF : skeleton page paiement (header + montant + 3 méthodes) */
-    <div style={{ padding: '20px 16px' }}>
-      <div className="skeleton-line" style={{ width: '40%', height: 24, marginBottom: 24 }} />
-      <div className="skeleton-shimmer" style={{ width: '100%', height: 110, borderRadius: 16, marginBottom: 20 }} />
-      <div className="skeleton-line" style={{ width: '30%', height: 14 }} />
-      {[0, 1, 2].map((i) => (
-        <div key={'sk-' + i} className="skeleton-shimmer" style={{ width: '100%', height: 64, borderRadius: 14, marginBottom: 10 }} />
-      ))}
+    <div className="pay-screen page-anim">
+      <BackHeader title="Paiement" onBack={() => navigate('/orders')} />
+      <div style={{ padding: '20px 16px' }}>
+        <div className="skeleton-line" style={{ width: '40%', height: 24, marginBottom: 24 }} />
+        <div className="skeleton-shimmer" style={{ width: '100%', height: 110, borderRadius: 16, marginBottom: 20 }} />
+        <div className="skeleton-line" style={{ width: '30%', height: 14 }} />
+        {[0, 1, 2].map((i) => (
+          <div key={'sk-' + i} className="skeleton-shimmer" style={{ width: '100%', height: 64, borderRadius: 14, marginBottom: 10 }} />
+        ))}
+      </div>
     </div>
   );
   if (error) return (
-    <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-      <h2 style={{ marginBottom: 8 }}>Erreur</h2>
-      <p style={{ color: '#666', marginBottom: 20 }}>{error}</p>
-      <button className="btn-primary" onClick={() => navigate('/')}>Retour</button>
+    <div className="pay-screen page-anim">
+      <BackHeader title="Paiement" onBack={() => navigate('/orders')} />
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+        <h2 style={{ marginBottom: 8 }}>Erreur</h2>
+        <p style={{ color: '#666', marginBottom: 20 }}>{error}</p>
+        <button className="btn-primary" onClick={() => navigate('/')}>Retour</button>
+      </div>
     </div>
   );
   if (!order) return (
-    <div style={{ padding: 40, textAlign: 'center' }}>
-      <p>Commande introuvable</p>
-      <button className="btn-primary" onClick={() => navigate('/')}>Retour</button>
+    <div className="pay-screen page-anim">
+      <BackHeader title="Paiement" onBack={() => navigate('/orders')} />
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <p>Commande introuvable</p>
+        <button className="btn-primary" onClick={() => navigate('/')}>Retour</button>
+      </div>
     </div>
   );
 
@@ -373,6 +383,7 @@ export default function Payment({ orderId }) {
 
   return (
     <div className="pay-screen page-anim">
+      <BackHeader title="Paiement" onBack={() => navigate('/orders')} />
       <div className="pay-content">
         {/* Logo officiel du moyen de paiement (au lieu d'emoji fallback) */}
         <div className="pay-icon" style={{ marginBottom: 8 }}>

@@ -334,10 +334,33 @@ export default function Search({ initialCategory, initialBrand }) {
   const showLiveSuggestions = hasQuery && !hasFilter && liveSuggestions
     && (liveSuggestions.products.length + liveSuggestions.brands.length + liveSuggestions.categories.length > 0);
 
+  // Contexte d'arrivée : true quand on vient d'un tap sur Marque/Catégorie depuis Home.
+  // On affiche alors un chevron retour à gauche du header (le "Annuler" reste
+  // visible à droite pour le réflexe iOS).
+  const cameFromFilter = !!(initialBrand || initialCategory);
+  const contextLabel = brand
+    ? `Marque · ${brand}`
+    : category
+      ? `Catégorie · ${catLabel(category)}`
+      : null;
+
   return (
     <div className="search-screen page-anim">
       {/* ─── Header sticky ─── */}
       <div className="ysearch-header">
+        {cameFromFilter && (
+          <button
+            type="button"
+            className="ysearch-back"
+            onClick={() => { hapticTap(); navigate(-1); }}
+            aria-label="Retour"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+        )}
         <div className="ysearch-input-wrap">
           <svg className="ysearch-loupe" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -365,6 +388,13 @@ export default function Search({ initialCategory, initialBrand }) {
         </div>
         <button className="ysearch-cancel" onClick={handleCancel}>Annuler</button>
       </div>
+
+      {/* ─── Bandeau contexte (titre quand on arrive avec un filtre) ─── */}
+      {contextLabel && cameFromFilter && (
+        <div className="ysearch-context-bar">
+          <span className="ysearch-context-label">{contextLabel}</span>
+        </div>
+      )}
 
       {/* ─── Bandeau filtres actifs ─── */}
       {(category || brand) && (

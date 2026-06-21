@@ -185,11 +185,73 @@
   50%      { transform: scale(1.2); box-shadow: 0 0 0 6px rgba(255, 59, 48, 0); }
 }
 
+/* ─── Groupes (Aujourd'hui / Hier / Cette semaine / Plus ancien) ─── */
+.notif-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.notif-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin: 16px 4px 4px;
+}
+
+/* ─── Refresh indicator (pull-to-refresh) ─── */
+.notif-refresh-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0 4px;
+  font-size: 12px;
+  color: var(--primary, #1F8B4C);
+  font-weight: 600;
+  animation: notifFadeUp 0.2s ease-out;
+}
+.notif-refresh-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(31, 139, 76, 0.25);
+  border-top-color: var(--primary, #1F8B4C);
+  animation: notifSpin 0.8s linear infinite;
+}
+@keyframes notifSpin { to { transform: rotate(360deg); } }
+
+/* ─── Accents par contexte (couleur d'icône) ─── */
+.notif-item.accent-success .notif-item-icon { background: rgba(31, 139, 76, 0.15); }
+.notif-item.accent-danger  .notif-item-icon { background: rgba(255, 59, 48, 0.14); }
+.notif-item.accent-warning .notif-item-icon { background: rgba(245, 158, 11, 0.16); }
+.notif-item.accent-info    .notif-item-icon { background: rgba(59, 130, 246, 0.14); }
+
+/* ─── CTA "Voir le suivi" sous le body ─── */
+.notif-item-cta {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary, #1F8B4C);
+  letter-spacing: 0.01em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .notif-item-dot,
   .notif-skeleton,
   .notif-item,
-  .notif-empty {
+  .notif-empty,
+  .notif-refresh-indicator,
+  .notif-refresh-spinner {
     animation: none !important;
   }
 }

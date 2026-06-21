@@ -1,0 +1,96 @@
+/* ────────────────────────────────────────────────────────────────
+   YARAM — BackHeader.css
+   Header générique : chevron retour + titre centré, glass blanc 80%
+   ──────────────────────────────────────────────────────────────── */
+
+.yh-back-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(var(--safe-top) + 8px) 12px 8px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  min-height: calc(var(--safe-top) + 44px);
+  z-index: 50;
+}
+
+.yh-back-header.yh-sticky {
+  position: sticky;
+  top: 0;
+}
+
+.yh-back-btn,
+.yh-back-right {
+  /* Tap zone 44x44 minimum (a11y iOS) */
+  min-width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.yh-back-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink, #1A1A1A);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 50%;
+  transition: transform 140ms ease, background 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.yh-back-btn:active {
+  transform: scale(0.88);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.yh-back-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.yh-back-title {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink, #1A1A1A);
+  text-align: center;
+  letter-spacing: -0.2px;
+  /* Évite débordement si titre long */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+}
+
+.yh-back-right {
+  justify-content: flex-end;
+}
+
+.yh-back-spacer {
+  width: 44px;
+  height: 44px;
+  display: block;
+}
+
+/* ─── DARK MODE ─── */
+@media (prefers-color-scheme: dark) {
+  .yh-back-header {
+    background: rgba(20, 20, 22, 0.82);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+  .yh-back-btn { color: #F2F2F2; }
+  .yh-back-btn:active { background: rgba(255, 255, 255, 0.08); }
+  .yh-back-title { color: #F2F2F2; }
+}
+
+/* ─── REDUCED MOTION ─── */
+@media (prefers-reduced-motion: reduce) {
+  .yh-back-btn { transition: none; }
+  .yh-back-btn:active { transform: none; }
+}

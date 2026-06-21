@@ -83,6 +83,44 @@
 }
 .ysearch-cancel:active { transform: scale(0.97); opacity: 0.7; }
 
+/* ─── BACK CHEVRON (apparaît quand on arrive avec filtre brand/category) ─── */
+.ysearch-back {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--ink, #1A1A1A);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  margin-left: -4px;
+  transition: transform 140ms ease, background 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.ysearch-back:active {
+  transform: scale(0.88);
+  background: rgba(0, 0, 0, 0.06);
+}
+.ysearch-back svg { width: 22px; height: 22px; }
+
+/* ─── BANDEAU CONTEXTE (Marque · Bioderma, Catégorie · Sérums) ─── */
+.ysearch-context-bar {
+  padding: 6px 16px 0;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+}
+.ysearch-context-label {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft, #6B6B6B);
+  letter-spacing: 0.1px;
+}
+
 /* ─── FILTRES ÉPINGLÉS (catégorie / marque preset) ─── */
 .ysearch-pinned-filters {
   display: flex;
