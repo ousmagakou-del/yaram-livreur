@@ -8,6 +8,7 @@ import { getMyAddresses } from '../lib/supabase';
 import { toast, confirmDialog, promptDialog } from '../lib/toast';
 import TabBar from '../components/TabBar';
 import PullToRefresh from '../components/PullToRefresh';
+import BonsPlansCarousel from '../components/BonsPlansCarousel';
 import './Profile.css';
 
 export default function Profile() {
@@ -339,6 +340,11 @@ export default function Profile() {
               <span className="prof2-cta-arrow" aria-hidden>›</span>
             </button>
           </section>
+
+          {/* SECTION : BONS PLANS (carrousel premium déplacé depuis Home) */}
+          <div className="prof2-anim" style={{ animationDelay: '130ms' }}>
+            <BonsPlansCarousel />
+          </div>
 
           {/* SECTION : COMPTE */}
           <section className="prof2-section prof2-anim" style={{ animationDelay: '150ms' }}>

@@ -5,9 +5,41 @@
    • Réduit l'anim si prefers-reduced-motion
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ─── Section autonome (peut être posée sur Home, Profile, etc.) ─── */
 .bp-section {
-  /* hérite du padding 20px 16px 0 de .yhome-section */
+  padding: 32px 16px 0;
   margin-bottom: 4px;
+}
+
+.bp-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.bp-section-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1A1A1A;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.bp-section-sub {
+  font-size: 11px;
+  color: #6B6B6B;
+  margin-top: 2px;
+}
+
+.bp-section-link {
+  background: none;
+  border: none;
+  color: #1F8B4C;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .bp-row {

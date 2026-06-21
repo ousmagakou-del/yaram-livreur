@@ -145,11 +145,11 @@ export default function BonsPlansCarousel() {
   // ─── Loading skeleton ───
   if (loading) {
     return (
-      <section className="yhome-section bp-section">
-        <div className="yhome-section-head">
+      <section className="bp-section">
+        <div className="bp-section-head">
           <div>
-            <h2 className="yhome-section-title">🎁 Bons plans</h2>
-            <div className="yhome-section-sub">Promos actives à saisir maintenant</div>
+            <h2 className="bp-section-title">🎁 Bons plans</h2>
+            <div className="bp-section-sub">Promos actives à saisir maintenant</div>
           </div>
         </div>
         <div className="bp-row">
@@ -165,13 +165,13 @@ export default function BonsPlansCarousel() {
   }
 
   return (
-    <section className="yhome-section bp-section">
-      <div className="yhome-section-head">
+    <section className="bp-section">
+      <div className="bp-section-head">
         <div>
-          <h2 className="yhome-section-title">🎁 Bons plans</h2>
-          <div className="yhome-section-sub">{promos.length} promo{promos.length > 1 ? 's' : ''} à saisir maintenant</div>
+          <h2 className="bp-section-title">🎁 Bons plans</h2>
+          <div className="bp-section-sub">{promos.length} promo{promos.length > 1 ? 's' : ''} à saisir maintenant</div>
         </div>
-        <button className="yhome-section-link" onClick={() => navigate({ name: 'promos', params: {} })}>
+        <button className="bp-section-link" onClick={() => navigate({ name: 'promos', params: {} })}>
           Tout voir →
         </button>
       </div>
