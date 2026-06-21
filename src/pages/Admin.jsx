@@ -32,6 +32,7 @@ const CategoriesSection          = lazy(() => import('../admin/CategoriesSection
 const LoyaltySection             = lazy(() => import('../admin/LoyaltySection'));
 const NotificationsSection       = lazy(() => import('../admin/NotificationsSection'));
 const PushBroadcastSection       = lazy(() => import('../admin/PushBroadcastSection'));
+const NewsletterSection          = lazy(() => import('../admin/NewsletterSection'));
 
 import './Admin.css';
 
@@ -55,6 +56,7 @@ const NAV = [
   { id: 'loyalty',     icon: '💚', label: 'Fidélité' },
   { id: 'notifications', icon: '📲', label: 'Notifications WhatsApp' },
   { id: 'push',          icon: '🔔', label: 'Push iOS' },
+  { id: 'newsletter',    icon: '📬', label: 'Newsletter' },
   { id: 'products',    icon: '🛍️', label: 'Produits' },
   { id: 'validation',  icon: '✨', label: 'Validation produits', badge: true },
   { id: 'brands',      icon: '🏷️', label: 'Marques' },
@@ -80,7 +82,15 @@ export default function Admin() {
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
-  const [section, setSection] = useState('dashboard');
+  // Persiste la section active : on revient pile où on était après un refresh
+  const [section, setSectionRaw] = useState(() => {
+    try { return localStorage.getItem('yaram-admin-section') || 'dashboard'; }
+    catch { return 'dashboard'; }
+  });
+  const setSection = (s) => {
+    setSectionRaw(s);
+    try { localStorage.setItem('yaram-admin-section', s); } catch {}
+  };
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [pendingValidationCount, setPendingValidationCount] = useState(0);
 
@@ -283,6 +293,7 @@ export default function Admin() {
           {section === 'loyalty'       && <LoyaltySection />}
           {section === 'notifications' && <NotificationsSection />}
           {section === 'push'          && <PushBroadcastSection />}
+          {section === 'newsletter'    && <NewsletterSection />}
           {section === 'products'      && <ProductsSection />}
           {section === 'validation'    && <ProductsValidationSection />}
           {section === 'brands'        && <BrandsSection />}

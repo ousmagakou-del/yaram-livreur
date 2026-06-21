@@ -128,8 +128,76 @@ function pathToRoute(pathname, search = '') {
   return { name: 'home', params: {} };
 }
 
+// ─────────────────────────────────────────────────────────────
+//  Detection mode admin "sophistique" — survit au refresh F5
+// ─────────────────────────────────────────────────────────────
+//
+// Problème : sur iOS Capacitor ou si l'URL perd `?admin` (redirect,
+// service worker, retour navigation), on retombait sur ClientApp.
+//
+// Fix : si une session admin VALIDE existe en localStorage
+//   (clé yaram-admin-session, expires_at futur, token non-null),
+// on force le mode admin et on re-attache `?admin` à l'URL via
+// history.replaceState — sans rechargement, sans clignotement.
+//
+// Même logique pour pharma (clé yaram-pharma-session) et livreur
+// (la route livreur exige un token public dans l'URL : pas de
+// persistance possible — sa session est volatile par design).
+function isStickyAdminSession() {
+  try {
+    const raw = localStorage.getItem('yaram-admin-session');
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    return !!(s && s.token && s.expires_at && s.expires_at > Date.now());
+  } catch { return false; }
+}
+function isStickyPharmaSession() {
+  try {
+    const raw = localStorage.getItem('yaram-pharma-session');
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    return !!(s && (s.token || s.pharmacy_id) && (!s.expires_at || s.expires_at > Date.now()));
+  } catch { return false; }
+}
+function reattachQueryParam(key) {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(key)) {
+      url.searchParams.set(key, '1');
+      window.history.replaceState({}, '', url.toString());
+    }
+  } catch { /* no-op */ }
+}
+
 export default function App() {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+
+  // ─── Sticky admin / pharma : session localStorage > URL ───
+  // Si une session admin valide existe, on force le mode admin même si
+  // l'URL a perdu `?admin` (refresh iOS Capacitor, etc.).
+  //
+  // ⚠️ CRITIQUE : ces sticky checks NE doivent PAS s'activer si une AUTRE
+  // route explicite est dans l'URL (`?livreur=TOKEN`, `?confirm=...`, `?pispi`).
+  // Sinon : ouvrir `?livreur=TOKEN` depuis un tel qui a une session admin
+  // localStorage redirige sur Admin au lieu de Livreur (bug critique).
+  const hasAnyExplicitRoute =
+    typeof window !== 'undefined' && (
+      params.has('admin')   ||
+      params.has('pharma')  ||
+      params.has('livreur') ||
+      params.has('confirm') ||
+      params.has('pispi')
+    );
+
+  if (typeof window !== 'undefined' && !hasAnyExplicitRoute && isStickyAdminSession()) {
+    reattachQueryParam('admin');
+    return <><Suspense fallback={<SplashScreen />}><Admin /></Suspense><Toaster /></>;
+  }
+  if (typeof window !== 'undefined' && !hasAnyExplicitRoute && isStickyPharmaSession()) {
+    reattachQueryParam('pharma');
+    return <><Suspense fallback={<SplashScreen />}><Pharma /></Suspense><Toaster /></>;
+  }
+
   // Routes top-level (non-client) : chunks separes, wrap dans Suspense.
   // Toaster est monte autour pour que toast.*() marche partout (admin, pharma, livreur, etc.).
   if (params.has('admin'))   return <><Suspense fallback={<SplashScreen />}><Admin /></Suspense><Toaster /></>;
