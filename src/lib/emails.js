@@ -479,6 +479,46 @@ export async function sendResetPassword(email, { redirectTo, firstName, expiresI
 }
 
 /**
+ * Envoie l'email "Paiement reçu" IMMÉDIATEMENT quand le client clique "J'ai payé"
+ * pour Wave/OM/Card. Confirme la réception et rassure que l'admin va vérifier.
+ * À appeler depuis Payment.jsx juste après updateOrderStatus succès, en parallèle
+ * des notifs pharmacie.
+ */
+export async function sendPaymentReceived(orderId) {
+  if (!orderId) return { success: false, error: 'orderId requis' };
+  const { order, profile } = await fetchOrderForEmail(orderId);
+  if (!order) return { success: false, error: 'order_not_found' };
+
+  const to = profile?.email;
+  if (!to) return { success: false, error: 'no_recipient' };
+
+  const firstName = profile?.first_name || order.address?.name?.split?.(' ')?.[0] || 'toi';
+  const amount = order.is_preorder
+    ? (order.deposit_amount || order.total)
+    : order.total;
+
+  // Import dynamique pour éviter d'alourdir le bundle initial.
+  const { paymentReceivedEmail } = await import('./email-templates/payment-received');
+  const { subject, html } = paymentReceivedEmail({
+    firstName,
+    orderId: order.id,
+    amount,
+    paymentMethod: order.payment_method,
+  });
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    return { success: true, id: data.id };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
  * Envoie l'email "paiement validé" après validation manuelle admin (Wave/OM).
  */
 export async function sendPaymentVerified(orderId) {

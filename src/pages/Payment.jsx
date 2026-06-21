@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase, updateOrderStatus } from '../lib/supabase';
-import { sendEmail, sendOrderEmail, sendOrderConfirmation } from '../lib/emails';
+import { sendEmail, sendOrderEmail, sendOrderConfirmation, sendPaymentReceived } from '../lib/emails';
 import { getWhatsAppDisplay, getWhatsAppNumber } from '../lib/utils';
 import { isNativeApp } from '../lib/platform';
 import { toast } from '../lib/toast';
@@ -203,20 +203,21 @@ export default function Payment({ orderId }) {
     // Même si une fail, les autres continuent. Aucune ne bloque l'autre.
     const ops = [];
 
-    // ─── EMAIL CLIENT CONFIRMATION ───
-    // RÈGLE MÉTIER : on n'envoie la confirmation au client QUE si le paiement
-    // est réellement validé (status = 'paid'). Pour Wave/OM/Card le status
-    // est 'awaiting_verification' à ce stade — l'admin déclenchera l'email
-    // depuis OrdersSection.confirmPayment quand il aura vérifié le virement.
-    // Pour COD (cash livraison) le status est 'paid' direct → on envoie.
+    // ─── EMAILS CLIENT ───
+    // 2 cas :
+    //  • COD (cash livraison) : status 'paid' direct → email de confirmation
+    //    de commande (récap complet, ETA, items).
+    //  • Wave/OM/Card : status 'awaiting_verification' → email "Paiement reçu"
+    //    qui rassure le client (on a bien vu son virement, on vérifie).
+    //    L'email DÉFINITIF "Paiement validé + commande confirmée" partira
+    //    quand l'admin cliquera "Confirmer paiement" dans OrdersSection.
     const isCOD = order?.payment_method === 'cod';
-    if (isCOD && user?.email) {
+    if (user?.email) {
       ops.push(
         withTimeout(
-          // Nouveau wrapper qui fetch l'order + profile et build le bon template
-          // côté DB → plus robuste que sendEmail({template}) qui dépendait
-          // d'avoir un order complet en mémoire.
-          sendOrderConfirmation(orderId, user.id),
+          isCOD
+            ? sendOrderConfirmation(orderId, user.id)
+            : sendPaymentReceived(orderId),
           'client email'
         ).catch(e => console.warn('client email:', e?.message))
       );
