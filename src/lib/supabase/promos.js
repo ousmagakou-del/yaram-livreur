@@ -62,18 +62,18 @@ export async function applyReferralCode(referredUserId, referralCode) {
     .select('referred_by').eq('id', referredUserId).single();
   if (me?.referred_by) return { success: false, error: 'Tu as déjà été parrainée' };
 
-  // PERF : 3 mutations en parallèle au lieu de séquentielles
-  // (3 round-trips → 1 round-trip = gain 600ms sur 3G)
-  await Promise.all([
-    supabase.from('users_profile').update({ referred_by: referrer.id }).eq('id', referredUserId),
-    supabase.rpc('add_loyalty_points', {
-      p_user_id: referredUserId, p_points: 500, p_type: 'bonus',
-      p_reason: `Bonus inscription via ${referrer.first_name}`,
-    }),
-    supabase.rpc('add_loyalty_points', {
-      p_user_id: referrer.id, p_points: 500, p_type: 'bonus', p_reason: `Bonus parrainage`,
-    }),
-  ]);
+  // SECURITE (audit 2026-06-21) : on appelle le RPC SECURITY DEFINER
+  // `apply_referral_bonus` qui :
+  //   - verifie que auth.uid() = referredUserId
+  //   - verifie que referredUserId n'a pas deja de referred_by
+  //   - set referred_by + attribue 500 pts au referrer et au filleul
+  // L'attribution directe via add_loyalty_points cote client n'est plus
+  // possible (verrouillee is_admin()).
+  const { data, error } = await supabase.rpc('apply_referral_bonus', {
+    p_referrer_id: referrer.id,
+  });
+  if (error) return { success: false, error: error.message };
+  if (!data?.success) return { success: false, error: data?.error || 'echec_parrainage' };
   return { success: true, referrer };
 }
 

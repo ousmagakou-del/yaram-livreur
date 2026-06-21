@@ -40,7 +40,7 @@ const json = (body: unknown, status = 200) =>
 type PushBody = {
   token?: string;
   internal_secret?: string;
-  type?: 'manual' | 'order_status' | 'replenishment' | 'reengagement' | 'anniversary' | 'scan_refresh' | 'welcome';
+  type?: 'manual' | 'order_status' | 'order_created' | 'replenishment' | 'reengagement' | 'anniversary' | 'scan_refresh' | 'welcome';
   user_id?: string;
   broadcast?: boolean;
   filters?: Array<{ field: string; relation: string; value: string }>;
@@ -49,6 +49,9 @@ type PushBody = {
   url?: string;
   data?: Record<string, unknown>;
 };
+
+// Types autorisés en mode "self" (user authentifié envoie un push à lui-même)
+const SELF_ALLOWED_TYPES = new Set(['welcome', 'order_created']);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -74,7 +77,7 @@ serve(async (req) => {
   const INTERNAL_SECRET = Deno.env.get("INTERNAL_PUSH_SECRET");
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-  let authMethod: 'admin' | 'internal' | null = null;
+  let authMethod: 'admin' | 'internal' | 'self' | null = null;
   let actorEmail = 'system';
 
   if (body.internal_secret && INTERNAL_SECRET && body.internal_secret === INTERNAL_SECRET) {
@@ -88,6 +91,21 @@ serve(async (req) => {
     if (session && new Date(session.expires_at) > new Date()) {
       authMethod = 'admin';
       actorEmail = session.admin_email;
+    }
+  } else {
+    // ─── Mode "self" : user authentifié push à lui-même ───
+    // Use cases : welcome après signup, confirmation commande au moment de la création.
+    // Restreint aux types dans SELF_ALLOWED_TYPES + target = user lui-même.
+    const authHeader = req.headers.get("authorization") || "";
+    if (authHeader.startsWith("Bearer ")) {
+      const userJwt = authHeader.replace("Bearer ", "");
+      const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+      const { data: { user } } = await userClient.auth.getUser(userJwt);
+      if (user && body.type && SELF_ALLOWED_TYPES.has(body.type) && body.user_id === user.id && !body.broadcast) {
+        authMethod = 'self';
+        actorEmail = user.email || `user:${user.id}`;
+      }
     }
   }
 

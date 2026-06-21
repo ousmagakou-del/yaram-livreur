@@ -3,6 +3,14 @@ import { supabase } from './client';
 // ═══════════════════════════════════════════════
 // LOYALTY (programme fidélité)
 // ═══════════════════════════════════════════════
+//
+// SECURITE (audit 2026-06-21) :
+// L'attribution de points (earn/bonus) DOIT etre faite cote serveur :
+//   - earn : par trigger Postgres `add_loyalty_on_delivery` quand status=delivered
+//   - bonus : depuis le panneau admin uniquement (RPC `add_loyalty_points`
+//             verrouille avec check `is_admin()`)
+// Le client ne peut QUE consulter son solde et depenser ses propres points.
+// ═══════════════════════════════════════════════
 
 export async function getMyLoyalty(userId) {
   const { data } = await supabase.from('users_profile')
@@ -16,30 +24,38 @@ export async function getLoyaltyTransactions(userId, limit = 50) {
   return data || [];
 }
 
-export async function earnLoyaltyPoints(userId, amount, orderId = null) {
-  const points = Math.floor(amount);
-  const { error } = await supabase.rpc('add_loyalty_points', {
-    p_user_id: userId, p_points: points, p_type: 'earn',
-    p_reason: `Achat ${orderId || ''}`, p_order_id: orderId,
-  });
-  return !error;
+// DEPRECATED : ne plus appeler cote client. Les points sont ajoutes par le
+// trigger `add_loyalty_on_delivery` (cote DB) au moment ou la commande passe
+// en `delivered`. Conserve pour compat ascendante : retourne false silencieusement.
+export async function earnLoyaltyPoints(/* userId, amount, orderId */) {
+  if (import.meta?.env?.DEV) {
+    console.warn('[loyalty] earnLoyaltyPoints() est deprecated cote client. Les points sont ajoutes par le trigger DB add_loyalty_on_delivery.');
+  }
+  return false;
 }
 
-export async function spendLoyaltyPoints(userId, points, reason = 'Réduction') {
-  const my = await getMyLoyalty(userId);
-  if (my.loyalty_points < points) return { success: false, error: 'Solde insuffisant' };
-  const { error } = await supabase.rpc('add_loyalty_points', {
-    p_user_id: userId, p_points: -points, p_type: 'spend', p_reason: reason,
+// Depense de points : passe par le RPC `redeem_loyalty_points`, qui verifie
+// que `auth.uid() = p_user_id` cote serveur.
+export async function spendLoyaltyPoints(userId, points /*, reason */) {
+  if (!Number.isInteger(points) || points <= 0 || points % 100 !== 0) {
+    return { success: false, error: 'Multiples de 100 uniquement' };
+  }
+  const { data, error } = await supabase.rpc('redeem_loyalty_points', {
+    p_user_id: userId,
+    p_points: points,
   });
   if (error) return { success: false, error: error.message };
-  return { success: true };
+  if (!data?.success) return { success: false, error: data?.error || 'echec' };
+  return { success: true, ...data };
 }
 
-export async function bonusLoyaltyPoints(userId, points, reason) {
-  const { error } = await supabase.rpc('add_loyalty_points', {
-    p_user_id: userId, p_points: points, p_type: 'bonus', p_reason: reason,
-  });
-  return !error;
+// DEPRECATED : un bonus arbitraire cote client = faille. Le bonus est attribue
+// par l'admin uniquement (panneau /admin loyalty).
+export async function bonusLoyaltyPoints(/* userId, points, reason */) {
+  if (import.meta?.env?.DEV) {
+    console.warn('[loyalty] bonusLoyaltyPoints() retire pour raisons de securite — passer par /admin loyalty.');
+  }
+  return false;
 }
 
 export function pointsToFcfa(points) { return Math.floor(points / 100) * 1000; }

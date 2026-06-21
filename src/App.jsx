@@ -416,6 +416,23 @@ function ClientApp() {
         phone: user.phone,
         firstName: user.first_name || user.name || 'toi',
       }).catch(() => {});
+
+      // ─── PUSH NOTIF welcome (best-effort, no-op si pas de device iOS) ───
+      // Gate via localStorage : 1 seule fois par device. Si l'user désinstalle/réinstalle
+      // il en aura un nouveau, c'est OK (rare et cohérent avec un "welcome").
+      try {
+        const welcomeKey = `yaram_welcome_push_${user.id}`;
+        if (!localStorage.getItem(welcomeKey)) {
+          import('./lib/pushAdmin').then(mod => {
+            mod.pushSelfWelcome({
+              userId: user.id,
+              firstName: user.first_name || user.name || '',
+            }).then(res => {
+              if (res?.success) localStorage.setItem(welcomeKey, '1');
+            }).catch(() => {});
+          }).catch(() => {});
+        }
+      } catch { /* localStorage indisponible : silent skip */ }
     }, 2000);
 
     const cartTimer = setTimeout(() => {

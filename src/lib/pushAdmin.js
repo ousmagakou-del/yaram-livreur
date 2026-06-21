@@ -99,6 +99,72 @@ export async function pushOrderStatus(order) {
   }
 }
 
+// ════════════════════════════════════════════════════════
+// SELF-PUSH : un user authentifié déclenche un push à lui-même
+// ════════════════════════════════════════════════════════
+//
+// Use cases :
+//  - "welcome" après signup (envoyé une fois)
+//  - "order_created" au moment où l'user finalise sa commande (COD)
+//
+// Côté edge function send-push-notification, on vérifie :
+//   - JWT user valide
+//   - type ∈ { welcome, order_created }
+//   - user_id == auth.uid()
+//   - broadcast == false
+// Donc impossible pour un client de spam les autres users.
+//
+// Best-effort : ne throw jamais. Si pas de device iOS enregistré (web ou
+// permission refusée) → l'edge function répond no_active_devices silencieusement.
+
+async function invokeSelfPush(body) {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push-notification', { body });
+    if (error) {
+      console.warn('[selfPush] invoke error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return data || { success: true };
+  } catch (e) {
+    console.warn('[selfPush] exception:', e?.message);
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Push "Bienvenue chez YARAM" envoyé à l'user juste après signup.
+ * No-op si pas de device iOS enregistré (web, permission refusée).
+ */
+export async function pushSelfWelcome({ userId, firstName }) {
+  if (!userId) return { success: false, error: 'no_user_id' };
+  return invokeSelfPush({
+    type: 'welcome',
+    user_id: userId,
+    title: 'Bienvenue chez YARAM 💚',
+    message: `Salut ${firstName || ''} ! Profite de -10% sur ta 1ère commande avec le code BIENVENUE10.`.trim(),
+    url: 'https://yaram.app',
+    data: { source: 'welcome' },
+  });
+}
+
+/**
+ * Push "Commande confirmée" envoyé à l'user juste après la création de sa commande.
+ * Pour COD : déclenché en checkout. Pour PayTech : déclenché côté webhook serveur
+ * via internal_secret, donc cette fonction n'est utilisée que pour COD côté client.
+ */
+export async function pushSelfOrderCreated({ userId, orderId, total }) {
+  if (!userId || !orderId) return { success: false, error: 'missing_data' };
+  const shortId = String(orderId).slice(0, 12);
+  return invokeSelfPush({
+    type: 'order_created',
+    user_id: userId,
+    title: '🛍️ Commande confirmée !',
+    message: `Ta commande #${shortId} est bien reçue${total ? ` (${total.toLocaleString('fr-FR')} FCFA)` : ''}. On prépare !`,
+    url: `https://yaram.app/order/${orderId}`,
+    data: { order_id: orderId, source: 'order_created' },
+  });
+}
+
 /**
  * Envoie un broadcast push à tous les users iOS (ou avec filtres).
  *

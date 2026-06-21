@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
 import {
+  supabase,
   isPushSupported, getNotificationPermission,
   subscribeToPush, unsubscribeFromPush,
   showLocalNotification, scheduleSkinRoutineReminders,
@@ -19,12 +20,14 @@ export default function NotifSettings() {
   const [enableEvening, setEnableEvening] = useState(true);
   const [enableOrders, setEnableOrders] = useState(true);
   const [enablePromos, setEnablePromos] = useState(true);
+  const [marketingEmailsEnabled, setMarketingEmailsEnabled] = useState(true);
+  const [savingMarketing, setSavingMarketing] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setSupported(isPushSupported());
     setPermission(getNotificationPermission());
-    
+
     // Récupère les prefs
     const m = localStorage.getItem('yaram-routine-morning');
     const e = localStorage.getItem('yaram-routine-evening');
@@ -33,6 +36,47 @@ export default function NotifSettings() {
     if (e) { setEveningTime(e); setEnableEvening(true); }
     else setEnableEvening(false);
   }, []);
+
+  // Charge l'opt-out marketing depuis users_profile.onboarding_drip_disabled
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('users_profile')
+          .select('onboarding_drip_disabled')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        // disabled=true ⇒ marketing OFF
+        setMarketingEmailsEnabled(!(data?.onboarding_drip_disabled === true));
+      } catch {
+        // ignore — la colonne peut ne pas exister tant que la migration n'est pas appliquée
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const handleToggleMarketing = async (next) => {
+    if (!user?.id) return;
+    setMarketingEmailsEnabled(next);
+    setSavingMarketing(true);
+    try {
+      const { error } = await supabase
+        .from('users_profile')
+        .update({ onboarding_drip_disabled: !next })
+        .eq('id', user.id);
+      if (error) throw error;
+      toast.success(next ? 'Emails marketing activés' : 'Emails marketing désactivés');
+    } catch (e) {
+      // rollback UI
+      setMarketingEmailsEnabled(!next);
+      toast.error(e?.message || 'Impossible de mettre à jour');
+    } finally {
+      setSavingMarketing(false);
+    }
+  };
 
   const handleEnable = async () => {
     setLoading(true);
@@ -127,6 +171,21 @@ export default function NotifSettings() {
             </>
           )}
         </div>
+
+        {/* Emails marketing (visible que le user ait push activé ou non) */}
+        {user?.id && (
+          <div className="ns-card">
+            <h3>✉️ Emails marketing</h3>
+            <p className="ns-meta">Promos, conseils, nouveautés. Les emails de commande restent toujours envoyés.</p>
+            <Toggle
+              label="📨 Recevoir les emails marketing"
+              desc="Bienvenue, top du moment, bons plans"
+              checked={marketingEmailsEnabled}
+              onChange={handleToggleMarketing}
+            />
+            {savingMarketing && <p className="ns-meta">Mise à jour…</p>}
+          </div>
+        )}
 
         {permission === 'granted' && (
           <>

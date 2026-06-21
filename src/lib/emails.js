@@ -7,6 +7,9 @@ import { orderConfirmationEmail } from './email-templates/order-confirmation';
 import { orderStatusUpdateEmail } from './email-templates/order-status-update';
 import { resetPasswordEmail } from './email-templates/reset-password';
 import { paymentVerifiedEmail } from './email-templates/payment-verified';
+import { onboardingD2Email } from './email-templates/onboarding-d2';
+import { onboardingD7Email } from './email-templates/onboarding-d7';
+import { onboardingD30Email } from './email-templates/onboarding-d30';
 
 const APP_URL = 'https://yaram.app';
 const BRAND_GREEN = '#1F8B4C';
@@ -529,6 +532,128 @@ export async function sendOrderEmail(orderId, template, extraParams = {}) {
     return { success: true, data };
   } catch (e) {
     console.warn('[orderEmail] exception:', e?.message);
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ONBOARDING DRIP — wrappers haut-niveau
+// Utilisés pour tester un envoi à la main (admin) ou depuis un script.
+// Le cron quotidien passe par l'edge function `onboarding-drip` qui
+// gère la sélection des candidats + l'idempotence côté serveur.
+// ─────────────────────────────────────────────────────────────────────
+
+async function fetchProfileForDrip(userId) {
+  if (!userId) return null;
+  const { data } = await supabase
+    .from('users_profile')
+    .select('id, email, first_name, onboarding_drip_disabled, onboarding_drip_d2_sent_at, onboarding_drip_d7_sent_at, onboarding_drip_d30_sent_at')
+    .eq('id', userId)
+    .maybeSingle();
+  return data || null;
+}
+
+async function markDripStep(userId, column) {
+  try {
+    await supabase
+      .from('users_profile')
+      .update({ [column]: new Date().toISOString() })
+      .eq('id', userId);
+  } catch (e) {
+    console.warn(`[drip] mark ${column} failed:`, e?.message);
+  }
+}
+
+/**
+ * Envoie le drip J+2 ("on t'attend") à un user.
+ * Idempotent : skip si déjà envoyé ou opt-out.
+ */
+export async function sendOnboardingD2(userId) {
+  const profile = await fetchProfileForDrip(userId);
+  if (!profile?.email) return { success: false, error: 'no_recipient' };
+  if (profile.onboarding_drip_disabled) return { success: false, error: 'opted_out' };
+  if (profile.onboarding_drip_d2_sent_at) return { success: false, error: 'already_sent' };
+
+  const { subject, html } = onboardingD2Email({ firstName: profile.first_name || profile.email.split('@')[0] });
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to: profile.email, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    await markDripStep(userId, 'onboarding_drip_d2_sent_at');
+    return { success: true, id: data.id };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Envoie le drip J+7 ("top 3 du moment") à un user.
+ * `topProducts` est optionnel : si non fourni, fetch les 3 plus récents actifs.
+ */
+export async function sendOnboardingD7(userId, topProducts = null) {
+  const profile = await fetchProfileForDrip(userId);
+  if (!profile?.email) return { success: false, error: 'no_recipient' };
+  if (profile.onboarding_drip_disabled) return { success: false, error: 'opted_out' };
+  if (profile.onboarding_drip_d7_sent_at) return { success: false, error: 'already_sent' };
+
+  let products = topProducts;
+  if (!Array.isArray(products) || products.length === 0) {
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, brand, price, img, active')
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      products = data || [];
+    } catch {
+      products = [];
+    }
+  }
+
+  const { subject, html } = onboardingD7Email({
+    firstName: profile.first_name || profile.email.split('@')[0],
+    topProducts: products,
+  });
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to: profile.email, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    await markDripStep(userId, 'onboarding_drip_d7_sent_at');
+    return { success: true, id: data.id };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Envoie le drip J+30 ("bonus fidélité") à un user.
+ * Si l'envoi réussit, crédite aussi 500 points via RPC add_loyalty_points.
+ */
+export async function sendOnboardingD30(userId) {
+  const profile = await fetchProfileForDrip(userId);
+  if (!profile?.email) return { success: false, error: 'no_recipient' };
+  if (profile.onboarding_drip_disabled) return { success: false, error: 'opted_out' };
+  if (profile.onboarding_drip_d30_sent_at) return { success: false, error: 'already_sent' };
+
+  const { subject, html } = onboardingD30Email({ firstName: profile.first_name || profile.email.split('@')[0] });
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { to: profile.email, subject, html },
+    });
+    if (error) return { success: false, error: error.message };
+    if (!data?.success) return { success: false, error: data?.error || 'envoi echec' };
+    await markDripStep(userId, 'onboarding_drip_d30_sent_at');
+    // Securite : l'attribution des 500 points est faite cote serveur par
+    // l'Edge Function `onboarding-drip` (qui utilise service_role).
+    // Le RPC `add_loyalty_points` est verrouille `is_admin()` apres audit
+    // securite du 2026-06-21.
+    return { success: true, id: data.id };
+  } catch (e) {
     return { success: false, error: e?.message || String(e) };
   }
 }

@@ -315,6 +315,21 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
           }
           sendOrderEmail(order.id, 'pharmacyNewOrder')
             .catch(e => console.warn('pharma email failed:', e?.message));
+
+          // ─── PUSH NOTIF "Commande confirmée" ─────────────
+          // Best-effort, no-op si pas de device iOS enregistré.
+          // Pour PayTech, le push équivalent est déclenché côté paytech-webhook
+          // (via INTERNAL_PUSH_SECRET) au passage paid.
+          if (user?.id) {
+            import('../lib/pushAdmin').then(mod => {
+              mod.pushSelfOrderCreated({
+                userId: user.id,
+                orderId: order.id,
+                total: order.total,
+              }).catch(() => {});
+            }).catch(() => {});
+          }
+
           try {
             const pharmaIds = [...new Set((items || []).map(it => it.pharmacyId).filter(Boolean))];
             await supabase.channel('yaram-new-orders').send({
