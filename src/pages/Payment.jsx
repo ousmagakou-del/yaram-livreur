@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase, updateOrderStatus } from '../lib/supabase';
-import { sendEmail, sendOrderEmail } from '../lib/emails';
+import { sendEmail, sendOrderEmail, sendOrderConfirmation } from '../lib/emails';
 import { getWhatsAppDisplay, getWhatsAppNumber } from '../lib/utils';
 import { isNativeApp } from '../lib/platform';
 import { toast } from '../lib/toast';
@@ -198,23 +198,32 @@ export default function Payment({ orderId }) {
     ]);
 
   async function runPostPaidNotifications({ orderId, order, user }) {
-    // On lance les 3 notifs EN PARALLÈLE (Promise.allSettled) avec timeout chacune.
+    // On lance les notifs EN PARALLÈLE (Promise.allSettled) avec timeout chacune.
     // Même si une fail, les autres continuent. Aucune ne bloque l'autre.
     const ops = [];
 
-    if (user?.email) {
+    // ─── EMAIL CLIENT CONFIRMATION ───
+    // RÈGLE MÉTIER : on n'envoie la confirmation au client QUE si le paiement
+    // est réellement validé (status = 'paid'). Pour Wave/OM/Card le status
+    // est 'awaiting_verification' à ce stade — l'admin déclenchera l'email
+    // depuis OrdersSection.confirmPayment quand il aura vérifié le virement.
+    // Pour COD (cash livraison) le status est 'paid' direct → on envoie.
+    const isCOD = order?.payment_method === 'cod';
+    if (isCOD && user?.email) {
       ops.push(
         withTimeout(
-          sendEmail({
-            to: user.email,
-            template: 'orderConfirmed',
-            params: { firstName: user.first_name || 'Toi', order },
-          }),
+          // Nouveau wrapper qui fetch l'order + profile et build le bon template
+          // côté DB → plus robuste que sendEmail({template}) qui dépendait
+          // d'avoir un order complet en mémoire.
+          sendOrderConfirmation(orderId, user.id),
           'client email'
         ).catch(e => console.warn('client email:', e?.message))
       );
     }
 
+    // Le pharmacien doit voir la commande à préparer dès maintenant (peu
+    // importe que le paiement soit awaiting_verification ou paid — il y a
+    // déjà un signal commercial fort que c'est une commande à traiter).
     ops.push(
       withTimeout(sendOrderEmail(orderId, 'pharmacyNewOrder'), 'pharma email')
         .catch(e => console.warn('pharma email:', e?.message))

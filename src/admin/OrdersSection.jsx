@@ -10,6 +10,7 @@ import {
 } from '../lib/adminApi';
 import { confirmDialog, toast } from '../lib/toast';
 import { pushOrderStatus } from '../lib/pushAdmin';
+import { sendOrderConfirmation, sendPaymentVerified } from '../lib/emails';
 
 // Flow lineaire des statuts "normaux" d'une commande. Une commande peut sortir
 // de ce flow (refused, cancelled, disputed...) et ne plus etre "avancable".
@@ -268,6 +269,28 @@ export default function OrdersSection() {
       return;
     }
     toast.success('💰 Paiement confirmé');
+
+    // ─── EMAIL CLIENT : déclenché APRÈS confirmation paiement par admin ───
+    // Le user a payé Wave/OM/Card → status awaiting_verification (pas d'email envoyé).
+    // L'admin vient de valider → status paid → maintenant on envoie l'email
+    // "ta commande est confirmée + on prépare". Fire-and-forget : si Resend
+    // est down, on ne bloque pas le flow admin.
+    sendOrderConfirmation(order.id)
+      .then(r => {
+        if (r?.success) console.log('[Admin] email confirmation envoyé', order.id);
+        else console.warn('[Admin] email confirmation échoué :', r?.error);
+      })
+      .catch(e => console.warn('[Admin] email confirmation crash :', e?.message));
+
+    // Email annexe "paiement validé" — distinct de la confirmation de commande.
+    // Si tu juges ça redondant, retire-le. Utile pour Wave/OM où le user veut
+    // savoir que SON virement précis est arrivé.
+    sendPaymentVerified(order.id)
+      .then(r => {
+        if (r?.success) console.log('[Admin] email payment_verified envoyé', order.id);
+      })
+      .catch(() => { /* silent */ });
+
     // La RPC a déjà push à la cliente, on enchaîne juste sur refresh + count.
     refresh();
     refreshVerifCount();
