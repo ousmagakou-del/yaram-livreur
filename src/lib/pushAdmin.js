@@ -19,9 +19,19 @@ import { supabase } from './supabase';
 import { getAdminToken } from './adminAuth';
 
 const ORDER_STATUS_TEMPLATES = {
+  awaiting_verification: {
+    title: '⏱ Paiement reçu',
+    message: () => `On vérifie ton virement, livraison déclenchée dès confirmation.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
   paid: {
     title: '✅ Paiement reçu !',
     message: (order) => `Ta commande ${order.id?.slice(0, 12) || ''} est confirmée. On la prépare !`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  confirmed: {
+    title: '✈️ Précommande confirmée',
+    message: () => `Acompte reçu. Ton import est lancé chez le fournisseur.`,
     url: (order) => `https://yaram.app/order/${order.id}`,
   },
   preparing: {
@@ -36,7 +46,22 @@ const ORDER_STATUS_TEMPLATES = {
   },
   shipped: {
     title: '🛵 En route !',
-    message: (order) => `Ton livreur Moussa est en route. Tu peux le suivre en temps réel.`,
+    message: () => `Ton livreur est en route. Tu peux le suivre en temps réel.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  awaiting_cash: {
+    title: '💵 Prépare ton règlement',
+    message: () => `Le livreur est là. Prépare la somme à régler.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  awaiting_confirm: {
+    title: '✍️ Confirme la réception',
+    message: () => `Valide la réception de ta commande pour clôturer.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  client_confirmed: {
+    title: '🎉 Réception confirmée',
+    message: () => `Merci pour ta confirmation !`,
     url: (order) => `https://yaram.app/order/${order.id}`,
   },
   delivered: {
@@ -47,6 +72,36 @@ const ORDER_STATUS_TEMPLATES = {
   cancelled: {
     title: '❌ Commande annulée',
     message: () => `Ta commande a été annulée. Si tu as une question, contacte-nous sur WhatsApp.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  refused: {
+    title: '⚠️ Paiement refusé',
+    message: () => `Recontacte-nous WhatsApp pour régler le souci.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  disputed: {
+    title: '🆘 Commande contestée',
+    message: () => `Notre équipe va te recontacter rapidement.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  awaiting_supplier: {
+    title: '🌍 Commande chez le fournisseur',
+    message: () => `On a passé la commande, on te tient au courant.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  in_transit_intl: {
+    title: '✈️ Colis en transit',
+    message: () => `Ton colis voyage vers le Sénégal.`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  arrived_local: {
+    title: '📍 Colis au Sénégal',
+    message: () => `Bientôt entre tes mains !`,
+    url: (order) => `https://yaram.app/order/${order.id}`,
+  },
+  awaiting_balance: {
+    title: '💰 Solde à régler',
+    message: () => `Le solde de ta commande est à payer.`,
     url: (order) => `https://yaram.app/order/${order.id}`,
   },
 };
