@@ -111,7 +111,7 @@ export default function Loyalty() {
   const currentTier = getTierFromTotal(totalEarned);
   const animatedPoints = useCounter(balance);
   const equivFCFA = Math.floor(balance / 100) * 1000; // 100 pts = 1000 FCFA
-  const fmt = (n) => Number(n).toLocaleString('fr-FR');
+  const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
 
   /* Progression palier */
   const tierProgressPct = currentTier.next

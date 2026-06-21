@@ -39,15 +39,42 @@ export default function Profile() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log('[Profile] skip loadStats: user not ready');
+      return;
+    }
     let cancelled = false;
 
     const loadStats = async () => {
+      console.log('[Profile] loadStats start, user.id=', user.id);
+
+      // FIX juin 2026 : purge brute force tout cache 'my_orders_*' (toutes versions LS)
+      // Même topic que Orders.jsx : un cache stale persisté pouvait poisoner
+      // les compteurs.
+      try {
+        const toDel = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && /^yaram_cache_v\d+_my_orders_/.test(k)) toDel.push(k);
+        }
+        toDel.forEach(k => localStorage.removeItem(k));
+        if (toDel.length) console.log('[Profile] purged stale orders cache keys:', toDel.length);
+      } catch {}
+
+      // FIX : on récupère explicitement la session pour utiliser
+      // session.user.id (= auth.uid() côté RLS). user.id du contexte vient
+      // de users_profile, normalement identique mais on évite tout drift.
+      let authUserId = user.id;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) authUserId = session.user.id;
+      } catch { /* silent */ }
+
       // 1. Dernier scan IA
       const { data: scans } = await supabase
         .from('skin_scans')
         .select('id, skin_type, skin_score, diagnosis, created_at')
-        .eq('user_id', user.id)
+        .eq('user_id', authUserId)
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -60,17 +87,38 @@ export default function Profile() {
       const { count: favCount } = await supabase
         .from('favorites')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .eq('user_id', authUserId);
 
-      // 3. Count commandes (best-effort)
+      // 3. Count commandes — FIX juin 2026 :
+      //  - on log les erreurs RLS/network au lieu de les avaler en silence
+      //  - on a un fallback: si count=null (HEAD intercepté par proxy), on
+      //    refait un SELECT id pour recompter via le tableau retourné.
       let ordersCount = 0;
       try {
-        const { count } = await supabase
+        const { count, error } = await supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
-        ordersCount = count || 0;
-      } catch { /* silent */ }
+          .eq('user_id', authUserId);
+        if (error) {
+          console.warn('[Profile] orders count error:', error.message);
+        }
+        if (typeof count === 'number') {
+          ordersCount = count;
+        } else {
+          // Fallback : un proxy / SW peut bouffer le header Content-Range
+          // → count=null. On retombe sur un SELECT id classique.
+          console.warn('[Profile] orders count=null, fallback SELECT id');
+          const { data: rows, error: e2 } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('user_id', authUserId);
+          if (e2) console.warn('[Profile] orders fallback error:', e2.message);
+          ordersCount = (rows || []).length;
+        }
+      } catch (e) {
+        console.warn('[Profile] orders count threw:', e?.message);
+      }
+      console.log('[Profile] ordersCount=', ordersCount, 'favCount=', favCount);
 
       if (cancelled) return;
       setStats({

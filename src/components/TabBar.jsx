@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useNav } from '../App';
 import { haptic } from '../lib/haptic';
 import { getCartCount } from '../lib/cart';
@@ -16,7 +16,7 @@ function getNotifCount() {
   return 0;
 }
 
-export default function TabBar({ active = 'home', cartCount: overrideCount }) {
+function TabBar({ active = 'home', cartCount: overrideCount }) {
   const { navigate } = useNav();
 
   // Cart badge (back-compat : on garde le badge live meme si pas affiche sur tab)
@@ -173,3 +173,9 @@ export default function TabBar({ active = 'home', cartCount: overrideCount }) {
     </div>
   );
 }
+
+// PERF : memo — TabBar est rendu sur 11 pages, son parent rerender souvent
+// (favoris, scroll, settings sub). Sans memo, chaque rerender parent =
+// rerender complet TabBar + 5 SVG inline. Props stable (active string,
+// cartCount éventuellement number) → memo shallow compare suffit.
+export default memo(TabBar);

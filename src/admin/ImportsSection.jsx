@@ -198,7 +198,7 @@ function OrdersTab() {
                 <div>
                   <code style={{ fontSize: 12, color: '#6B6B6B' }}>{o.id}</code>
                   <div style={{ fontSize: 15, fontWeight: 700, marginTop: 3 }}>
-                    {o.address?.name || 'Client inconnu'} · {Number(o.total).toLocaleString('fr-FR')} FCFA
+                    {o.address?.name || 'Client inconnu'} · {Number(o.total || 0).toLocaleString('fr-FR')} FCFA
                   </div>
                 </div>
                 <div style={{ background: 'linear-gradient(135deg, #0066CC, #004999)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8 }}>
@@ -369,7 +369,7 @@ function ProductsTab() {
                   {p.name}
                 </div>
                 <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#6B6B6B', flexWrap: 'wrap' }}>
-                  <span><strong style={{ color: '#1A1A1A' }}>{Number(p.price).toLocaleString('fr-FR')} FCFA</strong></span>
+                  <span><strong style={{ color: '#1A1A1A' }}>{Number(p.price || 0).toLocaleString('fr-FR')} FCFA</strong></span>
                   {margin !== null && <span>Marge : <strong style={{ color: margin >= 30 ? '#1F8B4C' : '#E0A52D' }}>{margin}%</strong></span>}
                   <span>⏱️ {p.lead_time_days || 15}j</span>
                   {!p.active && <span style={{ color: '#D9342B' }}>● Inactif</span>}
@@ -503,7 +503,7 @@ function ProductImportEditor({ product, categories, onSave, onCancel, onDelete }
               <div style={{ fontSize: 11, color: '#6B6B6B', marginBottom: 2 }}>Marge nette estimée</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: margin >= 30 ? '#1F8B4C' : '#E0A52D' }}>{margin}%</div>
               <div style={{ fontSize: 11, color: '#6B6B6B' }}>
-                {(Number(p.price) - Number(p.supplier_cost)).toLocaleString('fr-FR')} FCFA / unité
+                {(Number(p.price || 0) - Number(p.supplier_cost || 0)).toLocaleString('fr-FR')} FCFA / unité
               </div>
             </div>
           )}

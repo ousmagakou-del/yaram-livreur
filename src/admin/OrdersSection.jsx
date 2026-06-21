@@ -638,7 +638,7 @@ function OrderDetail({ order, onAdvance, onCancel, onConfirmPayment, onRejectPay
               <strong>{it.name}</strong>
               <div className="adm-detail-item-meta">
                 <span>🏥 {it.pharmacyName}</span>
-                <span>{it.qty} × {it.price.toLocaleString('fr-FR')} FCFA</span>
+                <span>{Number(it.qty || 1)} × {Number(it.price || 0).toLocaleString('fr-FR')} FCFA</span>
               </div>
             </div>
           </div>
@@ -651,7 +651,7 @@ function OrderDetail({ order, onAdvance, onCancel, onConfirmPayment, onRejectPay
         <div className="adm-row"><span>Livraison</span><strong>{order.shipping?.toLocaleString('fr-FR')} FCFA</strong></div>
         <div className="adm-row"><span>Paiement</span><strong>{order.payment_method}</strong></div>
         <div className="adm-row total"><span>Total</span><strong>{order.total?.toLocaleString('fr-FR')} FCFA</strong></div>
-        <div className="adm-row commission"><span>Commission YARAM ({rate * 100}%)</span><strong>{Math.round(order.total * rate).toLocaleString('fr-FR')} FCFA</strong></div>
+        <div className="adm-row commission"><span>Commission YARAM ({rate * 100}%)</span><strong>{Math.round(Number(order.total || 0) * rate).toLocaleString('fr-FR')} FCFA</strong></div>
       </div>
 
       <div className="adm-detail-actions">

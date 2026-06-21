@@ -171,7 +171,7 @@ export default function Orders() {
                 </div>
               </div>
               <div className="order-card-body">
-                <span>{o.items.length} articles · {o.total.toLocaleString('fr-FR')} FCFA</span>
+                <span>{(o.items?.length || 0)} articles · {Number(o.total || 0).toLocaleString('fr-FR')} FCFA</span>
                 <span>{safeFormatDate(o.created_at, { type: 'datetime' })}</span>
               </div>
               {o.is_preorder && o.expected_arrival_date && (

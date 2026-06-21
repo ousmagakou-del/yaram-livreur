@@ -376,7 +376,7 @@ export default function Payment({ orderId }) {
 
   const yaramNumberDisplay = getWhatsAppDisplay();     // "+221 77 438 87 66"
   const yaramNumberRaw     = getWhatsAppNumber();       // "221774388766"
-  const amountStr          = order.total.toLocaleString('fr-FR');
+  const amountStr          = Number(order.total || 0).toLocaleString('fr-FR');
   const isWave             = order.payment_method === 'wave';
   const isOM               = order.payment_method === 'om';
   const isCOD              = order.payment_method === 'cod';

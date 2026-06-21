@@ -316,22 +316,30 @@ export async function sendEmail({ to, template, params = {}, replyTo = null }) {
 // ─────────────────────────────────────────────────────────────────────
 
 async function fetchOrderForEmail(orderId) {
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('id, total, delivery_fee, payment_method, address, user_id, items, status, estimated_delivery_date, deposit_amount, balance_amount, is_preorder')
-    .eq('id', orderId)
-    .maybeSingle();
-  if (error || !order) return { order: null, profile: null };
-  let profile = null;
-  if (order.user_id) {
-    const { data } = await supabase
-      .from('users_profile')
-      .select('email, first_name')
-      .eq('id', order.user_id)
-      .maybeSingle();
-    profile = data || null;
+  // FIX juin 2026 : on passe par la RPC SECURITY DEFINER get_order_for_email
+  // qui bypass la RLS sur users_profile. Sans ça, quand l'admin valide un
+  // paiement côté /?admin, la query users_profile retournait NULL (la RLS
+  // n'autorise pas l'admin à lire le profile du client) → no_recipient → email
+  // jamais envoyé. La RPC fait le lookup en service-level côté DB.
+  try {
+    const { data, error } = await supabase.rpc('get_order_for_email', {
+      p_order_id: orderId,
+    });
+    if (error) {
+      console.warn('[fetchOrderForEmail] rpc error:', error.message);
+      return { order: null, profile: null };
+    }
+    if (!data || data.error) {
+      return { order: null, profile: null };
+    }
+    return {
+      order:   data.order   || null,
+      profile: data.profile || null,
+    };
+  } catch (e) {
+    console.warn('[fetchOrderForEmail] crash:', e?.message);
+    return { order: null, profile: null };
   }
-  return { order, profile };
 }
 
 /**

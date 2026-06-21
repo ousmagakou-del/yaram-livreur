@@ -166,7 +166,7 @@ export default function ClientConfirm() {
                 <img src={it.img} alt="" loading="lazy" decoding="async" onError={(e) => e.target.style.display = 'none'} />
                 <div>
                   <strong>{it.name}</strong>
-                  <span>{it.qty} × {it.price.toLocaleString('fr-FR')} FCFA</span>
+                  <span>{Number(it.qty || 1)} × {Number(it.price || 0).toLocaleString('fr-FR')} FCFA</span>
                 </div>
               </div>
             ))}

@@ -848,15 +848,15 @@ export default function Livreur() {
             <h2>💵 Encaissement Cash</h2>
             <div className="liv-cash-box">
               <p style={{ fontSize: 14, marginBottom: 12 }}>
-                Demande à la cliente <strong style={{ fontSize: 18, color: '#1F8B4C' }}>{order.total.toLocaleString('fr-FR')} FCFA</strong> cash.
+                Demande à la cliente <strong style={{ fontSize: 18, color: '#1F8B4C' }}>{Number(order.total || 0).toLocaleString('fr-FR')} FCFA</strong> cash.
               </p>
               {order.cash_received ? (
                 <div className="liv-cash-done">
-                  ✅ Cash de {order.total.toLocaleString('fr-FR')} FCFA reçu
+                  ✅ Cash de {Number(order.total || 0).toLocaleString('fr-FR')} FCFA reçu
                 </div>
               ) : (
                 <button className="liv-btn-pri" onClick={markCashReceived}>
-                  💵 J'ai reçu {order.total.toLocaleString('fr-FR')} FCFA cash
+                  💵 J'ai reçu {Number(order.total || 0).toLocaleString('fr-FR')} FCFA cash
                 </button>
               )}
             </div>

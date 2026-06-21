@@ -10,32 +10,42 @@
 // l'app continue de tourner normalement.
 // ═══════════════════════════════════════════════════════════════════
 
-import posthog from 'posthog-js';
+// PERF : posthog-js fait ~32kb gzip. Import dynamique → exclu du bundle initial.
+// L'app boot sans, et PostHog charge en background à initAnalytics().
+// Tous les helpers sont safe-stub tant que le module n'est pas résolu.
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || '';
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com';
 
 let initialized = false;
+let posthog = null; // résolu après le dynamic import
+let initPromise = null;
 
 export function initAnalytics() {
-  if (initialized || !POSTHOG_KEY || import.meta.env.MODE !== 'production') return;
-  try {
-    posthog.init(POSTHOG_KEY, {
-      api_host: POSTHOG_HOST,
-      persistence: 'localStorage',
-      autocapture: false,
-      capture_pageview: false, // on track manuellement
-      session_recording: { maskAllInputs: true },
-      respect_dnt: true,
-    });
-    initialized = true;
-  } catch (e) {
-    console.warn('[Analytics] init failed:', e?.message);
-  }
+  if (initialized || initPromise) return initPromise;
+  if (!POSTHOG_KEY || import.meta.env.MODE !== 'production') return;
+  initPromise = (async () => {
+    try {
+      const mod = await import('posthog-js');
+      posthog = mod.default || mod;
+      posthog.init(POSTHOG_KEY, {
+        api_host: POSTHOG_HOST,
+        persistence: 'localStorage',
+        autocapture: false,
+        capture_pageview: false, // on track manuellement
+        session_recording: { maskAllInputs: true },
+        respect_dnt: true,
+      });
+      initialized = true;
+    } catch (e) {
+      console.warn('[Analytics] init failed:', e?.message);
+    }
+  })();
+  return initPromise;
 }
 
 export function identifyUser(user) {
-  if (!initialized || !user?.id) return;
+  if (!initialized || !posthog || !user?.id) return;
   try {
     posthog.identify(user.id, {
       email: user.email,
@@ -47,7 +57,7 @@ export function identifyUser(user) {
 }
 
 export function trackEvent(name, properties = {}) {
-  if (!initialized) return;
+  if (!initialized || !posthog) return;
   try {
     posthog.capture(name, properties);
   } catch {}
@@ -58,6 +68,6 @@ export function trackPageview(routeName) {
 }
 
 export function resetAnalytics() {
-  if (!initialized) return;
+  if (!initialized || !posthog) return;
   try { posthog.reset(); } catch {}
 }

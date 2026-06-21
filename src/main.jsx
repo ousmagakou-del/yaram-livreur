@@ -7,11 +7,20 @@ import { loadSiteSettings, subscribeSettings } from './lib/supabase'
 import { initSentry } from './lib/sentry'
 import { registerServiceWorker } from './lib/sw-register'
 
-// Init Sentry (no-op si VITE_SENTRY_DSN n'est pas defini)
-initSentry();
-
-// Register Service Worker custom (skip auto sur localhost et Capacitor natif)
-registerServiceWorker();
+// ─── Init Sentry + SW DIFFÉRÉ à l'idle ───
+// Sentry charge ~80kb gzip de @sentry/browser. Le faire au boot bloque le
+// 1er paint sur LTE Sénégal. On le laisse partir quand le main thread est
+// libre (requestIdleCallback) — fallback setTimeout pour Safari iOS.
+// Idem SW register : pas la peine de courir, l'app fonctionne sans.
+const _deferInit = () => {
+  initSentry();
+  registerServiceWorker();
+};
+if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+  window.requestIdleCallback(_deferInit, { timeout: 3000 });
+} else {
+  setTimeout(_deferInit, 1500);
+}
 
 // ─── Splash inline : retire le bloc HTML pre-React avec un crossfade ───
 // Le boot inline est defini dans index.html (#yaram-boot). On le marque .gone
