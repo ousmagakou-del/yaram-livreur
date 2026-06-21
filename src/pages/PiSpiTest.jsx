@@ -10,7 +10,7 @@ export default function PiSpiTest() {
   const [result, setResult] = useState(null);
   const [currentAction, setCurrentAction] = useState('');
   const [aliasType, setAliasType] = useState('telephone');
-  const [aliasValue, setAliasValue] = useState('221774388766');
+  const [aliasValue, setAliasValue] = useState('221777608983');
 
   const callGateway = async (action, params = {}) => {
     setLoading(true);
@@ -116,7 +116,7 @@ export default function PiSpiTest() {
             style={S.input}
             value={aliasValue}
             onChange={e => setAliasValue(e.target.value)}
-            placeholder="221774388766"
+            placeholder="221777608983"
           />
           
           <div style={{ marginTop: 12 }}>

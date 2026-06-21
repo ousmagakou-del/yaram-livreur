@@ -51,7 +51,7 @@ export function safeMultiply(...values) {
   return values.reduce((acc, v) => acc * safeNumber(v, 0), 1);
 }
 
-const WHATSAPP_FALLBACK_INTL = '+221774388766';
+const WHATSAPP_FALLBACK_INTL = '+221777608983';
 
 /**
  * Helper : nettoie le numéro WhatsApp en gardant uniquement les chiffres
@@ -62,7 +62,7 @@ function cleanForWaMe(raw) {
 }
 
 /**
- * Numéro WhatsApp au format wa.me : '221774388766'
+ * Numéro WhatsApp au format wa.me : '221777608983'
  * (chiffres uniquement, indicatif compris, sans +)
  */
 export function getWhatsAppNumber() {
@@ -71,7 +71,7 @@ export function getWhatsAppNumber() {
 }
 
 /**
- * Numéro WhatsApp au format international : '+221774388766'
+ * Numéro WhatsApp au format international : '+221777608983'
  */
 export function getWhatsAppIntl() {
   const stored = getCachedSetting('whatsapp', WHATSAPP_FALLBACK_INTL);
@@ -80,14 +80,14 @@ export function getWhatsAppIntl() {
 }
 
 /**
- * Numéro WhatsApp formaté pour affichage humain : '+221 77 438 87 66'
+ * Numéro WhatsApp formaté pour affichage humain : '+221 77 760 89 83'
  * Si le numéro stocké contient déjà des espaces (format admin), on le retourne tel quel.
  * Sinon on essaye de le formater intelligemment.
  */
 export function getWhatsAppDisplay() {
   const stored = getCachedSetting('whatsapp', WHATSAPP_FALLBACK_INTL);
   if (!stored) return WHATSAPP_FALLBACK_INTL;
-  // Si l'admin a stocké un format affichable (+221 77 438 87 66) → on garde
+  // Si l'admin a stocké un format affichable (+221 77 760 89 83) → on garde
   if (stored.includes(' ')) return stored.startsWith('+') ? stored : '+' + stored;
   // Sinon on formate à la sénégalaise : "+221 77 XXX XX XX"
   const digits = cleanForWaMe(stored);
@@ -102,7 +102,7 @@ export function getWhatsAppDisplay() {
 // Toutes les utilisations dans le code ont été migrées vers les helpers.
 export const YARAM_WHATSAPP = cleanForWaMe(WHATSAPP_FALLBACK_INTL);
 export const YARAM_WHATSAPP_INTL = WHATSAPP_FALLBACK_INTL;
-export const YARAM_WHATSAPP_DISPLAY = '+221 77 438 87 66';
+export const YARAM_WHATSAPP_DISPLAY = '+221 77 760 89 83';
 
 export function scoreClass(score) {
   if (score >= 85) return 'excellent';

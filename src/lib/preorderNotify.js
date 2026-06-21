@@ -87,7 +87,7 @@ Ton produit est arrivé à Dakar 🇸🇳
 
 Pour qu'on te livre, il reste à régler le *solde de ${fmt(balance)} FCFA*.
 
-💳 Paie via Wave : 77 438 87 66
+💳 Paie via Wave : 77 760 89 83
 💬 Ou réponds "Solde" et on t'envoie le lien
 
 Une fois reçu, on te livre dans 24h ! 🚚
@@ -107,7 +107,7 @@ YARAM 🌍`,
 Petit rappel : ton produit YARAM t'attend à Dakar !
 Il reste juste le *solde de ${fmt(balance)} FCFA* à régler pour qu'on te livre.
 
-💳 Wave : 77 438 87 66
+💳 Wave : 77 760 89 83
 💬 Réponds-nous et on s'occupe de toi
 
 Réf : ${orderId}

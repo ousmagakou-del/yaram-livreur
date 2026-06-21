@@ -301,7 +301,7 @@ export default function Help() {
 
   const handleCall = () => {
     tapHaptic();
-    window.location.href = 'tel:+221774388766';
+    window.location.href = 'tel:+221777608983';
   };
 
   const handleBugReport = async () => {
@@ -430,7 +430,7 @@ export default function Help() {
             <button className="help-quick-card" onClick={handleCall} type="button">
               <span className="help-quick-icon">📞</span>
               <strong>Appeler</strong>
-              <span className="help-quick-meta">+221 77 438 87 66</span>
+              <span className="help-quick-meta">+221 77 760 89 83</span>
             </button>
             <button className="help-quick-card" onClick={handleBugReport} type="button">
               <span className="help-quick-icon">🛠</span>

@@ -46,7 +46,7 @@ export function paymentReceivedEmail({ firstName, orderId, amount, paymentMethod
 
     <p style="margin:24px 0 0;font-size:12px;color:#888;line-height:1.5;">
       Un souci avec ton virement ? Réponds directement à ce mail ou contacte-nous
-      sur WhatsApp <a href="https://wa.me/221774388766" style="color:${BRAND_GREEN};font-weight:600;text-decoration:none;">+221 77 438 87 66</a>.
+      sur WhatsApp <a href="https://wa.me/221777608983" style="color:${BRAND_GREEN};font-weight:600;text-decoration:none;">+221 77 760 89 83</a>.
     </p>
   `;
 

@@ -7,7 +7,7 @@ export const BRAND_GREEN = '#1F8B4C';
 export const BRAND_ACCENT = '#F4B53A';
 export const BRAND_ORANGE = '#E94E1B';
 export const SUPPORT_EMAIL = 'contact@yaram.app';
-export const SUPPORT_WA = '+221 77 438 87 66';
+export const SUPPORT_WA = '+221 77 760 89 83';
 
 export function fcfa(n) {
   return (Number(n) || 0).toLocaleString('fr-FR') + ' FCFA';
@@ -64,7 +64,7 @@ export function layout({ title, preheader, body }) {
 
       <!-- FOOTER -->
       <tr><td style="padding:24px 32px 32px;border-top:1px solid #EFEFEF;font-size:12px;color:#888;text-align:center;line-height:1.7;">
-        Besoin d'aide&nbsp;? Réponds à cet email ou écris-nous sur WhatsApp <a href="https://wa.me/221774388766" style="color:${BRAND_GREEN};text-decoration:none;font-weight:600;">${SUPPORT_WA}</a><br>
+        Besoin d'aide&nbsp;? Réponds à cet email ou écris-nous sur WhatsApp <a href="https://wa.me/221777608983" style="color:${BRAND_GREEN};text-decoration:none;font-weight:600;">${SUPPORT_WA}</a><br>
         <a href="${APP_URL}" style="color:${BRAND_GREEN};text-decoration:none;font-weight:600;">${APP_URL}</a>
         &nbsp;·&nbsp;
         <a href="mailto:${SUPPORT_EMAIL}" style="color:${BRAND_GREEN};text-decoration:none;">${SUPPORT_EMAIL}</a>

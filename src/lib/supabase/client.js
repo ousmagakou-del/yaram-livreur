@@ -58,7 +58,7 @@ const SETTINGS_FALLBACK = {
   commission: 8,            // pourcentage
   deliveryFee: 1500,        // FCFA (Dakar)
   freeDeliveryFrom: 30000,  // FCFA (Dakar — au-dessus livraison gratuite)
-  whatsapp: '+221 77 438 87 66',
+  whatsapp: '+221 77 760 89 83',
   email: 'contact@yaram.sn',
   primaryColor: '#1F8B4C',
   accentColor: '#FFD700',

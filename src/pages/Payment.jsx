@@ -84,7 +84,27 @@ export default function Payment({ orderId }) {
   };
 
   const handlePay = async () => {
+    // ─── GUARD : order pas encore charge ───
+    if (!order || !orderId) {
+      toast.error('Attends une seconde, la commande charge encore…');
+      return;
+    }
+    // ─── GUARD : order deja avancee → navigate direct (cas refresh apres click) ───
+    if (order.status && !['pending_payment', 'pending'].includes(order.status)) {
+      toast.success('Paiement deja confirme — on te redirige vers le suivi');
+      navigate({ name: 'order_tracking', params: { orderId } });
+      return;
+    }
     setPaying(true);
+
+    // ─── REFRESH SESSION : evite "not_authenticated" si JWT expire ───
+    // Sur iOS Safari, le JWT peut expirer apres ~1h en background. Si on appelle
+    // la RPC avec un token expire, elle retourne 'not_authenticated' et le user
+    // voit un message obscur. On force un refresh prealable, silencieux si OK.
+    try {
+      await supabase.auth.refreshSession();
+    } catch { /* refresh non-fatal */ }
+
     // ─── ANALYTICS : payment_started ───
     try {
       trackEvent('payment_started', {
@@ -137,7 +157,21 @@ export default function Payment({ orderId }) {
       }
 
       if (lastErr) {
-        // Les 2 tentatives ont échoué — on affiche un message clair
+        // ─── DOUBLE-CHECK : peut-etre que la RPC a reussi cote serveur mais que
+        // le timeout cote client a gagne la course Promise.race. On verifie le
+        // status reel cote serveur avant de claim "echec". ───
+        try {
+          const { data: refreshed } = await supabase.rpc('client_get_order_by_id', { p_order_id: orderId });
+          if (refreshed && refreshed.status && !['pending_payment', 'pending'].includes(refreshed.status)) {
+            // Le serveur a bien mis a jour, c'est juste le reseau qui rame. On continue.
+            console.info('[Payment] timeout side, but server already updated to', refreshed.status);
+            result = { data: { success: true, new_status: refreshed.status } };
+            lastErr = null;
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (lastErr) {
         throw new Error('Réseau trop lent. Réessaie dans 30 secondes ou contacte-nous WhatsApp.');
       }
 
@@ -149,7 +183,25 @@ export default function Payment({ orderId }) {
 
       // updateOrderStatus retourne { error } ou { data } — pas un throw.
       if (result?.error) {
-        throw new Error(result.error.message || 'Échec de la confirmation');
+        const msg = result.error.message || '';
+        // ─── Messages user-friendly pour erreurs RPC connues ───
+        if (msg.includes('not_authenticated')) {
+          throw new Error('Ta session a expire. Reconnecte-toi et reessaie.');
+        }
+        if (msg.includes('order_not_pending')) {
+          // Cas le plus frequent du "plante" : 2e clic du user, l'order est
+          // deja passee en awaiting_verification → on redirige proprement.
+          toast.success('Paiement deja enregistre, redirection…');
+          navigate({ name: 'order_tracking', params: { orderId } });
+          return;
+        }
+        if (msg.includes('not_your_order')) {
+          throw new Error('Erreur de session, reconnecte-toi.');
+        }
+        if (msg.includes('order_not_found')) {
+          throw new Error('Commande introuvable. Contacte-nous WhatsApp.');
+        }
+        throw new Error(msg || 'Échec de la confirmation');
       }
 
       // ─── 2. Navigation immédiate vers le tracking ───
@@ -374,8 +426,8 @@ export default function Payment({ orderId }) {
     </div>
   );
 
-  const yaramNumberDisplay = getWhatsAppDisplay();     // "+221 77 438 87 66"
-  const yaramNumberRaw     = getWhatsAppNumber();       // "221774388766"
+  const yaramNumberDisplay = getWhatsAppDisplay();     // "+221 77 760 89 83"
+  const yaramNumberRaw     = getWhatsAppNumber();       // "221777608983"
   const amountStr          = Number(order.total || 0).toLocaleString('fr-FR');
   const isWave             = order.payment_method === 'wave';
   const isOM               = order.payment_method === 'om';

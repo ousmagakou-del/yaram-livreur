@@ -16,6 +16,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { getUserPosition, getPermissionState } from '../lib/geo';
 import { useNav } from '../App';
 import './International.css';
 
@@ -132,21 +133,20 @@ export default function International() {
     }, 12000);
     (async () => {
       try {
+        // FIX juin 2026 : avant on faisait `.or('is_imported.eq.true,origin_country.not.is.null')`
+        // mais 615 produits matchent cette condition (presque tous ont origin_country renseigne
+        // a "SN" pour le Senegal) → les 2 vrais imports etaient pushed hors du top 20.
+        // Nouveau : filtre strict is_imported=true, qui matche exactement nos imports.
         const { data, error } = await supabase
           .from('products')
-          .select('id, name, brand, price, image_url, img, origin_country, is_imported')
+          .select('id, name, brand, price, image_url, img, origin_country, is_imported, status')
           .eq('active', true)
-          .or('is_imported.eq.true,origin_country.not.is.null')
-          .limit(20);
+          .eq('is_imported', true)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(40);
         if (error) throw error;
-        // Filtre côté client : retire le Sénégal qui pourrait passer via origin_country
-        const filtered = (data || []).filter(p => {
-          if (p.is_imported === true) return true;
-          const oc = (p.origin_country || '').toLowerCase();
-          if (!oc) return false;
-          return !['sn', 'senegal', 'sénégal', 'sénégalais'].includes(oc);
-        });
-        if (!cancelled) setIntlProducts(filtered);
+        if (!cancelled) setIntlProducts(data || []);
       } catch (e) {
         console.warn('[Intl] products fetch error:', e?.message);
       } finally {
@@ -159,6 +159,44 @@ export default function International() {
 
   // ─── State FAQ collapsible ───
   const [openFaq, setOpenFaq] = useState(null);
+
+  // ─── State geoloc ─────────────────────────────────────────────────────────
+  // Sur la Boutique Internationale, on declenche la geoloc au mount pour :
+  //   1. Confirmer que l'user est bien au Senegal (zone de livraison)
+  //   2. Pre-cacher la position pour Cart/Checkout en aval
+  //   3. Declencher le prompt iOS natif "YARAM souhaite votre position" qui
+  //      ne se montrait JAMAIS depuis cette page (l'user devait y aller via
+  //      Home pour qu'il sorte)
+  const [userPos, setUserPos] = useState(null);
+  const [posState, setPosState] = useState('idle'); // idle | requesting | granted | denied | error
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // 1. Check si deja accordee (silencieux)
+        const perm = await getPermissionState();
+        if (cancelled) return;
+        if (perm === 'denied') {
+          setPosState('denied');
+          return;
+        }
+        // 2. Lance la demande native (silencieuse si granted, prompt sinon)
+        setPosState('requesting');
+        const pos = await getUserPosition(10000);
+        if (cancelled) return;
+        if (pos) {
+          setUserPos(pos);
+          setPosState('granted');
+        } else {
+          setPosState('denied');
+        }
+      } catch (e) {
+        if (!cancelled) setPosState('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ─── Refs pour scroll into view (IntersectionObserver) ───
   const sectionsRef = useRef([]);
@@ -634,7 +672,7 @@ export default function International() {
             On répond en moins de 30 min sur WhatsApp.
           </p>
           <a
-            href="https://wa.me/221774388766?text=Bonjour%20YARAM%2C%20j%27ai%20une%20question%20sur%20la%20boutique%20internationale"
+            href="https://wa.me/221777608983?text=Bonjour%20YARAM%2C%20j%27ai%20une%20question%20sur%20la%20boutique%20internationale"
             className="intlp-wa-btn"
             target="_blank"
             rel="noopener noreferrer"

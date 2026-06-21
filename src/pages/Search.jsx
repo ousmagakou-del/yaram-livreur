@@ -755,7 +755,16 @@ function EmptyState({ history, onPickHistory, onRemoveHistory, onClearHistory, o
                 onClick={() => onPickBrand(b)}
               >
                 <div className="ysearch-trending-logo">
-                  {b.logo ? <img src={b.logo} alt={b.name} loading="lazy" /> : <span>{(b.name || '?')[0]}</span>}
+                  {(b.img || b.logo) ? (
+                    <img
+                      src={b.img || b.logo}
+                      alt={b.name}
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display = 'flex'); }}
+                    />
+                  ) : null}
+                  <span style={{ display: (b.img || b.logo) ? 'none' : 'flex' }}>{(b.name || '?')[0]}</span>
                 </div>
                 <div className="ysearch-trending-name">{b.name}</div>
               </button>
