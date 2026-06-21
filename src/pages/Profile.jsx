@@ -453,6 +453,14 @@ export default function Profile() {
                 sub="Promos & codes actifs"
                 onClick={() => navigate({ name: 'promos', params: {} })}
               />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="📬"
+                tint="rgba(244,181,58,0.14)"
+                label="Newsletter"
+                sub="Promos exclusives & conseils beauté"
+                onClick={() => navigate({ name: 'newsletter', params: {} })}
+              />
             </div>
           </section>
 

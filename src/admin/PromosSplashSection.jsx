@@ -287,11 +287,14 @@ function PromoEditor({ promo, onSave, onCancel }) {
     if (!file) return;
     setUploading(true);
     try {
-      const { url } = await uploadProductImage(file);
+      // FIX juin 2026 : uploadProductImage retourne une string URL ou null,
+      // pas un objet {url}. Destructurer sur null faisait planter.
+      const url = await uploadProductImage(file);
+      if (!url) throw new Error('Upload échoué — vérifie la policy Storage côté Supabase');
       upd('image_url', url);
       toast.success('Image uploadée ✅');
     } catch (err) {
-      toast.error('Upload : ' + err.message);
+      toast.error('Upload : ' + (err?.message || 'erreur inconnue'));
     } finally {
       setUploading(false);
     }

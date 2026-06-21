@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken } from '../lib/supabase';
+// FIX juin 2026 : sendWhatsApp (WaSender bloqué) → on utilise wa.me partout (cf assignDriver).
+// L'import reste retiré pour ne pas pulluer le bundle avec une fonction morte.
+import { supabase, WhatsAppTemplates, generateConfirmToken } from '../lib/supabase';
 import { adminListOrdersFull, adminUpdateOrder, adminLogAction } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 import SignedImage from '../components/SignedImage';
@@ -102,13 +104,16 @@ export default function DeliveriesSection() {
     
     const url = `${window.location.origin}/?livreur=${token}`;
     if (phone) {
+      // FIX juin 2026 : ouvrir wa.me direct au lieu de sendWhatsApp (WaSender
+      // bloqué). L'admin clique → WhatsApp s'ouvre avec le message pré-rempli,
+      // il appuie sur Envoyer dans WhatsApp. Plus de dépendance à un service tier.
       const msg = WhatsAppTemplates.driverAssigned(name, order, url);
-      const result = await sendWhatsApp(phone, msg);
-      if (result.success) toast.success(`✅ WhatsApp envoyé à ${name}`);
-      else {
-        navigator.clipboard.writeText(url);
-        toast.error(`⚠️ Échec WhatsApp. Lien copié :\n${url}`);
-      }
+      const cleanPhone = String(phone).replace(/\D/g, '');
+      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+      window.open(waUrl, '_blank');
+      // Backup automatique du lien dans le presse-papier au cas où
+      try { navigator.clipboard.writeText(url); } catch {}
+      toast.success(`💬 WhatsApp ouvert avec ${name}`);
     } else {
       navigator.clipboard.writeText(url);
       toast.success(`Lien copié :\n${url}`);
@@ -127,12 +132,11 @@ export default function DeliveriesSection() {
     const url = `${window.location.origin}/?livreur=${tracking.delivery_token}`;
     if (tracking.delivery_person_phone) {
       const msg = WhatsAppTemplates.driverAssigned(tracking.delivery_person_name, order, url);
-      const result = await sendWhatsApp(tracking.delivery_person_phone, msg);
-      if (result.success) toast.success(`✅ Lien renvoyé`);
-      else {
-        navigator.clipboard.writeText(url);
-        toast.success(`Lien copié:\n${url}`);
-      }
+      const cleanPhone = String(tracking.delivery_person_phone).replace(/\D/g, '');
+      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+      window.open(waUrl, '_blank');
+      try { navigator.clipboard.writeText(url); } catch {}
+      toast.success(`💬 WhatsApp ouvert`);
     } else {
       navigator.clipboard.writeText(url);
       toast.success(`Lien copié:\n${url}`);
@@ -150,9 +154,11 @@ export default function DeliveriesSection() {
     const msg = order.payment_method === 'cod'
       ? WhatsAppTemplates.orderAwaitingConfirmCash(order.address.name, order.id, order.total, url)
       : WhatsAppTemplates.orderAwaitingConfirm(order.address.name, order.id, url);
-    const result = await sendWhatsApp(phone, msg);
-    if (result.success) toast.success('✅ Lien de confirmation renvoyé à la cliente');
-    else toast.error('Échec WhatsApp');
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+    try { navigator.clipboard.writeText(url); } catch {}
+    toast.success('💬 WhatsApp ouvert avec la cliente');
   };
 
   const forceDeliver = async (order) => {

@@ -119,13 +119,20 @@ function OrdersTab() {
       if (error) throw error;
       toast.success(`Commande ${orderId} → ${PREORDER_STATUS_LABELS[newStatus] || newStatus}`);
 
+      // FIX juin 2026 : notifs preorder en best-effort (timeout 4s) — WaSender
+      // peut être bloqué, ne pas freeze l'UI admin. Push reste tenté en parallèle.
       if (newStatus !== 'cancelled' && !opts.skipNotify) {
         const order = orders.find(o => o.id === orderId);
         if (order) {
           const updated = { ...order, ...update };
-          const res = await notifyPreorderStatusChange(updated, newStatus);
-          if (res.push?.ok) toast.success('🔔 Push envoyé au client');
-          if (res.whatsapp?.ok) toast.success('💬 WhatsApp envoyé au client');
+          const notifyPromise = notifyPreorderStatusChange(updated, newStatus);
+          const timeout = new Promise(resolve => setTimeout(() => resolve({ push: { ok: false }, whatsapp: { ok: false, error: 'timeout' } }), 4000));
+          Promise.race([notifyPromise, timeout])
+            .then(res => {
+              if (res?.push?.ok) toast.success('🔔 Push envoyé au client');
+              if (res?.whatsapp?.ok) toast.success('💬 WhatsApp envoyé au client');
+            })
+            .catch(e => console.warn('[ImportsSection] notify failed:', e?.message));
         }
       }
 

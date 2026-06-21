@@ -50,7 +50,7 @@ export async function adminLogin(email, pin) {
   };
 
   try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } catch (e) { /* ignore */ }
 
   // Log connexion (non bloquant) — gardera sa policy "Anyone insert audit_log"
@@ -83,7 +83,7 @@ export async function adminLogout() {
       });
     } catch (e) {}
   }
-  try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
 }
 
 // Helper expose pour que tous les wrappers RPC puissent recuperer le token courant
@@ -94,17 +94,17 @@ export function getAdminToken() {
 
 export function getAdminSession() {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s.expires_at || s.expires_at < Date.now()) {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
       return null;
     }
     // Migration : si la session a ete creee avant le passage a admin_start_session,
     // elle n'a pas de token. On la force a se reconnecter pour obtenir un token serveur.
     if (!s.token) {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
       return null;
     }
     return s;

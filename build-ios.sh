@@ -126,6 +126,8 @@ xcodebuild archive \
   -destination "generic/platform=iOS" \
   -archivePath "$ARCHIVE_PATH" \
   -clonedSourcePackagesDirPath "$CUSTOM_SPM_PATH" \
+  -allowProvisioningUpdates \
+  -allowProvisioningDeviceRegistration \
   CODE_SIGN_STYLE=Automatic \
   DEVELOPMENT_TEAM=6779DNV7Y5 \
   > "$ARCHIVE_LOG" 2>&1
@@ -155,6 +157,7 @@ xcodebuild -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
   -exportPath "$EXPORT_PATH" \
   -exportOptionsPlist "$EXPORT_OPTIONS" \
+  -allowProvisioningUpdates \
   > "$EXPORT_LOG" 2>&1
 EXPORT_EXIT=$?
 set -e

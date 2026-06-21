@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { toast } from '../lib/toast';
 
 export default function ReviewsSection() {
   const [reviews, setReviews] = useState([]);
@@ -9,16 +10,29 @@ export default function ReviewsSection() {
   useEffect(() => { refresh(); }, []);
 
   const refresh = async () => {
-    const { data } = await supabase
-      .from('reviews')
-      .select('*, products(name, brand, img), users_profile!user_id(first_name, last_name)')
-      .order('created_at', { ascending: false });
-    setReviews(data || []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*, products(name, brand, img), users_profile!user_id(first_name, last_name)')
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.warn('[ReviewsSection] fetch error:', error.message);
+        toast.error('Erreur chargement avis : ' + error.message);
+      }
+      setReviews(data || []);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const moderate = async (id, status) => {
-    await supabase.from('reviews').update({ status }).eq('id', id);
+    const { error } = await supabase.from('reviews').update({ status }).eq('id', id);
+    if (error) {
+      toast.error('Erreur modération : ' + error.message);
+      return;
+    }
+    toast.success(status === 'approved' ? 'Avis approuvé ✅' : 'Avis rejeté');
     refresh();
   };
 

@@ -54,6 +54,7 @@ const Terms           = lazy(() => import('./pages/Terms'));
 const MentionsLegales = lazy(() => import('./pages/MentionsLegales'));
 const DeleteAccount   = lazy(() => import('./pages/DeleteAccount'));
 const International = lazy(() => import('./pages/International'));
+const Newsletter      = lazy(() => import('./pages/Newsletter'));
 
 // Fallback leger pour Suspense (evite de re-trigger le SplashScreen plein-ecran)
 function LazyFallback() {
@@ -112,7 +113,7 @@ function pathToRoute(pathname, search = '') {
   if (parts[0] === 'scan' && parts[1] === 'result' && parts[2]) return { name: 'scan_result', params: { scanId: parts[2] } };
   if (parts[0] === 'payment' && parts[1]) return { name: 'payment', params: { orderId: parts[1] } };
   
-  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'notif_settings', 'promos', 'privacy', 'terms', 'mentions', 'delete_account', 'international', 'help'];
+  const simpleRoutes = ['search', 'cart', 'checkout', 'orders', 'profile', 'pharmacies', 'scan', 'scan_history', 'addresses', 'favorites', 'payments', 'evolution', 'categories', 'quiz', 'loyalty', 'referral', 'notifications', 'notif_settings', 'promos', 'privacy', 'terms', 'mentions', 'delete_account', 'international', 'help', 'newsletter'];
   if (simpleRoutes.includes(parts[0])) {
     const params = {};
     if (parts[0] === 'search') {
@@ -574,6 +575,7 @@ function ClientApp() {
           mentions: 'mentions',
           delete_account: 'delete_account',
           help: 'help',
+          newsletter: 'newsletter',
         };
         const routeName = map[path];
         if (!routeName) {
@@ -738,6 +740,7 @@ function ClientApp() {
     case 'terms': page = <Suspense fallback={<LazyFallback />}><Terms /></Suspense>; break;
     case 'mentions': page = <Suspense fallback={<LazyFallback />}><MentionsLegales /></Suspense>; break;
     case 'delete_account': page = <Suspense fallback={<LazyFallback />}><DeleteAccount /></Suspense>; break;
+    case 'newsletter': page = <Suspense fallback={<LazyFallback />}><Newsletter /></Suspense>; break;
     default: page = <Home />;
   }
 

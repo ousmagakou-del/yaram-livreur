@@ -13,13 +13,16 @@ export default function DashboardSection({ setSection }) {
 
   useEffect(() => {
     const fetchAll = async () => {
-      const [ordersRes, countsRes, inventoryRes] = await Promise.all([
-        adminListOrders({ limit: 10000, offset: 0 }),
-        adminDashboardCounts(),
-        supabase.from('inventory').select('stock'),
-      ]);
-      const orders = ordersRes.data || [];
-      const counts = countsRes.data || { users: 0, pharmacies: 0, products: 0 };
+      try {
+        // PERF: limit 1000 — un dashboard n'a pas besoin de 10k orders pour ses KPI.
+        // Au-delà la RPC peut renvoyer un 400 (cap PostgREST) + payload >1MB sur 4G.
+        const [ordersRes, countsRes, inventoryRes] = await Promise.all([
+          adminListOrders({ limit: 1000, offset: 0 }),
+          adminDashboardCounts(),
+          supabase.from('inventory').select('stock').limit(5000),
+        ]);
+        const orders = ordersRes.data || [];
+        const counts = countsRes.data || { users: 0, pharmacies: 0, products: 0 };
       const usersRes      = { count: counts.users };
       const pharmaciesRes = { count: counts.pharmacies };
       const productsRes   = { count: counts.products };
@@ -50,6 +53,11 @@ export default function DashboardSection({ setSection }) {
         outOfStock: inv.filter(i => i.stock === 0).length,
       });
       setRecentOrders(orders.slice(0, 5));
+      } catch (e) {
+        // Best-effort : un dashboard qui foire ne doit jamais bloquer l'admin.
+        // On garde l'état précédent et on log un warn (visible dans Sentry).
+        console.warn('[DashboardSection] fetchAll failed:', e?.message);
+      }
     };
     fetchAll();
     const interval = setInterval(fetchAll, 15000);

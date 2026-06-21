@@ -33,15 +33,20 @@ export default function NotificationsSection() {
 
   const refresh = async () => {
     setLoading(true);
-    
-    const [statsRes, recentRes] = await Promise.all([
-      supabase.from('whatsapp_stats').select('*'),
-      supabase.from('whatsapp_log').select('*').order('sent_at', { ascending: false }).limit(50),
-    ]);
-    
-    setStats(statsRes.data || []);
-    setRecent(recentRes.data || []);
-    setLoading(false);
+    try {
+      const [statsRes, recentRes] = await Promise.all([
+        supabase.from('whatsapp_stats').select('*'),
+        supabase.from('whatsapp_log').select('*').order('sent_at', { ascending: false }).limit(50),
+      ]);
+      if (statsRes.error) console.warn('[NotificationsSection] whatsapp_stats:', statsRes.error.message);
+      if (recentRes.error) console.warn('[NotificationsSection] whatsapp_log:', recentRes.error.message);
+      setStats(statsRes.data || []);
+      setRecent(recentRes.data || []);
+    } catch (e) {
+      console.warn('[NotificationsSection] refresh failed:', e?.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { refresh(); }, []);

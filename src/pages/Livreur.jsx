@@ -12,6 +12,9 @@ import './Livreur.css';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://qxhhnrnworwrnwmqekmb.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4aGhucm53b3J3cm53bXFla21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTExMzYsImV4cCI6MjA5NDA4NzEzNn0.l_7-Eg06UFnXvSw1BQiuNw0yU94jillHNycx-jvP1Aw';
 
+// ─── Numéro WhatsApp support pour les liens cassés ───
+const SUPPORT_WHATSAPP = '221770000000';
+
 export default function Livreur() {
   const [order, setOrder] = useState(null);
   const [tracking, setTracking] = useState(null);
@@ -400,18 +403,19 @@ export default function Livreur() {
     toast.success('Livraison signalée ! La cliente reçoit un WhatsApp pour confirmer. Merci pour ton service 💚', { duration: 5000 });
   };
 
+  // ─── SKELETON LOADING ───
   if (loading) {
     return (
       <div className="liv-screen">
-        <header className="liv-header">
-          <div className="liv-logo">D</div>
-          <div>
+        <header className="liv-topbar">
+          <div className="liv-topbar-logo">Y</div>
+          <div className="liv-topbar-meta">
             <strong>YARAM · Livraison</strong>
             <p>Chargement de ta tournée…</p>
           </div>
         </header>
         <main className="liv-main">
-          <div className="liv-skeleton" />
+          <div className="liv-skeleton" style={{ height: 160 }} />
           <div className="liv-skeleton" style={{ height: 120 }} />
           <div className="liv-skeleton" style={{ height: 180 }} />
         </main>
@@ -419,206 +423,264 @@ export default function Livreur() {
     );
   }
 
+  // ─── ERROR SCREEN PREMIUM ───
   if (error) {
+    const supportWaUrl = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent('Salut, mon lien de livraison YARAM ne marche pas : ' + error)}`;
     return (
-      <div className="liv-screen">
-        <div className="liv-card" style={{ margin: 20, textAlign: 'center' }}>
-          <div style={{ fontSize: 48 }}>⚠️</div>
-          <h1>Erreur</h1>
+      <div className="liv-screen liv-error-screen">
+        <div className="liv-error-card">
+          <div className="liv-error-icon">⚠️</div>
+          <h1>Lien expiré ou invalide</h1>
           <p>{error}</p>
+          <p className="liv-error-sub">Contacte l'admin pour recevoir un nouveau lien.</p>
+          <a href={supportWaUrl} target="_blank" rel="noopener noreferrer" className="liv-error-btn">
+            💬 Contacter le support
+          </a>
         </div>
       </div>
     );
   }
 
   const isCash = order?.payment_method === 'cod';
-  const clientWaUrl = order?.address?.phone ? 'https://wa.me/' + order.address.phone.replace(/\D/g, '') : null;
-  const clientMapsUrl = order?.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address.line}, ${order.address.city}`)}` : null;
+  const clientWaUrl = order?.address?.phone
+    ? `https://wa.me/${order.address.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Salut, je suis ton livreur YARAM, je suis en route !')}`
+    : null;
+  const clientMapsUrl = order?.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address.line || ''}, ${order.address.city || 'Dakar'}`)}`
+    : null;
+
   // ─── stepDone : check si une étape est franchie ───
-  // BUG FIX : avant, si tracking.status n'était pas dans ord (ex: 'pending',
-  // 'created', null, undefined), indexOf retournait -1 → -1 >= n est TOUJOURS
-  // false pour n >= 0 → toutes les étapes apparaissaient comme non franchies
-  // mais le livreur cliquait sur "Je suis là" qui demandait stepDone('picking')
-  // pour les suivantes — bloqué. Maintenant on traite null/inconnu comme 'assigned'.
   const stepDone = (s) => {
     const ord = ['assigned', 'picking', 'picked', 'in_route', 'arrived', 'cash_collected', 'proof_uploaded', 'delivered'];
     const status = tracking?.status || 'assigned';
     const cur = ord.indexOf(status);
     const target = ord.indexOf(s);
-    // Si status inconnu (cur=-1), on traite comme 'assigned' (cur=0), pas comme -1
     const curSafe = cur < 0 ? 0 : cur;
     return target >= 0 && curSafe >= target;
   };
 
   const isCompleted = ['awaiting_confirm', 'delivered'].includes(order?.status);
+  const isDeliveredFinal = order?.status === 'delivered';
   const scannedCount = (tracking?.scanned_barcodes || []).length;
   const totalProducts = (order?.items || []).reduce((sum, it) => sum + (it.qty || 1), 0);
   const allScanned = scannedCount >= totalProducts && totalProducts > 0;
 
+  // ─── HERO STATE : gradient + icon + label selon le status ───
+  const heroState = (() => {
+    if (isDeliveredFinal) {
+      return { phase: 'delivered', icon: '🎉', title: 'Mission accomplie', sub: 'Cliente a confirmé la réception' };
+    }
+    if (order?.status === 'awaiting_confirm' || tracking?.status === 'proof_uploaded') {
+      return { phase: 'confirm', icon: '✅', title: 'En attente confirmation', sub: 'La cliente a reçu le WhatsApp' };
+    }
+    if (tracking?.status === 'arrived' || tracking?.status === 'cash_collected') {
+      return { phase: 'arrived', icon: '📍', title: 'Devant la porte', sub: isCash && !order?.cash_received ? 'Encaisse le cash' : 'Prends la preuve de livraison' };
+    }
+    if (tracking?.status === 'in_route') {
+      return { phase: 'route', icon: '🛵', title: 'En route vers la cliente', sub: sharingGPS ? 'GPS actif · cliente notifiée' : 'Active ton GPS' };
+    }
+    // assigned / picking / picked / default
+    const sub = tracking?.status === 'picked' ? 'Produits récupérés — en route' :
+                tracking?.status === 'picking' ? 'Vérifie et scanne les produits' :
+                'Récupère les produits';
+    return { phase: 'pickup', icon: '📦', title: 'Pickup pharmacie', sub };
+  })();
+
+  // ─── CTA prioritaire selon le status ───
+  const primaryCta = (() => {
+    if (isDeliveredFinal) return null;
+    if (order?.status === 'awaiting_confirm' || tracking?.status === 'proof_uploaded') {
+      return { label: '⏳ Attente confirmation cliente', disabled: true, action: null };
+    }
+    if (tracking?.status === 'arrived' && isCash && !order?.cash_received) {
+      return { label: `💵 Encaisser ${Number(order?.total || 0).toLocaleString('fr-FR')} FCFA`, disabled: busyStep === 'cash', action: markCashReceived };
+    }
+    if (stepDone('arrived') && (!isCash || order?.cash_received)) {
+      return {
+        label: confirming ? '⏳ Envoi en cours...' : '🎉 Confirmer la livraison',
+        disabled: !proofMethod || confirming || (isCash && !order?.cash_received),
+        action: confirmDelivery,
+      };
+    }
+    if (tracking?.status === 'in_route') {
+      return { label: '📍 Je suis arrivé', disabled: busyStep === 'arrived', action: () => updateStatus('arrived', {}, 'arrived') };
+    }
+    if (stepDone('picked')) {
+      return { label: '🛵 Je suis parti', disabled: busyStep === 'in_route', action: () => updateStatus('in_route', {}, 'in_route') };
+    }
+    return null;
+  })();
+
   return (
     <div className="liv-screen">
-      <header className="liv-header">
-        <div className="liv-logo">D</div>
-        <div>
-          <strong>YARAM · Livraison</strong>
-          <p>{tracking?.delivery_person_name || 'Livreur'}</p>
+      {/* ─── HERO STICKY PREMIUM ─── */}
+      <header className={`liv-hero liv-hero-${heroState.phase}`}>
+        <div className="liv-hero-bg" aria-hidden="true" />
+        <div className="liv-hero-inner">
+          <div className="liv-hero-icon" aria-hidden="true">{heroState.icon}</div>
+          <div className="liv-hero-text">
+            <div className="liv-hero-orderid">Commande #{order?.id || '—'}</div>
+            <div className="liv-hero-title">{heroState.title}</div>
+            <div className="liv-hero-sub">{heroState.sub}</div>
+            {isCash && !order?.cash_received && !isCompleted && order?.total > 0 && (
+              <div className="liv-hero-cash">
+                Total à encaisser : <strong>{Number(order.total).toLocaleString('fr-FR')} FCFA</strong>
+              </div>
+            )}
+          </div>
+          <div className="liv-hero-brand" aria-hidden="true">Y</div>
         </div>
       </header>
 
-      <main className="liv-main">
-        <div className="liv-card">
-          <div className="liv-card-head">
-            <code>{order?.id}</code>
-            <span className={`liv-badge ${isCompleted ? 'liv-status-delivered' : `liv-status-${tracking?.status}`}`}>
-              {isCompleted ? '⏳ En attente confirmation cliente'
-                : tracking?.status === 'assigned' ? '⏳ Assignée'
-                : tracking?.status === 'picking' ? '🏥 Récup pharmacie'
-                : tracking?.status === 'picked' ? '✅ Récupérée'
-                : tracking?.status === 'in_route' ? '🛵 En route'
-                : tracking?.status === 'arrived' ? '📍 Arrivé'
-                : tracking?.status === 'cash_collected' ? '💵 Cash reçu'
-                : tracking?.status === 'proof_uploaded' ? '📷 Preuve uploadée'
-                : '🎉 Livré'}
-            </span>
-          </div>
+      {/* ─── CONFETTI sur delivered ─── */}
+      {isDeliveredFinal && (
+        <div className="liv-confetti" aria-hidden="true">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <span key={i} className={`liv-confetti-bit liv-confetti-bit-${i}`} />
+          ))}
         </div>
+      )}
 
-        {/* PICKUP — PHARMACIE(S) */}
-        {pharmacies.length > 0 && (
-          <div className="liv-card" style={{ borderLeft: '4px solid #1F8B4C' }}>
-            <h2>🏥 PICKUP — Récupération</h2>
+      <main className="liv-main">
+
+        {/* ─── CARTE CLIENTE (glass) ─── */}
+        <section className="liv-glass liv-card-stagger" style={{ '--i': 0 }}>
+          <div className="liv-glass-head">
+            <div className="liv-avatar liv-avatar-client" aria-hidden="true">
+              {(order?.address?.name || '?').trim().charAt(0).toUpperCase()}
+            </div>
+            <div className="liv-glass-head-text">
+              <div className="liv-glass-label">Cliente</div>
+              <div className="liv-glass-title">{order?.address?.name || 'Cliente'}</div>
+              <div className="liv-glass-sub">{order?.address?.phone || '—'}</div>
+            </div>
+          </div>
+          <div className="liv-action-row">
+            {order?.address?.phone && (
+              <a href={`tel:${order.address.phone}`} className="liv-action-btn liv-action-call">
+                📞 Appeler
+              </a>
+            )}
+            {clientWaUrl && (
+              <a href={clientWaUrl} target="_blank" rel="noopener noreferrer" className="liv-action-btn liv-action-wa">
+                💬 WhatsApp
+              </a>
+            )}
+          </div>
+        </section>
+
+        {/* ─── CARTE ADRESSE (glass) ─── */}
+        <section className="liv-glass liv-card-stagger" style={{ '--i': 1 }}>
+          <div className="liv-glass-head">
+            <div className="liv-avatar liv-avatar-addr" aria-hidden="true">📍</div>
+            <div className="liv-glass-head-text">
+              <div className="liv-glass-label">Adresse de livraison</div>
+              <div className="liv-glass-title liv-addr-line">{order?.address?.line || '—'}</div>
+              <div className="liv-glass-sub">
+                {[order?.address?.neighborhood, order?.address?.city].filter(Boolean).join(', ') || 'Dakar'}
+              </div>
+            </div>
+          </div>
+          {clientMapsUrl && (
+            <a href={clientMapsUrl} target="_blank" rel="noopener noreferrer" className="liv-big-maps-btn">
+              🗺️ Ouvrir dans Google Maps
+            </a>
+          )}
+        </section>
+
+        {/* ─── PICKUP PHARMACIE(S) ─── */}
+        {pharmacies.length > 0 && !isCompleted && (
+          <section className="liv-glass liv-card-stagger" style={{ '--i': 2 }}>
+            <div className="liv-glass-label" style={{ marginBottom: 10 }}>🏥 Pickup pharmacie</div>
             {pharmacies.map(ph => {
-              const phPhone = ph.phone || ph.whatsapp;
+              const phPhone = ph?.phone || ph?.whatsapp;
               const phWaUrl = phPhone ? 'https://wa.me/' + phPhone.replace(/\D/g, '') : null;
-              const phMapsUrl = (ph.lat && ph.lng) 
+              const phMapsUrl = (ph?.lat && ph?.lng)
                 ? `https://www.google.com/maps/dir/?api=1&destination=${ph.lat},${ph.lng}`
-                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${ph.address || ph.neighborhood || ''}, ${ph.city || 'Dakar'}`)}`;
-              
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${ph?.address || ph?.neighborhood || ''}, ${ph?.city || 'Dakar'}`)}`;
+
               return (
-                <div key={ph.id} style={{
-                  background: '#F9FAFB',
-                  borderRadius: 10,
-                  padding: 14,
-                  marginBottom: 10,
-                  border: '1px solid #EEE',
-                }}>
-                  <strong style={{ fontSize: 15, color: '#1A1A1A', display: 'block', marginBottom: 6 }}>
-                    {ph.name}
-                  </strong>
-                  {ph.tagline && (
-                    <p style={{ fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>
-                      {ph.tagline}
-                    </p>
-                  )}
-                  <p style={{ fontSize: 13, marginBottom: 4 }}>
-                    📍 {ph.address || ph.neighborhood}{ph.city ? ', ' + ph.city : ''}
-                  </p>
-                  {phPhone && (
-                    <p style={{ fontSize: 13, marginBottom: 4 }}>
-                      📞 <a href={`tel:${phPhone}`}>{phPhone}</a>
-                    </p>
-                  )}
-                  {ph.hours && (
-                    <p style={{ fontSize: 12, color: '#6B6B6B', marginBottom: 8 }}>
-                      ⏰ {ph.hours}
-                    </p>
-                  )}
-                  
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-                    {phWaUrl && (
-                      <a href={phWaUrl} target="_blank" rel="noopener noreferrer" className="liv-wa-btn" style={{ flex: 1, minWidth: 80, textAlign: 'center' }}>
-                        💬 WhatsApp
-                      </a>
-                    )}
+                <div key={ph?.id || ph?.name} className="liv-pharmacy-mini">
+                  <div className="liv-pharmacy-mini-head">
+                    <div className="liv-avatar liv-avatar-pharma" aria-hidden="true">🏥</div>
+                    <div>
+                      <div className="liv-pharmacy-mini-name">{ph?.name || 'Pharmacie'}</div>
+                      {ph?.address && <div className="liv-pharmacy-mini-addr">{ph.address}{ph.city ? ', ' + ph.city : ''}</div>}
+                    </div>
+                  </div>
+                  <div className="liv-action-row">
                     {phPhone && (
-                      <a href={`tel:${phPhone}`} className="liv-maps-btn" style={{ background: '#1F8B4C', color: 'white', flex: 1, minWidth: 80, textAlign: 'center' }}>
+                      <a href={`tel:${phPhone}`} className="liv-action-btn liv-action-call">
                         📞 Appeler
                       </a>
                     )}
-                    <a href={phMapsUrl} target="_blank" rel="noopener noreferrer" className="liv-maps-btn" style={{ flex: 1, minWidth: 80, textAlign: 'center' }}>
+                    {phWaUrl && (
+                      <a href={phWaUrl} target="_blank" rel="noopener noreferrer" className="liv-action-btn liv-action-wa">
+                        💬 WhatsApp
+                      </a>
+                    )}
+                    <a href={phMapsUrl} target="_blank" rel="noopener noreferrer" className="liv-action-btn liv-action-maps">
                       🗺️ Itinéraire
                     </a>
                   </div>
                 </div>
               );
             })}
-          </div>
+          </section>
         )}
 
-        {/* DELIVERY — CLIENTE */}
-        <div className="liv-card" style={{ borderLeft: '4px solid #1DC8F2' }}>
-          <h2>🏠 DELIVERY — Livraison</h2>
-          <div style={{
-            background: '#F9FAFB',
-            borderRadius: 10,
-            padding: 14,
-            border: '1px solid #EEE',
-          }}>
-            <strong style={{ fontSize: 15, color: '#1A1A1A', display: 'block', marginBottom: 6 }}>
-              {order?.address?.name}
-            </strong>
-            <p style={{ fontSize: 13, marginBottom: 4 }}>
-              📞 <a href={`tel:${order?.address?.phone}`}>{order?.address?.phone}</a>
-            </p>
-            <p style={{ fontSize: 13, marginBottom: 4 }}>
-              📍 {order?.address?.line}
-            </p>
-            <p style={{ fontSize: 13 }}>
-              {order?.address?.neighborhood}, {order?.address?.city}
-            </p>
-            
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-              {clientWaUrl && (
-                <a href={clientWaUrl} target="_blank" rel="noopener noreferrer" className="liv-wa-btn" style={{ flex: 1, minWidth: 80, textAlign: 'center' }}>
-                  💬 WhatsApp
-                </a>
-              )}
-              {order?.address?.phone && (
-                <a href={`tel:${order.address.phone}`} className="liv-maps-btn" style={{ background: '#1DC8F2', color: 'white', flex: 1, minWidth: 80, textAlign: 'center' }}>
-                  📞 Appeler
-                </a>
-              )}
-              {clientMapsUrl && (
-                <a href={clientMapsUrl} target="_blank" rel="noopener noreferrer" className="liv-maps-btn" style={{ flex: 1, minWidth: 80, textAlign: 'center' }}>
-                  🗺️ Itinéraire
-                </a>
-              )}
+        {/* ─── ARTICLES À LIVRER (glass) ─── */}
+        <section className="liv-glass liv-card-stagger" style={{ '--i': 3 }}>
+          <div className="liv-glass-head">
+            <div className="liv-avatar liv-avatar-pharma" aria-hidden="true">📦</div>
+            <div className="liv-glass-head-text">
+              <div className="liv-glass-label">Articles à livrer</div>
+              <div className="liv-glass-title">
+                {totalProducts} article{totalProducts > 1 ? 's' : ''} · {(order?.total || 0).toLocaleString('fr-FR')} FCFA
+              </div>
+              <div className="liv-glass-sub">
+                {isCash ? '💵 Cash à la livraison' : `✅ Payé via ${(order?.payment_method || '').toUpperCase()}`}
+              </div>
             </div>
+            <span className={`liv-pay-badge ${isCash ? 'liv-pay-cash' : 'liv-pay-card'}`}>
+              {isCash ? 'CASH' : 'PAYÉ'}
+            </span>
           </div>
-        </div>
 
-        <div className="liv-card">
-          <h2>📦 Articles à livrer</h2>
-          {Array.from(new Map((order?.items || []).map(it => [it.pharmacyId, it.pharmacyName]))).map(([phId, phName]) => (
-            <div key={phId} className="liv-pharmacy-group">
-              <strong>🏥 {phName}</strong>
-              {(order?.items || []).filter(it => it.pharmacyId === phId).map((it, i) => (
-                <div key={`${it.id || it.name}-${i}`} className="liv-item">
-                  <span>{it.name}</span>
-                  <span>×{it.qty}</span>
-                </div>
-              ))}
-            </div>
-          ))}
+          <div className="liv-items-list">
+            {Array.from(new Map((order?.items || []).map(it => [it.pharmacyId, it.pharmacyName]))).map(([phId, phName]) => (
+              <div key={phId} className="liv-pharmacy-group">
+                <strong>🏥 {phName || 'Pharmacie'}</strong>
+                {(order?.items || []).filter(it => it.pharmacyId === phId).map((it, i) => (
+                  <div key={`${it.id || it.name}-${i}`} className="liv-item">
+                    <span>{it?.name || '—'}</span>
+                    <span>×{it?.qty || 1}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
           <div className="liv-total">
             <span>Total</span>
-            <strong>{order?.total?.toLocaleString('fr-FR')} FCFA</strong>
+            <strong>{(order?.total || 0).toLocaleString('fr-FR')} FCFA</strong>
           </div>
           {isCash ? (
             <div className="liv-cod-alert">
-              💵 PAIEMENT CASH À LA LIVRAISON<br/>
-              <strong style={{ fontSize: 16 }}>Encaisse {(order.total || 0).toLocaleString('fr-FR')} FCFA</strong>
+              💵 PAIEMENT CASH À LA LIVRAISON<br />
+              <strong style={{ fontSize: 16 }}>Encaisse {(order?.total || 0).toLocaleString('fr-FR')} FCFA</strong>
             </div>
           ) : (
             <div className="liv-paid-alert">
-              ✅ Déjà payé via {order?.payment_method?.toUpperCase()} — Rien à encaisser
+              ✅ Déjà payé via {(order?.payment_method || '').toUpperCase()} — Rien à encaisser
             </div>
           )}
-        </div>
+        </section>
 
+        {/* ─── GPS ─── */}
         {!isCompleted && (
-          <div className="liv-card">
-            <h2>📡 Partage GPS</h2>
+          <section className="liv-glass liv-card-stagger" style={{ '--i': 4 }}>
+            <div className="liv-glass-label" style={{ marginBottom: 10 }}>📡 Partage GPS</div>
             {sharingGPS ? (
               <div>
                 <div className="liv-gps-active">
@@ -641,19 +703,20 @@ export default function Livreur() {
                 <button className="liv-btn-pri" onClick={startGPS}>📡 Partager ma position GPS</button>
               </div>
             )}
-          </div>
+          </section>
         )}
 
+        {/* ─── STEPS (logique inchangée) ─── */}
         {!isCompleted && (
-          <div className="liv-card">
-            <h2>✅ Étapes de livraison</h2>
+          <section className="liv-glass liv-card-stagger" style={{ '--i': 5 }}>
+            <div className="liv-glass-label" style={{ marginBottom: 12 }}>✅ Étapes de livraison</div>
             <div className="liv-steps-enriched">
-              
-              <div className={`liv-step-card ${stepDone('picking') ? 'done' : ''} ${busyStep === 'picking' ? 'loading' : ''}`} style={{'--i': 0}}>
+
+              <div className={`liv-step-card ${stepDone('picking') ? 'done' : ''} ${busyStep === 'picking' ? 'loading' : ''}`} style={{ '--i': 0 }}>
                 <div className="liv-step-num">
                   {stepDone('picking') ? (
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark" />
                     </svg>
                   ) : '1'}
                 </div>
@@ -681,18 +744,18 @@ export default function Livreur() {
                 </div>
               </div>
 
-              <div className={`liv-step-card ${allScanned ? 'done' : ''}`} style={{'--i': 1}}>
+              <div className={`liv-step-card ${allScanned ? 'done' : ''}`} style={{ '--i': 1 }}>
                 <div className="liv-step-num">
                   {allScanned ? (
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark" />
                     </svg>
                   ) : '2'}
                 </div>
                 <div className="liv-step-content">
                   <strong>📊 Vérifier les produits</strong>
                   <p>Scanne le code-barres de chaque produit</p>
-                  
+
                   <div style={{
                     background: allScanned ? '#E8F5EC' : '#FEF6E5',
                     color: allScanned ? '#1F8B4C' : '#A07700',
@@ -725,22 +788,19 @@ export default function Livreur() {
                       ))}
                     </div>
                   )}
-                  
+
                   <div className="liv-step-actions">
-                    <button 
-                      className="liv-mini-btn pri" 
+                    <button
+                      className="liv-mini-btn pri"
                       onClick={() => setShowBarcodeScanner(true)}
                       disabled={!stepDone('picking') || allScanned}
                     >
                       📊 Scanner un code-barres
                     </button>
-                    <button 
+                    <button
                       className="liv-mini-btn"
                       onClick={async () => {
                         if (!(await confirmDialog('Pas de code-barres sur certains produits ? On skip le scan ?'))) return;
-                        // BUG FIX : avant on injectait UN SEUL barcode 'SKIPPED' → si
-                        // totalProducts > 1, allScanned restait false donc "Tout pris"
-                        // restait gelé. Maintenant on injecte N entrées pour matcher.
                         const skipPatch = Array.from({ length: Math.max(totalProducts, 1) }, (_, i) => ({
                           code: 'SKIPPED',
                           index: i,
@@ -764,11 +824,11 @@ export default function Livreur() {
                 </div>
               </div>
 
-              <div className={`liv-step-card ${stepDone('picked') ? 'done' : ''} ${busyStep === 'picked' ? 'loading' : ''}`} style={{'--i': 2}}>
+              <div className={`liv-step-card ${stepDone('picked') ? 'done' : ''} ${busyStep === 'picked' ? 'loading' : ''}`} style={{ '--i': 2 }}>
                 <div className="liv-step-num">
                   {stepDone('picked') ? (
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark" />
                     </svg>
                   ) : '3'}
                 </div>
@@ -796,11 +856,11 @@ export default function Livreur() {
                 </div>
               </div>
 
-              <div className={`liv-step-card ${stepDone('in_route') ? 'done' : ''} ${busyStep === 'in_route' ? 'loading' : ''}`} style={{'--i': 3}}>
+              <div className={`liv-step-card ${stepDone('in_route') ? 'done' : ''} ${busyStep === 'in_route' ? 'loading' : ''}`} style={{ '--i': 3 }}>
                 <div className="liv-step-num">
                   {stepDone('in_route') ? (
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark" />
                     </svg>
                   ) : '4'}
                 </div>
@@ -818,11 +878,11 @@ export default function Livreur() {
                 </div>
               </div>
 
-              <div className={`liv-step-card ${stepDone('arrived') ? 'done' : ''} ${busyStep === 'arrived' ? 'loading' : ''}`} style={{'--i': 4}}>
+              <div className={`liv-step-card ${stepDone('arrived') ? 'done' : ''} ${busyStep === 'arrived' ? 'loading' : ''}`} style={{ '--i': 4 }}>
                 <div className="liv-step-num">
                   {stepDone('arrived') ? (
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M5 12l5 5L20 7" className="liv-checkmark"/>
+                      <path d="M5 12l5 5L20 7" className="liv-checkmark" />
                     </svg>
                   ) : '5'}
                 </div>
@@ -840,32 +900,34 @@ export default function Livreur() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
         )}
 
+        {/* ─── ENCAISSEMENT CASH ─── */}
         {!isCompleted && isCash && stepDone('arrived') && (
-          <div className="liv-card">
-            <h2>💵 Encaissement Cash</h2>
+          <section className="liv-glass liv-card-stagger" style={{ '--i': 6 }}>
+            <div className="liv-glass-label" style={{ marginBottom: 10 }}>💵 Encaissement Cash</div>
             <div className="liv-cash-box">
               <p style={{ fontSize: 14, marginBottom: 12 }}>
-                Demande à la cliente <strong style={{ fontSize: 18, color: '#1F8B4C' }}>{Number(order.total || 0).toLocaleString('fr-FR')} FCFA</strong> cash.
+                Demande à la cliente <strong style={{ fontSize: 18, color: '#1F8B4C' }}>{Number(order?.total || 0).toLocaleString('fr-FR')} FCFA</strong> cash.
               </p>
-              {order.cash_received ? (
+              {order?.cash_received ? (
                 <div className="liv-cash-done">
-                  ✅ Cash de {Number(order.total || 0).toLocaleString('fr-FR')} FCFA reçu
+                  ✅ Cash de {Number(order?.total || 0).toLocaleString('fr-FR')} FCFA reçu
                 </div>
               ) : (
                 <button className="liv-btn-pri" onClick={markCashReceived}>
-                  💵 J'ai reçu {Number(order.total || 0).toLocaleString('fr-FR')} FCFA cash
+                  💵 J'ai reçu {Number(order?.total || 0).toLocaleString('fr-FR')} FCFA cash
                 </button>
               )}
             </div>
-          </div>
+          </section>
         )}
 
+        {/* ─── PREUVE DE LIVRAISON ─── */}
         {!isCompleted && stepDone('arrived') && (!isCash || order?.cash_received) && (
-          <div className="liv-card">
-            <h2>📸 Preuve de livraison</h2>
+          <section className="liv-glass liv-card-stagger" style={{ '--i': 7 }}>
+            <div className="liv-glass-label" style={{ marginBottom: 10 }}>📸 Preuve de livraison</div>
             <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 14 }}>
               Choisis <strong>UNE</strong> méthode pour prouver la livraison :
             </p>
@@ -912,29 +974,40 @@ export default function Livreur() {
                 )}
               </div>
             )}
-
-            <button className="liv-btn-final" onClick={confirmDelivery}
-              disabled={!proofMethod || confirming || (isCash && !order.cash_received)}>
-              {confirming ? '⏳ Envoi en cours...' : '🎉 Confirmer la livraison'}
-            </button>
-          </div>
+          </section>
         )}
 
+        {/* ─── ÉCRAN FINAL : awaiting / delivered ─── */}
         {isCompleted && (
-          <div className="liv-card" style={{ textAlign: 'center', padding: 24 }}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>⏳</div>
-            <h2 style={{ marginBottom: 8 }}>En attente confirmation cliente</h2>
-            <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 16 }}>
-              Tu as bien terminé ta mission ! La cliente a reçu un WhatsApp pour confirmer la réception.
+          <section className="liv-glass liv-card-stagger liv-final-card" style={{ '--i': 0 }}>
+            <div className="liv-final-icon">{isDeliveredFinal ? '🎉' : '⏳'}</div>
+            <h2>{isDeliveredFinal ? 'Mission accomplie !' : 'En attente confirmation cliente'}</h2>
+            <p>
+              {isDeliveredFinal
+                ? 'Merci pour ton service. La cliente a confirmé la réception.'
+                : 'Tu as bien terminé ta mission ! La cliente a reçu un WhatsApp pour confirmer la réception.'}
             </p>
-            {order.status === 'delivered' && (
-              <div style={{ padding: 14, background: '#E8F5EC', borderRadius: 10, color: '#166635', fontWeight: 700 }}>
+            {isDeliveredFinal && (
+              <div className="liv-final-badge">
                 ✅ Livraison confirmée par la cliente
               </div>
             )}
-          </div>
+          </section>
         )}
       </main>
+
+      {/* ─── STICKY CTA BOTTOM ─── */}
+      {primaryCta && (
+        <div className="liv-cta-sticky">
+          <button
+            className="liv-btn-final"
+            onClick={primaryCta.action}
+            disabled={primaryCta.disabled}
+          >
+            {primaryCta.label}
+          </button>
+        </div>
+      )}
 
       {showPhotoCapture && (
         <PhotoCaptureModal type={showPhotoCapture}
@@ -944,8 +1017,8 @@ export default function Livreur() {
       {showSignature && <SignatureModal onSubmit={handleSignatureSubmit} onCancel={() => setShowSignature(false)} />}
       {showPinEntry && <PinEntryModal onSubmit={handlePinSubmit} onCancel={() => setShowPinEntry(false)} />}
       {showBarcodeScanner && (
-        <BarcodeScannerModal 
-          onScan={handleBarcodeScan} 
+        <BarcodeScannerModal
+          onScan={handleBarcodeScan}
           onCancel={() => setShowBarcodeScanner(false)}
           alreadyScanned={(tracking?.scanned_barcodes || []).map(b => b.code)}
           orderItems={order?.items || []}
@@ -976,7 +1049,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
         },
         body: JSON.stringify({ barcode, orderItems }),
       });
-      
+
       const data = await response.json();
       setVerification({ barcode, ...data });
     } catch (e) {
@@ -989,49 +1062,49 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
   const requestPermission = async () => {
     setStatus('requesting');
     setErrorMsg('');
-    
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
+        video: {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
         audio: false,
       });
-      
+
       streamRef.current = stream;
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      
+
       setStatus('scanning');
 
       // PERF : lazy-import @zxing/browser au moment de l'activation seulement
       const { BrowserMultiFormatReader } = await import('@zxing/browser');
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
-      
+
       reader.decodeFromVideoElement(videoRef.current, async (result, err) => {
         if (result) {
           const code = result.getText();
-          
+
           if (alreadyScanned.includes(code)) {
             setVerification({ barcode: code, alreadyScanned: true, message: 'Déjà scanné' });
             setTimeout(() => setVerification(null), 1500);
             return;
           }
-          
+
           if (verifying || verification) return;
-          
+
           if (navigator.vibrate) navigator.vibrate(100);
-          
+
           await verifyBarcode(code);
         }
       });
-      
+
     } catch (e) {
       console.error('Camera error:', e);
       if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
@@ -1105,22 +1178,22 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
     <div className="liv-modal-overlay" onClick={handleCancel}>
       <div className="liv-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, padding: 16 }}>
         <h3 style={{ marginBottom: 8 }}>📊 Scanner code-barres</h3>
-        
+
         {status === 'idle' && (
           <div style={{ textAlign: 'center', padding: 20 }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📷</div>
             <p style={{ fontSize: 14, marginBottom: 16, color: '#4B4B4B' }}>
               YARAM a besoin d'accéder à ta caméra pour scanner les codes-barres
             </p>
-            <button 
-              className="liv-btn-pri" 
+            <button
+              className="liv-btn-pri"
               onClick={requestPermission}
               style={{ width: '100%', marginBottom: 8 }}
             >
               📷 Activer la caméra
             </button>
-            <button 
-              className="liv-btn-stop" 
+            <button
+              className="liv-btn-stop"
               onClick={handleCancel}
               style={{ width: '100%' }}
             >
@@ -1134,7 +1207,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
             <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 14 }}>
               Pointe la caméra vers le code-barres
             </p>
-            
+
             <div style={{
               position: 'relative',
               background: '#000',
@@ -1143,14 +1216,14 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
               aspectRatio: '4/3',
               marginBottom: 14,
             }}>
-              <video 
+              <video
                 ref={videoRef}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 playsInline
                 muted
                 autoPlay
               />
-              
+
               <div style={{
                 position: 'absolute',
                 inset: 0,
@@ -1167,7 +1240,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                   boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)',
                 }} />
               </div>
-              
+
               {status === 'requesting' && !verification && (
                 <div style={{
                   position: 'absolute', inset: 0,
@@ -1177,7 +1250,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                   ⏳ Activation caméra...
                 </div>
               )}
-              
+
               {verifying && (
                 <div style={{
                   position: 'absolute', inset: 0,
@@ -1188,7 +1261,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                   <div style={{ fontSize: 14, marginTop: 8, fontWeight: 700 }}>Vérification...</div>
                 </div>
               )}
-              
+
               {verification && (
                 <div style={{
                   position: 'absolute', inset: 0,
@@ -1197,7 +1270,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                   padding: 16, textAlign: 'center',
                 }}>
                   <div style={{ fontSize: 48, marginBottom: 8 }}>{icon}</div>
-                  
+
                   {(verification.product?.img || verification.obfData?.image) && (
                     <img
                       src={verification.product?.img || verification.obfData?.image}
@@ -1205,13 +1278,13 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                       loading="lazy"
                       decoding="async"
                       style={{
-                        width: 60, height: 60, borderRadius: 8, 
+                        width: 60, height: 60, borderRadius: 8,
                         objectFit: 'cover', marginBottom: 8,
                         background: 'white',
                       }}
                     />
                   )}
-                  
+
                   {verification.product && (
                     <div style={{ fontWeight: 800, fontSize: 14 }}>
                       {verification.product.brand} · {verification.product.name}
@@ -1222,31 +1295,31 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                       {verification.obfData.brand} · {verification.obfData.name}
                     </div>
                   )}
-                  
+
                   <div style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
                     {verification.message}
                   </div>
-                  
+
                   <div style={{ fontFamily: 'monospace', fontSize: 11, marginTop: 6, opacity: 0.7 }}>
                     {verification.barcode}
                   </div>
                 </div>
               )}
             </div>
-            
+
             {verification && !verification.alreadyScanned && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <button 
-                  className="liv-btn-stop" 
+                <button
+                  className="liv-btn-stop"
                   onClick={handleReject}
                   style={{ flex: 1 }}
                 >
                   🔄 Re-scanner
                 </button>
-                <button 
-                  className="liv-btn-pri" 
+                <button
+                  className="liv-btn-pri"
                   onClick={handleConfirm}
-                  style={{ 
+                  style={{
                     flex: 2,
                     background: verification.inOrder ? '#1F8B4C' : '#FF7900',
                   }}
@@ -1255,7 +1328,7 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                 </button>
               </div>
             )}
-            
+
             {!verification && (
               <button className="liv-btn-stop" onClick={handleCancel} style={{ width: '100%' }}>
                 Annuler
