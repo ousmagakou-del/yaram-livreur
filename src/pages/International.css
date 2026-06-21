@@ -6,35 +6,35 @@
 
 .intl-premium-page {
   background:
-    radial-gradient(circle at 50% 0%, rgba(0, 73, 138, 0.06), transparent 40%),
+    radial-gradient(circle at 50% 0%, rgba(31, 139, 76, 0.06), transparent 40%),
     var(--bg);
   min-height: 100vh;
   padding-bottom: 0;
   overflow-x: hidden;
 }
 
-/* ─── Couleurs locales ─── */
+/* ─── Couleurs locales (charte YARAM light) ─── */
 .intl-premium-page {
-  --intl-blue-deep: #001F4D;
-  --intl-blue: #002F66;
-  --intl-blue-light: #00498A;
-  --intl-blue-glow: rgba(0, 47, 102, 0.18);
-  --intl-accent: #F4B53A;
+  --intl-blue-deep: #0E5B33;        /* vert YARAM foncé */
+  --intl-blue: #1F8B4C;              /* vert YARAM */
+  --intl-blue-light: #2DAE6F;        /* vert YARAM clair */
+  --intl-blue-glow: rgba(31, 139, 76, 0.18);
+  --intl-accent: #F4B53A;            /* orange YARAM (gardé pour les highlights) */
   --intl-accent-2: #FFD37A;
 }
 
 /* ════════════════════════════════════════════════
-   A. HERO IMMERSIF
+   A. HERO IMMERSIF — LIGHT YARAM
    ════════════════════════════════════════════════ */
 .intlp-hero {
   position: relative;
   background:
     linear-gradient(160deg,
-      var(--intl-blue-deep) 0%,
-      var(--intl-blue) 35%,
-      var(--intl-blue-light) 70%,
-      #002a5c 100%);
-  color: #fff;
+      #FFFFFF 0%,
+      #F7FAF8 30%,
+      #E8F5EC 75%,
+      #D7EEDB 100%);
+  color: #0E5B33;
   padding: calc(var(--safe-top, 14px) + 18px) 22px 36px;
   overflow: hidden;
   isolation: isolate;
@@ -42,17 +42,17 @@
   border-bottom-right-radius: 28px;
   box-shadow:
     0 16px 38px var(--intl-blue-glow),
-    0 2px 6px rgba(0, 0, 0, 0.08);
+    0 2px 6px rgba(14, 91, 51, 0.06);
 }
 
 .intlp-hero-aurora {
   position: absolute;
   inset: -20px;
   background:
-    radial-gradient(circle at 18% 22%, rgba(110, 153, 255, 0.55), transparent 50%),
-    radial-gradient(circle at 82% 28%, rgba(0, 200, 255, 0.32), transparent 50%),
-    radial-gradient(circle at 52% 105%, rgba(123, 90, 255, 0.30), transparent 60%),
-    radial-gradient(circle at 30% 80%, rgba(244, 181, 58, 0.16), transparent 55%);
+    radial-gradient(circle at 18% 22%, rgba(31, 139, 76, 0.18), transparent 55%),
+    radial-gradient(circle at 82% 28%, rgba(45, 174, 111, 0.14), transparent 55%),
+    radial-gradient(circle at 52% 105%, rgba(244, 181, 58, 0.18), transparent 60%),
+    radial-gradient(circle at 30% 80%, rgba(232, 119, 34, 0.10), transparent 55%);
   filter: blur(48px);
   opacity: 0.95;
   z-index: 0;
@@ -87,9 +87,9 @@
 .intlp-back {
   position: relative;
   z-index: 3;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid rgba(31, 139, 76, 0.18);
+  color: #0E5B33;
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -100,11 +100,12 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   margin-bottom: 18px;
+  box-shadow: 0 4px 12px rgba(14, 91, 51, 0.1);
   transition: transform 0.2s ease, background 0.2s ease;
 }
 .intlp-back:active {
   transform: scale(0.92);
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .intlp-hero-content {
@@ -116,18 +117,19 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #fff;
+  border: 1.5px solid rgba(31, 139, 76, 0.25);
+  color: #0E5B33;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.4px;
   text-transform: uppercase;
   padding: 5px 12px 5px 9px;
   border-radius: 999px;
   margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(14, 91, 51, 0.08);
 }
 .intlp-hero-pill-dot {
   width: 7px;
@@ -148,14 +150,15 @@
   line-height: 0.98;
   letter-spacing: -1.4px;
   margin: 0 0 12px;
-  color: #fff;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.22);
+  color: #0E5B33;
+  text-shadow: 0 2px 12px rgba(255, 255, 255, 0.6);
 }
 
 .intlp-hero-sub {
   font-size: 14.5px;
   line-height: 1.5;
   font-weight: 500;
+  color: #4A6B5A;
   opacity: 0.95;
   margin: 0 0 22px;
   max-width: 92%;
@@ -173,12 +176,14 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid rgba(31, 139, 76, 0.18);
+  color: #0E5B33;
   border-radius: 14px;
   padding: 10px 6px;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(14, 91, 51, 0.06);
   animation: intlp-badge-float 4s ease-in-out infinite;
 }
 .intlp-hero-badge:nth-child(2) { animation-delay: 0.6s; }
@@ -208,9 +213,9 @@
   height: 100%;
   background: linear-gradient(115deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.08) 40%,
-    rgba(255, 255, 255, 0.18) 50%,
-    rgba(255, 255, 255, 0.08) 60%,
+    rgba(255, 255, 255, 0.15) 40%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.15) 60%,
     transparent 100%);
   z-index: 1;
   pointer-events: none;
