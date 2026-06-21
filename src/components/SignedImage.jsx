@@ -149,7 +149,7 @@ export default function SignedImage({
     return null;
   }
 
-  return <img src={resolvedSrc} alt={alt} onError={() => setError(true)} {...rest} />;
+  return <img src={resolvedSrc} alt={alt} loading="lazy" decoding="async" onError={() => setError(true)} {...rest} />;
 }
 
 // Injecte le keyframes une seule fois (idempotent)

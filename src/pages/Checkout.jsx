@@ -430,7 +430,7 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
                 <div key={it.id || i} className="check-item-row">
                   <div className="check-item-thumb">
                     {it.image ? (
-                      <img src={it.image} alt={it.name} onError={(e) => { e.target.style.display = 'none'; }} />
+                      <img src={it.image} alt={it.name} loading="lazy" decoding="async" onError={(e) => { e.target.style.display = 'none'; }} />
                     ) : (
                       <span>💊</span>
                     )}
@@ -638,6 +638,8 @@ export default function Checkout({ items: propsItems, paymentMethod }) {
                     <img
                       src={m.logoUrl}
                       alt={m.name}
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         e.target.style.display = 'none';
                         const parent = e.target.parentNode;

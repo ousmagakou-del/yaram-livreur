@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useNav } from '../App';
 import { getActiveBanners, incrementBannerClick } from '../lib/supabase';
 import './BannerCarousel.css';
 
 const AUTO_SCROLL_MS = 5000; // 5 secondes
 
-export default function BannerCarousel() {
+function BannerCarousel() {
   const { navigate } = useNav();
   const [banners, setBanners] = useState([]);
   const [current, setCurrent] = useState(0);
@@ -121,3 +121,7 @@ export default function BannerCarousel() {
     </div>
   );
 }
+
+// PERF : memo — BannerCarousel n'a pas de props, donc tout re-render parent
+// déclencherait inutilement un cycle complet (carousel rotate + state).
+export default memo(BannerCarousel);

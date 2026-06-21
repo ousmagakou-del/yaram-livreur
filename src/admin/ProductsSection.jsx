@@ -20,9 +20,11 @@ export default function ProductsSection() {
   useEffect(() => { refresh(); }, []);
 
   const refresh = async () => {
+    // PERF : limit(500) — 99 % du temps l'admin n'a pas besoin de plus.
+    // Évite de tirer plusieurs Mo sur 4G si le catalogue dépasse 1000 produits.
     const [pRes, bRes] = await Promise.all([
-      supabase.from('products').select('*').order('created_at', { ascending: false }),
-      supabase.from('brands').select('*'),
+      supabase.from('products').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('brands').select('*').limit(500),
     ]);
     setProducts(pRes.data || []);
     setBrands(bRes.data || []);

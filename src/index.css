@@ -183,3 +183,34 @@ button:active:not(:disabled) { transform: scale(0.96); }
   border-color: var(--primary);
   background: var(--bg);
 }
+/* ═════════════════════════════════════════════════════════════════
+   PERF — SKELETONS GLOBAUX
+   Classes utilitaires pour rendre des skeleton loaders cohérents
+   sur toute l'app pendant les fetches Supabase.
+   ═════════════════════════════════════════════════════════════════ */
+@keyframes yaramShimmer {
+  0% { background-position: 200% 0 }
+  100% { background-position: -200% 0 }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #eef3f0 0%, #f7faf8 50%, #eef3f0 100%);
+  background-size: 200% 100%;
+  animation: yaramShimmer 1.4s linear infinite;
+  border-radius: 6px;
+}
+.skeleton-line {
+  height: 12px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #eef3f0 0%, #f7faf8 50%, #eef3f0 100%);
+  background-size: 200% 100%;
+  animation: yaramShimmer 1.4s linear infinite;
+}
+.skeleton-card {
+  background: #fff;
+  border: 1px solid #eef3f0;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+  opacity: 0.7;
+}

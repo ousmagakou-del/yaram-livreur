@@ -160,7 +160,7 @@ export default function Notifications() {
                 onKeyDown={(e) => { if (e.key === 'Enter') handleTap(n); }}
               >
                 <div className="notif-item-icon">
-                  {n.icon ? <img src={n.icon} alt="" /> : <span>{typeIcon(n.type)}</span>}
+                  {n.icon ? <img src={n.icon} alt="" loading="lazy" decoding="async" /> : <span>{typeIcon(n.type)}</span>}
                 </div>
                 <div className="notif-item-body">
                   <div className="notif-item-head">

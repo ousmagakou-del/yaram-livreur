@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useNav } from '../App';
 import { scoreClass, formatPrice } from '../lib/utils';
 import { isFavorite, toggleFavorite } from '../lib/supabase';
 import { haptic } from '../lib/haptic';
 import './ProductTile.css';
 
-export default function ProductTile({ product, size = 'normal' }) {
+function ProductTile({ product, size = 'normal' }) {
   const { navigate } = useNav();
   const [fav, setFav] = useState(false);
 
@@ -72,3 +72,14 @@ export default function ProductTile({ product, size = 'normal' }) {
     </div>
   );
 }
+
+// PERF : memo evite les re-renders inutiles dans les grilles (Home, Search, Categories).
+// Comparaison custom : on ne re-render que si l'ID change OU la taille change.
+// Les autres props (img, name, price, score) sont stables tant que l'ID est le même
+// (puisque ça vient du cache produit). Si elles changent (rare), c'est OK de skip.
+export default memo(ProductTile, (prev, next) => (
+  prev.product?.id === next.product?.id &&
+  prev.size === next.size &&
+  prev.product?.price === next.product?.price &&
+  prev.product?.score === next.product?.score
+));

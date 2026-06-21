@@ -39,7 +39,8 @@ export default function DeliveriesSection() {
       const cap = view === 'completed' ? 50 : 100;
       setOrders((ordersRes.data || []).slice(0, cap));
 
-      const trackingsRes = await supabase.from('delivery_tracking').select('*');
+      // PERF : limit(500) — admin n'affiche pas tout l'historique de tracking d'un coup
+      const trackingsRes = await supabase.from('delivery_tracking').select('*').limit(500);
       const trackMap = {};
       (trackingsRes.data || []).forEach(t => { trackMap[t.order_id] = t; });
       setTrackings(trackMap);

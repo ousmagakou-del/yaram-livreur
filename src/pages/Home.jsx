@@ -847,6 +847,8 @@ export default function Home() {
                 <img
                   src={banners[activeBannerIdx].image_url}
                   alt={banners[activeBannerIdx].title || 'Promo'}
+                  loading="lazy"
+                  decoding="async"
                   className="yhome-banner-img-full"
                 />
               ) : (

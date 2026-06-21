@@ -421,7 +421,7 @@ export default function Scan() {
         <div className="fs-analyzing-content">
           <div className="fs-analyzing-stage">
             <div className="fs-analyzing-photos">
-              {photosRef.current.front && <img src={photosRef.current.front} alt="" />}
+              {photosRef.current.front && <img src={photosRef.current.front} alt="" loading="lazy" decoding="async" />}
             </div>
             <div className="fs-scan-beam-overlay" />
             <div className="fs-analyzing-grid" />

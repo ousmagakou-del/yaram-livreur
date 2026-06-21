@@ -479,7 +479,7 @@ export default function SkinQuiz({ onComplete }) {
                   onClick={() => { haptic('light'); navigate({ name: 'product', params: { id: p.id } }); }}
                 >
                   <div className="squiz-reco-img">
-                    {p.img ? <img src={p.img} alt={p.name} /> : <span>🧴</span>}
+                    {p.img ? <img src={p.img} alt={p.name} loading="lazy" decoding="async" /> : <span>🧴</span>}
                   </div>
                   <div className="squiz-reco-info">
                     <p className="squiz-reco-brand">{p.brand}</p>

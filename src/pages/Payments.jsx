@@ -2,27 +2,33 @@ import { useNav } from '../App';
 
 // ─── Vrais logos officiels ───
 const WaveLogo = ({ size = 44 }) => (
-  <img 
-    src="/logos/wave.png" 
-    alt="Wave" 
+  <img
+    src="/logos/wave.png"
+    alt="Wave"
+    loading="lazy"
+    decoding="async"
     style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
     onError={e => { e.target.style.display = 'none'; }}
   />
 );
 
 const OrangeMoneyLogo = ({ size = 44 }) => (
-  <img 
-    src="/logos/orange-money.png" 
-    alt="Orange Money" 
+  <img
+    src="/logos/orange-money.png"
+    alt="Orange Money"
+    loading="lazy"
+    decoding="async"
     style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
     onError={e => { e.target.style.display = 'none'; }}
   />
 );
 
 const YasLogo = ({ size = 44 }) => (
-  <img 
-    src="/logos/yas.png" 
-    alt="Yas" 
+  <img
+    src="/logos/yas.png"
+    alt="Yas"
+    loading="lazy"
+    decoding="async"
     style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
     onError={e => { e.target.style.display = 'none'; }}
   />

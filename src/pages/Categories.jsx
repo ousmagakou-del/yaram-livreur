@@ -322,6 +322,8 @@ export default function Categories() {
                         <img
                           src={cat.icon_url}
                           alt=""
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                           }}
@@ -376,6 +378,8 @@ export default function Categories() {
                         <img
                           src={b.logo_url || b.logo}
                           alt={b.name}
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                           }}

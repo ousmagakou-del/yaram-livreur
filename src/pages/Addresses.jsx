@@ -93,7 +93,16 @@ export default function Addresses() {
 
       <div className="addr-scroll">
         {loading ? (
-          <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-soft)'}}>Chargement…</div>
+          /* PERF : skeleton rows pour addresses */
+          <div style={{ padding: '12px 16px' }}>
+            {[0, 1, 2].map((i) => (
+              <div key={'sk-' + i} className="skeleton-card">
+                <div className="skeleton-line" style={{ width: '70%' }} />
+                <div className="skeleton-line" style={{ width: '50%' }} />
+                <div className="skeleton-line" style={{ width: '35%', marginBottom: 0 }} />
+              </div>
+            ))}
+          </div>
         ) : addresses.length === 0 ? (
           <div className="addr-empty">
             <div style={{fontSize: 64, opacity: 0.2}}>📍</div>

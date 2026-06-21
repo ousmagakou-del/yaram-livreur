@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { BrowserMultiFormatReader } from '@zxing/browser';
+// PERF : @zxing/browser pèse ~35KB+ (gzipped). Lazy-load uniquement quand
+// l'utilisateur active la caméra, sinon le bundle initial est plombé.
 
 const SUPABASE_URL = 'https://qxhhnrnworwrnwmqekmb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4aGhucm53b3J3cm53bXFla21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MTExMzYsImV4cCI6MjA5NDA4NzEzNn0.l_7-Eg06UFnXvSw1BQiuNw0yU94jillHNycx-jvP1Aw';
@@ -88,6 +89,8 @@ export default function BarcodeScannerClient({ onProductFound, onCancel }) {
 
       setStatus('scanning');
 
+      // PERF : lazy-import @zxing/browser au moment de l'activation seulement
+      const { BrowserMultiFormatReader } = await import('@zxing/browser');
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
 
@@ -196,10 +199,10 @@ export default function BarcodeScannerClient({ onProductFound, onCancel }) {
                   <div style={{ fontSize: 48, marginBottom: 8 }}>{icon}</div>
 
                   {result.product?.img && (
-                    <img src={result.product.img} alt="" className="bsc-result-img" />
+                    <img src={result.product.img} alt="" loading="lazy" decoding="async" className="bsc-result-img" />
                   )}
                   {!result.product && result.obfData?.image && (
-                    <img src={result.obfData.image} alt="" className="bsc-result-img" />
+                    <img src={result.obfData.image} alt="" loading="lazy" decoding="async" className="bsc-result-img" />
                   )}
 
                   {result.found && (

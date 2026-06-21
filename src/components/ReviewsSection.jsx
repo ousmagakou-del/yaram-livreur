@@ -176,7 +176,7 @@ function ReviewCard({ review, onHelpful }) {
       {review.photo_urls && review.photo_urls.length > 0 && (
         <div className="rv-photos">
           {review.photo_urls.map((url, i) => (
-            <img key={i} src={url} alt="" />
+            <img key={i} src={url} alt="" loading="lazy" decoding="async" />
           ))}
         </div>
       )}
@@ -261,7 +261,7 @@ function ReviewForm({ onSubmit, onCancel }) {
       <div className="rv-photos-input">
         {photos.map((url, i) => (
           <div key={i} className="rv-photo-preview">
-            <img src={url} alt="" />
+            <img src={url} alt="" loading="lazy" decoding="async" />
             <button onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}>✕</button>
           </div>
         ))}

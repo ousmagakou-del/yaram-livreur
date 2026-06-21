@@ -6,7 +6,7 @@
    • Si aucune promo active → la section disparaît proprement
    ═══════════════════════════════════════════════════════════════════ */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNav } from '../App';
 import './BonsPlansCarousel.css';
@@ -100,7 +100,7 @@ function PromoCard({ promo, index, onClick }) {
   );
 }
 
-export default function BonsPlansCarousel() {
+function BonsPlansCarousel() {
   const { navigate } = useNav();
   const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -185,3 +185,7 @@ export default function BonsPlansCarousel() {
     </section>
   );
 }
+
+// PERF : memo — pas de props, re-render parent (Home) ne doit pas
+// reprovoquer le fetch + render du carousel.
+export default memo(BonsPlansCarousel);

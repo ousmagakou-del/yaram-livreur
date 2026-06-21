@@ -62,7 +62,20 @@ export default function Pharmacies() {
 
       <div className="ph-scroll">
         {loading ? (
-          <div style={{padding: 40, textAlign: 'center'}}>Chargement…</div>
+          /* PERF : skeleton qui simule 4 pharmacy cards au lieu d'un texte plat —
+             réduit la perception du wait sur LTE Sénégal */
+          <>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={'sk-' + i} className="ph-card" style={{ opacity: 0.6 }}>
+                <div className="ph-cover" style={{ background: 'linear-gradient(90deg, #eef3f0 0%, #f7faf8 50%, #eef3f0 100%)', backgroundSize: '200% 100%', animation: 'yaramShimmer 1.4s linear infinite' }} />
+                <div className="ph-body">
+                  <div style={{ width: '60%', height: 16, background: '#eef3f0', borderRadius: 4, marginBottom: 8 }} />
+                  <div style={{ width: '40%', height: 12, background: '#eef3f0', borderRadius: 4 }} />
+                </div>
+              </div>
+            ))}
+            <style>{`@keyframes yaramShimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
+          </>
         ) : (
           filtered.map(p => {
             const waUrl = p.whatsapp ? 'https://wa.me/' + p.whatsapp.replace(/\D/g, '') : null;

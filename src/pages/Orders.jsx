@@ -91,7 +91,22 @@ export default function Orders() {
       <div className="orders-scroll">
         <PullToRefresh onRefresh={handlePullRefresh}>
         {loading ? (
-          <div style={{padding: 40, textAlign: 'center'}}>Chargement…</div>
+          /* PERF : skeleton rows qui ressemblent à des order cards */
+          <div style={{ padding: '12px 16px' }}>
+            {[0, 1, 2].map((i) => (
+              <div key={'sk-' + i} style={{
+                display: 'flex', gap: 12, padding: 14, marginBottom: 12,
+                background: '#fff', borderRadius: 14, border: '1px solid #eef3f0', opacity: 0.6,
+              }}>
+                <div style={{ width: 48, height: 48, borderRadius: 8, background: 'linear-gradient(90deg, #eef3f0 0%, #f7faf8 50%, #eef3f0 100%)', backgroundSize: '200% 100%', animation: 'yaramShimmer 1.4s linear infinite' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ width: '70%', height: 14, background: '#eef3f0', borderRadius: 4, marginBottom: 8 }} />
+                  <div style={{ width: '40%', height: 11, background: '#eef3f0', borderRadius: 4 }} />
+                </div>
+              </div>
+            ))}
+            <style>{`@keyframes yaramShimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }`}</style>
+          </div>
         ) : orders.length === 0 ? (
           <div className="orders-empty">
             <div style={{fontSize: 64, opacity: 0.2}}>📦</div>

@@ -123,13 +123,19 @@ export default function TabBar({ active = 'home', cartCount: overrideCount }) {
         <button
           className="tab-scan-btn"
           onClick={onScanTap}
-          aria-label="Scanner"
+          aria-label="Scanner mon visage"
         >
           <span className="tab-scan-glow" aria-hidden="true" />
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="26" height="26">
-            <path d="M12 3l1.6 3.4L17 8l-3.4 1.6L12 13l-1.6-3.4L7 8l3.4-1.6L12 3z"/>
-            <path d="M19 14l.9 1.9L22 17l-2.1.9L19 20l-.9-2.1L16 17l1.9-1.1L19 14z"/>
-            <path d="M5 15l.7 1.5L7 17l-1.3.5L5 19l-.7-1.5L3 17l1.3-.5L5 15z"/>
+          {/* Icône Scan visage : 4 coins de viseur AR + silhouette de visage */}
+          <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="28" height="28">
+            {/* 4 coins du viseur */}
+            <path d="M4 9V6a2 2 0 0 1 2-2h3" />
+            <path d="M19 4h3a2 2 0 0 1 2 2v3" />
+            <path d="M4 19v3a2 2 0 0 0 2 2h3" />
+            <path d="M19 24h3a2 2 0 0 0 2-2v-3" />
+            {/* Visage : tête (cercle) + yeux + sourire */}
+            <circle cx="14" cy="13" r="3.2" />
+            <path d="M9 20c.8-2 2.8-3.2 5-3.2s4.2 1.2 5 3.2" />
           </svg>
         </button>
       </div>

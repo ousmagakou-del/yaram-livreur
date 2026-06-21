@@ -279,7 +279,18 @@ export default function Loyalty() {
           <h2 className="yloy-section-title">Historique</h2>
           <p className="yloy-section-sub">Tes 30 dernières transactions de points.</p>
           {loading ? (
-            <div className="yloy-loading">Chargement…</div>
+            /* PERF : skeleton lignes transactions */
+            <div>
+              {[0, 1, 2, 3].map((i) => (
+                <div key={'sk-' + i} className="skeleton-card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div className="skeleton-shimmer" style={{ width: 36, height: 36, borderRadius: '50%' }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="skeleton-line" style={{ width: '60%' }} />
+                    <div className="skeleton-line" style={{ width: '30%', marginBottom: 0 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : transactions.length === 0 ? (
             <div className="yloy-empty">
               <div style={{ fontSize: 36, opacity: 0.4 }}>📭</div>

@@ -260,7 +260,7 @@ export default function PharmacyDetail({ pharmacyId }) {
       <div className="pd-infoblock">
         <div className="pd-avatar-wrap">
           {pharmacy.logo ? (
-            <img className="pd-avatar" src={pharmacy.logo} alt={pharmacy.name} onError={e => { e.target.style.display = 'none'; }} />
+            <img className="pd-avatar" src={pharmacy.logo} alt={pharmacy.name} loading="lazy" decoding="async" onError={e => { e.target.style.display = 'none'; }} />
           ) : (
             <div className="pd-avatar-fallback">{initial}</div>
           )}

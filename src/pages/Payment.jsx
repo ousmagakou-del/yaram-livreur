@@ -328,7 +328,17 @@ export default function Payment({ orderId }) {
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Chargement…</div>;
+  if (loading) return (
+    /* PERF : skeleton page paiement (header + montant + 3 méthodes) */
+    <div style={{ padding: '20px 16px' }}>
+      <div className="skeleton-line" style={{ width: '40%', height: 24, marginBottom: 24 }} />
+      <div className="skeleton-shimmer" style={{ width: '100%', height: 110, borderRadius: 16, marginBottom: 20 }} />
+      <div className="skeleton-line" style={{ width: '30%', height: 14 }} />
+      {[0, 1, 2].map((i) => (
+        <div key={'sk-' + i} className="skeleton-shimmer" style={{ width: '100%', height: 64, borderRadius: 14, marginBottom: 10 }} />
+      ))}
+    </div>
+  );
   if (error) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
@@ -358,10 +368,10 @@ export default function Payment({ orderId }) {
         {/* Logo officiel du moyen de paiement (au lieu d'emoji fallback) */}
         <div className="pay-icon" style={{ marginBottom: 8 }}>
           {isWave && (
-            <img src={WAVE_LOGO} alt="Wave" style={{ height: 56, width: 'auto', objectFit: 'contain', borderRadius: 12 }} />
+            <img src={WAVE_LOGO} alt="Wave" loading="lazy" decoding="async" style={{ height: 56, width: 'auto', objectFit: 'contain', borderRadius: 12 }} />
           )}
           {isOM && (
-            <img src={OM_LOGO} alt="Orange Money" style={{ height: 56, width: 'auto', objectFit: 'contain', borderRadius: 12 }} />
+            <img src={OM_LOGO} alt="Orange Money" loading="lazy" decoding="async" style={{ height: 56, width: 'auto', objectFit: 'contain', borderRadius: 12 }} />
           )}
           {isCOD && <span style={{ fontSize: 48 }}>💵</span>}
           {isCard && <span style={{ fontSize: 48 }}>💳</span>}
@@ -406,7 +416,7 @@ export default function Payment({ orderId }) {
               className="pay-action-wave"
               style={{ marginTop: 18 }}
             >
-              <img src={WAVE_LOGO} alt="" style={{ height: 20, marginRight: 8, verticalAlign: 'middle', borderRadius: 4 }} />
+              <img src={WAVE_LOGO} alt="" loading="lazy" decoding="async" style={{ height: 20, marginRight: 8, verticalAlign: 'middle', borderRadius: 4 }} />
               Ouvrir Wave et payer
             </a>
           </div>

@@ -353,7 +353,7 @@ export default function OrderTracking({ orderId }) {
             <div className="track-driver">
               <div className="track-driver-avatar">
                 {tracking.delivery_person_photo ? (
-                  <img src={tracking.delivery_person_photo} alt={tracking.delivery_person_name} />
+                  <img src={tracking.delivery_person_photo} alt={tracking.delivery_person_name} loading="lazy" decoding="async" />
                 ) : (
                   <span>{(tracking.delivery_person_name || '?').charAt(0).toUpperCase()}</span>
                 )}
@@ -410,7 +410,7 @@ export default function OrderTracking({ orderId }) {
             )}
             {tracking.delivery_signature && (
               <div className="track-proof-sig">
-                <img src={tracking.delivery_signature} alt="Signature" />
+                <img src={tracking.delivery_signature} alt="Signature" loading="lazy" decoding="async" />
                 <small>✍️ Signature reçue</small>
               </div>
             )}
@@ -453,7 +453,7 @@ export default function OrderTracking({ orderId }) {
           <div className={`track-items ${itemsExpanded ? 'open' : ''}`}>
             {order.items?.map((it, i) => (
               <div key={i} className="track-item">
-                {it.img && <img src={it.img} alt="" />}
+                {it.img && <img src={it.img} alt="" loading="lazy" decoding="async" />}
                 <div className="track-item-info">
                   <strong>{it.name}</strong>
                   <span>{safeNumber(it.qty, 1)} × {safeNumber(it.price).toLocaleString('fr-FR')} FCFA</span>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase, sendWhatsApp, WhatsAppTemplates, generateConfirmToken, compressImage } from '../lib/supabase';
 import { sendOrderEmail } from '../lib/emails';
-import { BrowserMultiFormatReader } from '@zxing/browser';
+// PERF : @zxing/browser lazy-import dans le scanner barcode (~35KB).
+// Importé seulement quand le livreur ouvre le scanner.
 import { toast, confirmDialog } from '../lib/toast';
 import SignedImage from '../components/SignedImage';
 import './Livreur.css';
@@ -904,7 +905,7 @@ export default function Livreur() {
                   <SignedImage src={tracking.delivery_photo_url} alt="" />
                 )}
                 {proofMethod === 'signature' && tracking?.delivery_signature && (
-                  <img src={tracking.delivery_signature} alt="" style={{ background: 'white' }} />
+                  <img src={tracking.delivery_signature} alt="" loading="lazy" decoding="async" style={{ background: 'white' }} />
                 )}
                 {proofMethod === 'pin' && tracking?.delivery_pin && (
                   <div className="liv-pin-display">PIN : {tracking.delivery_pin}</div>
@@ -1007,7 +1008,9 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
       }
       
       setStatus('scanning');
-      
+
+      // PERF : lazy-import @zxing/browser au moment de l'activation seulement
+      const { BrowserMultiFormatReader } = await import('@zxing/browser');
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
       
@@ -1196,10 +1199,12 @@ function BarcodeScannerModal({ onScan, onCancel, alreadyScanned = [], orderItems
                   <div style={{ fontSize: 48, marginBottom: 8 }}>{icon}</div>
                   
                   {(verification.product?.img || verification.obfData?.image) && (
-                    <img 
-                      src={verification.product?.img || verification.obfData?.image} 
+                    <img
+                      src={verification.product?.img || verification.obfData?.image}
                       alt=""
-                      style={{ 
+                      loading="lazy"
+                      decoding="async"
+                      style={{
                         width: 60, height: 60, borderRadius: 8, 
                         objectFit: 'cover', marginBottom: 8,
                         background: 'white',

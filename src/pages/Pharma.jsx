@@ -175,7 +175,7 @@ export default function Pharma() {
               >
                 <div className="phar-pharmacy-logo">
                   {p.logo_url ? (
-                    <img src={p.logo_url} alt="" onError={(e) => e.target.style.display = 'none'} />
+                    <img src={p.logo_url} alt="" loading="lazy" decoding="async" onError={(e) => e.target.style.display = 'none'} />
                   ) : (
                     <span>🏥</span>
                   )}

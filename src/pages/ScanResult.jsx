@@ -331,6 +331,8 @@ export default function ScanResult({ scanId }) {
                     <img
                       src={p.img || p.image_url}
                       alt={p.name}
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => e.target.style.display = 'none'}
                     />
                     <span className="sr-match-badge">Match</span>
@@ -394,7 +396,7 @@ export default function ScanResult({ scanId }) {
               {avoid.map(p => (
                 <article key={p.id} className="sr-product-card sr-product-avoid">
                   <div className="sr-product-img-wrap">
-                    <img src={p.img || p.image_url} alt={p.name} onError={(e) => e.target.style.display = 'none'} />
+                    <img src={p.img || p.image_url} alt={p.name} loading="lazy" decoding="async" onError={(e) => e.target.style.display = 'none'} />
                     <span className="sr-match-badge sr-avoid-badge">Non recommandé</span>
                   </div>
                   <div className="sr-product-info">

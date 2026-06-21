@@ -128,8 +128,17 @@ export default function International() {
       {/* LISTING */}
       <div className="intl-products">
         {loading && (
-          <div className="intl-empty">
-            <p>Chargement des produits...</p>
+          /* PERF : skeleton grille produits (6 cards) */
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: '12px 16px' }}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={'sk-' + i} style={{ background: '#fff', border: '1px solid #eef3f0', borderRadius: 12, overflow: 'hidden' }}>
+                <div className="skeleton-shimmer" style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: 0 }} />
+                <div style={{ padding: 10 }}>
+                  <div className="skeleton-line" style={{ width: '70%' }} />
+                  <div className="skeleton-line" style={{ width: '45%', marginBottom: 0 }} />
+                </div>
+              </div>
+            ))}
           </div>
         )}
         {!loading && filtered.length === 0 && (

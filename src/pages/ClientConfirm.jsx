@@ -163,7 +163,7 @@ export default function ClientConfirm() {
             <h3>Articles livrés</h3>
             {order.items?.map((it, i) => (
               <div key={i} className="cc-item">
-                <img src={it.img} alt="" onError={(e) => e.target.style.display = 'none'} />
+                <img src={it.img} alt="" loading="lazy" decoding="async" onError={(e) => e.target.style.display = 'none'} />
                 <div>
                   <strong>{it.name}</strong>
                   <span>{it.qty} × {it.price.toLocaleString('fr-FR')} FCFA</span>
@@ -184,7 +184,7 @@ export default function ClientConfirm() {
             {tracking?.delivery_signature && (
               <div className="cc-proof-item">
                 <p>✍️ Ta signature :</p>
-                <img src={tracking.delivery_signature} alt="Signature" style={{ background: 'white' }} />
+                <img src={tracking.delivery_signature} alt="Signature" loading="lazy" decoding="async" style={{ background: 'white' }} />
               </div>
             )}
             {tracking?.delivery_pin && (

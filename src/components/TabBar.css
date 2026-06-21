@@ -95,28 +95,33 @@
 }
 
 /* ---------- Tab central Scan ---------- */
+/* Le bouton scan est extrait du flow flex pour ne JAMAIS tomber dans la
+   safe-area-bottom (home indicator iPhone) qui clippait sa moitié basse. */
 .tab-scan-wrap {
   flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
   position: relative;
+  height: 56px; /* place vide visuelle pour préserver la grille flex */
 }
 
 .tab-scan-btn {
-  position: relative;
-  width: 64px;
-  height: 64px;
+  position: absolute;
+  /* Centre horizontalement dans le wrap */
+  left: 50%;
+  /* Surélève le bouton AU-DESSUS de la tabbar entière → toujours visible
+     même au-dessus du home indicator iPhone */
+  top: -20px;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   background: linear-gradient(135deg, #22a05a 0%, #1F8B4C 55%, #167a3f 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: -8px;
-  border: 3px solid rgba(255, 255, 255, 0.95);
+  border: 3px solid rgba(255, 255, 255, 0.96);
   box-shadow:
-    0 8px 22px rgba(31, 139, 76, 0.42),
+    0 10px 24px rgba(31, 139, 76, 0.42),
     0 2px 6px rgba(31, 139, 76, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
   cursor: pointer;
@@ -125,7 +130,7 @@
 }
 
 .tab-scan-btn:active {
-  transform: scale(0.94) translateY(-6px);
+  transform: translateX(-50%) scale(0.94);
   box-shadow:
     0 4px 14px rgba(31, 139, 76, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, memo } from 'react';
 import { useNav } from '../App';
 import { getCachedSetting, subscribeSettings, getAllPharmacies } from '../lib/supabase';
 import './HeroBanner.css';
@@ -34,7 +34,7 @@ const SPARKS = [
   { cls: 's5', top: 160, right: 50, icon: 'ti-sparkles', size: 18, color: '#FBBF24' },
 ];
 
-export default function HeroBanner({ showPharmaCards = true }) {
+function HeroBanner({ showPharmaCards = true }) {
   const { navigate } = useNav();
   const [tick, setTick] = useState(0); // force re-render quand settings change
   const [cycleIdx, setCycleIdx] = useState(0); // index des phrases qui cyclent
@@ -197,3 +197,7 @@ export default function HeroBanner({ showPharmaCards = true }) {
     </div>
   );
 }
+
+// PERF : memo — props stable (showPharmaCards bool), pas besoin de re-render
+// quand le parent Home se rerender (favoris, etc.).
+export default memo(HeroBanner);

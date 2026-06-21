@@ -255,9 +255,10 @@ function InventoryEditor({ pharmacy, onClose }) {
 
   useEffect(() => {
     (async () => {
+      // PERF : limit(1000) sur products (catalogue admin) — évite plusieurs Mo sur 4G
       const [prodRes, invRes] = await Promise.all([
-        supabase.from('products').select('*').order('name'),
-        supabase.from('inventory').select('*').eq('pharmacy_id', pharmacy.id),
+        supabase.from('products').select('id, name, brand, img, price, active').order('name').limit(1000),
+        supabase.from('inventory').select('id, product_id, stock, active').eq('pharmacy_id', pharmacy.id).limit(2000),
       ]);
       setProducts(prodRes.data || []);
       const inv = {};

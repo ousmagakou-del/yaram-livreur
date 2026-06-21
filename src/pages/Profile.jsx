@@ -8,7 +8,6 @@ import { getMyAddresses } from '../lib/supabase';
 import { toast, confirmDialog, promptDialog } from '../lib/toast';
 import TabBar from '../components/TabBar';
 import PullToRefresh from '../components/PullToRefresh';
-import BonsPlansCarousel from '../components/BonsPlansCarousel';
 import './Profile.css';
 
 export default function Profile() {
@@ -341,10 +340,6 @@ export default function Profile() {
             </button>
           </section>
 
-          {/* SECTION : BONS PLANS (carrousel premium déplacé depuis Home) */}
-          <div className="prof2-anim" style={{ animationDelay: '130ms' }}>
-            <BonsPlansCarousel />
-          </div>
 
           {/* SECTION : COMPTE */}
           <section className="prof2-section prof2-anim" style={{ animationDelay: '150ms' }}>
@@ -396,6 +391,14 @@ export default function Profile() {
                 label="Parrainage"
                 sub="+3 000 FCFA offerts"
                 onClick={() => navigate({ name: 'referral', params: {} })}
+              />
+              <div className="prof2-sep" />
+              <MenuItem
+                icon="🏷️"
+                tint="rgba(232,56,92,0.10)"
+                label="Bons plans"
+                sub="Promos & codes actifs"
+                onClick={() => navigate({ name: 'promos', params: {} })}
               />
             </div>
           </section>
