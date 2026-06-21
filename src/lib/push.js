@@ -212,7 +212,7 @@ async function upsertApnsDeviceToken(apnsToken) {
         type: 'apns',
         apns_token: apnsToken,
         platform: getPlatform(),
-        app_version: '1.0.3',
+        app_version: '1.0.6',
         enabled: true,
         last_seen_at: new Date().toISOString(),
       }, { onConflict: 'user_id,apns_token' });
@@ -251,7 +251,7 @@ async function upsertWebDeviceToken(subscriptionJSON) {
         web_p256dh: p256dh,
         web_auth: auth,
         platform: 'web',
-        app_version: '1.0.3',
+        app_version: '1.0.6',
         enabled: true,
         last_seen_at: new Date().toISOString(),
       }, { onConflict: 'user_id,web_endpoint' });
@@ -342,7 +342,7 @@ async function sendTokenToBackend(deviceToken) {
       body: {
         device_token: deviceToken,
         platform: getPlatform(),
-        app_version: '1.0.3',
+        app_version: '1.0.6',
         device_model: navigator.userAgent || null,
         language: navigator.language?.split('-')[0] || 'fr',
         timezone_offset: -new Date().getTimezoneOffset() * 60,
