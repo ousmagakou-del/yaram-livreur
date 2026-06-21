@@ -6,9 +6,9 @@
   height: 100%;
   background: var(--bg);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: calc(var(--safe-top, 0px) + 20px) 16px 20px;
+  flex-direction: column; /* FIX : sans ça BackHeader + content côte à côte */
+  align-items: stretch;
+  padding: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -17,7 +17,9 @@
   text-align: center;
   max-width: 420px;
   width: 100%;
-  padding-bottom: 40px;
+  padding: 20px 16px 40px;
+  margin: 0 auto; /* centrage horizontal du content seulement */
+  box-sizing: border-box;
 }
 
 .pay-icon {
