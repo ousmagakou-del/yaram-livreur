@@ -10,6 +10,11 @@ import { paymentVerifiedEmail } from './email-templates/payment-verified';
 import { onboardingD2Email } from './email-templates/onboarding-d2';
 import { onboardingD7Email } from './email-templates/onboarding-d7';
 import { onboardingD30Email } from './email-templates/onboarding-d30';
+// ─── NOUVEAUX templates MJML compilés (niveau Apple) ───
+// Activés via le builder `welcomeMjml`, `orderConfirmationMjml`, etc.
+// Les versions legacy `welcome`, `orderConfirmed` restent dispo pour compat.
+import { renderEmail } from './email-templates/render';
+import { schemaOrderConfirmation, schemaDelivered, schemaShippingUpdate } from './email-templates/schema';
 
 const APP_URL = 'https://yaram.app';
 const BRAND_GREEN = '#1F8B4C';
@@ -86,6 +91,71 @@ function fcfa(n) {
 // ─────────────────────────────────────────────────────────────────────
 
 export const EmailTemplates = {
+  // ─── MJML v3 : rendu niveau Apple (composé via src/email-mjml/*.mjml) ───
+  // Ces templates passent par les fichiers MJML compilés en HTML.
+  // Schema.org JSON-LD inclus automatiquement → cartes Gmail riches
+  // une fois yaram.app whitelist par Google.
+  welcomeMjml: async ({ firstName }) => ({
+    subject: `Bienvenue chez YARAM, ${firstName} 💚`,
+    html: await renderEmail('welcome', { FIRST_NAME: firstName || 'beauté' }, {
+      preview: '-10% sur ta première commande avec BIENVENUE10',
+    }),
+  }),
+  orderConfirmationMjml: async ({ firstName, order, items = [], itemsHtml = '', subtotal, deliveryFee, total, deliveryAddress, deliveryPhone, etaLabel }) => ({
+    subject: `Commande #${order.id} confirmée · YARAM`,
+    html: await renderEmail('order-confirmation', {
+      FIRST_NAME: firstName || '',
+      ORDER_ID: order.id,
+      ETA_LABEL: etaLabel || 'Sous 24h à Dakar',
+      ITEMS_HTML: itemsHtml,
+      SUBTOTAL: (subtotal || 0).toLocaleString('fr-FR'),
+      DELIVERY_FEE: (deliveryFee || 0).toLocaleString('fr-FR'),
+      TOTAL: (total || 0).toLocaleString('fr-FR'),
+      DELIVERY_ADDRESS: deliveryAddress || '—',
+      DELIVERY_PHONE: deliveryPhone || '—',
+    }, {
+      preview: `On prépare ta commande · ${(total || 0).toLocaleString('fr-FR')} FCFA`,
+      schema: schemaOrderConfirmation({ orderId: order.id, items, total, customerName: firstName }),
+    }),
+  }),
+  paymentReceivedMjml: async ({ order, paymentMethod, amount }) => ({
+    subject: `✅ Paiement reçu · commande #${order.id}`,
+    html: await renderEmail('payment-received', {
+      ORDER_ID: order.id,
+      AMOUNT: (amount || 0).toLocaleString('fr-FR'),
+      PAYMENT_METHOD: paymentMethod || 'Wave',
+    }, {
+      preview: `On vérifie ton virement de ${(amount || 0).toLocaleString('fr-FR')} FCFA`,
+    }),
+  }),
+  shippingMjml: async ({ order, livreurName, livreurPhone, amountDue, etaLabel }) => ({
+    subject: `🛵 ${livreurName || 'Ton livreur'} arrive · #${order.id}`,
+    html: await renderEmail('shipping', {
+      ORDER_ID: order.id,
+      LIVREUR_NAME: livreurName || 'Ton livreur YARAM',
+      LIVREUR_PHONE: livreurPhone || '—',
+      LIVREUR_PHONE_RAW: String(livreurPhone || '').replace(/\D/g, ''),
+      AMOUNT_DUE: (amountDue || 0).toLocaleString('fr-FR'),
+      ETA_LABEL: etaLabel || 'sous 30 min',
+    }, {
+      preview: `Ton livreur arrive ${etaLabel || 'sous 30 min'}`,
+      schema: schemaShippingUpdate({ orderId: order.id, livreurName, items: order.items }),
+    }),
+  }),
+  deliveredMjml: async ({ firstName, order, deliveryDate, loyaltyPoints, nextTierPoints }) => ({
+    subject: `🎉 Livré ! · #${order.id}`,
+    html: await renderEmail('delivered', {
+      FIRST_NAME: firstName || '',
+      ORDER_ID: order.id,
+      DELIVERY_DATE: deliveryDate || new Date().toLocaleDateString('fr-FR'),
+      LOYALTY_POINTS: loyaltyPoints || 0,
+      NEXT_TIER_POINTS: nextTierPoints || 0,
+    }, {
+      preview: `Profite bien de tes produits ! Note ta commande en 30 secondes.`,
+      schema: schemaDelivered({ orderId: order.id, items: order.items, total: order.total }),
+    }),
+  }),
+
   // ─── Nouveaux templates centralisés dans src/lib/email-templates/ ───
   // (utilisés par les wrappers ci-dessous + l'edge function via mode RAW)
   welcomeV2: (params) => welcomeEmail(params),
@@ -260,11 +330,21 @@ export async function maybeSendWelcomeEmail(user) {
   if (user.welcomed_at) return; // deja envoye
   const firstName = (user.first_name || (user.email.split('@')[0])).trim();
 
-  const res = await sendEmail({
+  // Migration MJML : on essaye le nouveau template Apple-like,
+  // fallback automatique sur le legacy si erreur de rendu.
+  let res = await sendEmail({
     to: user.email,
-    template: 'welcome',
+    template: 'welcomeMjml',
     params: { firstName },
   });
+  if (!res.success) {
+    console.warn('[welcome] MJML KO, fallback legacy:', res.error);
+    res = await sendEmail({
+      to: user.email,
+      template: 'welcome',
+      params: { firstName },
+    });
+  }
   if (!res.success) {
     // Si Resend KO, on ne marque pas → re-tentera au prochain login
     console.warn('[welcome] envoi echec, retry au prochain login:', res.error);
@@ -288,7 +368,9 @@ export async function sendEmail({ to, template, params = {}, replyTo = null }) {
   const builder = EmailTemplates[template];
   if (!builder) return { success: false, error: 'template inconnu: ' + template };
 
-  const { subject, html } = builder(params);
+  // Support builders sync ET async (les nouveaux MJML sont async)
+  const built = await Promise.resolve(builder(params));
+  const { subject, html } = built;
 
   try {
     const { data, error } = await supabase.functions.invoke('send-email', {

@@ -1,0 +1,22 @@
+<!--
+  YARAM — Layout MJML de base utilisé par tous les templates.
+  Inclus via <mj-include path="./_layout.mjml" /> dans chaque template.
+  Définit : couleurs, fonts, header, footer.
+-->
+<mj-head>
+  <mj-title>YARAM</mj-title>
+  <mj-preview>{{PREVIEW_TEXT}}</mj-preview>
+  <mj-attributes>
+    <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" />
+    <mj-text color="#1A1A1A" font-size="15px" line-height="1.55" />
+    <mj-button background-color="#1F8B4C" color="white" font-weight="700" font-size="15px" padding="14px 28px" border-radius="999px" inner-padding="14px 28px" />
+    <mj-class name="muted" color="#888" font-size="13px" line-height="1.5" />
+    <mj-class name="eyebrow" color="#1F8B4C" font-size="11px" font-weight="700" letter-spacing="1.5px" text-transform="uppercase" />
+    <mj-class name="h1" font-size="24px" font-weight="800" line-height="1.2" color="#0E5B33" />
+    <mj-class name="card" background-color="#FFFFFF" border="1px solid #EFEFEF" border-radius="14px" padding="20px" />
+  </mj-attributes>
+  <mj-style>
+    .yaram-link { color: #1F8B4C; text-decoration: none; font-weight: 600; }
+    .yaram-divider { border: none; border-top: 1px solid #EFEFEF; margin: 22px 0; }
+  </mj-style>
+</mj-head>

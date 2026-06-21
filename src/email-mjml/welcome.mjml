@@ -1,0 +1,82 @@
+<mjml>
+  <mj-include path="./_layout.mjml" />
+  <mj-body background-color="#F4F4F2" width="600px">
+
+    <!-- Header gradient YARAM -->
+    <mj-section background-color="#1F8B4C" padding="40px 24px" border-radius="14px 14px 0 0">
+      <mj-column>
+        <mj-text color="white" font-size="28px" font-weight="800" align="center" letter-spacing="-0.5px">YARAM</mj-text>
+        <mj-text color="rgba(255,255,255,0.85)" font-size="12px" font-weight="600" align="center" letter-spacing="3px" text-transform="uppercase">Beauté Sénégal</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Hero -->
+    <mj-section background-color="#FFFFFF" padding="40px 32px 24px">
+      <mj-column>
+        <mj-text mj-class="eyebrow" align="center">Bienvenue chez YARAM</mj-text>
+        <mj-text mj-class="h1" align="center" padding-top="8px">Salut {{FIRST_NAME}} ✨</mj-text>
+        <mj-text align="center" padding-top="12px">
+          On est super contents de t'accueillir. Ta peau africaine mérite ce qu'il y a de mieux,
+          et on s'engage à te le livrer en moins de 24h à Dakar.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Coupon de bienvenue -->
+    <mj-section background-color="#FFFFFF" padding="0 32px 8px">
+      <mj-column>
+        <mj-section padding="0">
+          <mj-column background-color="#E8F5EC" border="2px dashed #1F8B4C" border-radius="12px" padding="22px">
+            <mj-text align="center" color="#0E5B33" font-size="13px" font-weight="700">TON CADEAU DE BIENVENUE</mj-text>
+            <mj-text align="center" font-size="38px" font-weight="800" color="#1F8B4C" padding-top="6px" letter-spacing="2px">-10%</mj-text>
+            <mj-text align="center" font-size="14px" color="#0E5B33" padding-top="4px">avec le code <strong style="background:white;padding:4px 10px;border-radius:6px;color:#1F8B4C">BIENVENUE10</strong></mj-text>
+            <mj-text align="center" mj-class="muted" padding-top="8px">Valable sur ta première commande</mj-text>
+          </mj-column>
+        </mj-section>
+      </mj-column>
+    </mj-section>
+
+    <!-- CTA principal -->
+    <mj-section background-color="#FFFFFF" padding="24px 32px 8px">
+      <mj-column>
+        <mj-button href="https://yaram.app/?route=scan">Faire mon scan IA peau 🤖</mj-button>
+        <mj-text mj-class="muted" align="center" padding-top="10px">30 secondes pour un diagnostic dermato gratuit</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- 3 bénéfices -->
+    <mj-section background-color="#FFFFFF" padding="16px 32px 32px">
+      <mj-column width="33.33%" vertical-align="top">
+        <mj-text align="center" font-size="28px">🧪</mj-text>
+        <mj-text align="center" font-size="13px" font-weight="700">Validé dermato</mj-text>
+        <mj-text align="center" mj-class="muted">Tous nos produits sont scorés par IA</mj-text>
+      </mj-column>
+      <mj-column width="33.33%" vertical-align="top">
+        <mj-text align="center" font-size="28px">🛵</mj-text>
+        <mj-text align="center" font-size="13px" font-weight="700">Livré 24h</mj-text>
+        <mj-text align="center" mj-class="muted">À Dakar, partout</mj-text>
+      </mj-column>
+      <mj-column width="33.33%" vertical-align="top">
+        <mj-text align="center" font-size="28px">💚</mj-text>
+        <mj-text align="center" font-size="13px" font-weight="700">Made in Africa</mj-text>
+        <mj-text align="center" mj-class="muted">Pour ta peau</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#FAFAFA" padding="24px 32px" border-radius="0 0 14px 14px">
+      <mj-column>
+        <mj-text mj-class="muted" align="center">
+          Besoin d'aide ? Réponds à ce mail ou écris-nous sur WhatsApp
+          <a href="https://wa.me/{{WA_RAW}}" class="yaram-link">+221 77 760 89 83</a>.
+        </mj-text>
+        <mj-text mj-class="muted" align="center" padding-top="12px">
+          YARAM · Dakar, Sénégal · <a href="https://yaram.app" class="yaram-link">yaram.app</a><br/>
+          <a href="https://yaram.app/?route=newsletter" class="yaram-link">Préférences</a> ·
+          <a href="https://yaram.app/?route=legal" class="yaram-link">Mentions légales</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>

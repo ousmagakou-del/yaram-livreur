@@ -1,0 +1,85 @@
+<mjml>
+  <mj-include path="./_layout.mjml" />
+  <mj-body background-color="#F4F4F2" width="600px">
+
+    <!-- Header sombre avec ID commande -->
+    <mj-section background-color="#1F8B4C" padding="32px 24px" border-radius="14px 14px 0 0">
+      <mj-column>
+        <mj-text color="rgba(255,255,255,0.85)" font-size="12px" font-weight="600" align="left" letter-spacing="3px" text-transform="uppercase">COMMANDE CONFIRMÉE</mj-text>
+        <mj-text color="white" font-size="24px" font-weight="800" align="left" padding-top="6px">#{{ORDER_ID}}</mj-text>
+        <mj-text color="rgba(255,255,255,0.8)" font-size="13px" align="left" padding-top="4px">Estimation : {{ETA_LABEL}}</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Hero merci -->
+    <mj-section background-color="#FFFFFF" padding="32px 32px 0">
+      <mj-column>
+        <mj-text mj-class="h1" align="left">Merci {{FIRST_NAME}} 💚</mj-text>
+        <mj-text padding-top="12px">
+          On a bien reçu ta commande et on la prépare. Tu recevras un email à chaque étape :
+          préparation, en route, livré.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Card items -->
+    <mj-section background-color="#FFFFFF" padding="24px 32px 0">
+      <mj-column>
+        <mj-text font-size="13px" font-weight="700" color="#888" text-transform="uppercase" letter-spacing="1px">Ta commande</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section background-color="#FFFFFF" padding="8px 32px 0">
+      <mj-column background-color="#FAFAFA" border-radius="12px" padding="18px">
+        <mj-text>{{ITEMS_HTML}}</mj-text>
+        <mj-divider border-color="#EFEFEF" border-width="1px" padding="14px 0 10px" />
+        <mj-table>
+          <tr>
+            <td style="font-size:14px;color:#666">Sous-total</td>
+            <td style="font-size:14px;text-align:right">{{SUBTOTAL}} FCFA</td>
+          </tr>
+          <tr>
+            <td style="font-size:14px;color:#666;padding-top:4px">Livraison</td>
+            <td style="font-size:14px;text-align:right;padding-top:4px">{{DELIVERY_FEE}} FCFA</td>
+          </tr>
+          <tr>
+            <td style="font-size:16px;font-weight:800;color:#1F8B4C;padding-top:10px;border-top:1px solid #EFEFEF">Total</td>
+            <td style="font-size:16px;font-weight:800;color:#1F8B4C;text-align:right;padding-top:10px;border-top:1px solid #EFEFEF">{{TOTAL}} FCFA</td>
+          </tr>
+        </mj-table>
+      </mj-column>
+    </mj-section>
+
+    <!-- CTA principal -->
+    <mj-section background-color="#FFFFFF" padding="28px 32px 8px">
+      <mj-column>
+        <mj-button href="https://yaram.app/order/{{ORDER_ID}}">Suivre ma commande →</mj-button>
+      </mj-column>
+    </mj-section>
+
+    <!-- Adresse de livraison -->
+    <mj-section background-color="#FFFFFF" padding="16px 32px 0">
+      <mj-column>
+        <mj-text font-size="13px" font-weight="700" color="#888" text-transform="uppercase" letter-spacing="1px">Livraison</mj-text>
+        <mj-text padding-top="8px">
+          📍 {{DELIVERY_ADDRESS}}<br/>
+          📞 {{DELIVERY_PHONE}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#FAFAFA" padding="24px 32px" border-radius="0 0 14px 14px">
+      <mj-column>
+        <mj-text mj-class="muted" align="center">
+          Une question ? Réponds à ce mail ou WhatsApp
+          <a href="https://wa.me/{{WA_RAW}}" class="yaram-link">+221 77 760 89 83</a>
+        </mj-text>
+        <mj-text mj-class="muted" align="center" padding-top="12px">
+          YARAM · Dakar, Sénégal · <a href="https://yaram.app" class="yaram-link">yaram.app</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>

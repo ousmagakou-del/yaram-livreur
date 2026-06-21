@@ -1,0 +1,65 @@
+<mjml>
+  <mj-include path="./_layout.mjml" />
+  <mj-body background-color="#F4F4F2" width="600px">
+
+    <!-- Header gradient célébration -->
+    <mj-section background-color="#1F8B4C" padding="50px 32px 30px" border-radius="14px 14px 0 0">
+      <mj-column>
+        <mj-text align="center" font-size="56px" padding="0">🎉</mj-text>
+        <mj-text color="white" font-size="28px" font-weight="800" align="center" padding-top="14px" letter-spacing="-0.5px">Livré !</mj-text>
+        <mj-text color="rgba(255,255,255,0.9)" font-size="15px" align="center" padding-top="6px">
+          Profite bien de tes produits, {{FIRST_NAME}} 💚
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Récap commande -->
+    <mj-section background-color="#FFFFFF" padding="32px 32px 0">
+      <mj-column>
+        <mj-text mj-class="eyebrow">Récap commande</mj-text>
+        <mj-text padding-top="8px">
+          <strong>#{{ORDER_ID}}</strong> · Livrée le {{DELIVERY_DATE}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- CTA évaluation -->
+    <mj-section background-color="#FFFFFF" padding="28px 32px 0">
+      <mj-column background-color="#E8F5EC" border-radius="14px" padding="22px">
+        <mj-text align="center" font-size="16px" font-weight="700" color="#0E5B33">⭐ Laisse-nous une note</mj-text>
+        <mj-text align="center" mj-class="muted" padding-top="6px">
+          30 secondes pour partager ton expérience YARAM
+        </mj-text>
+        <mj-button href="https://yaram.app/order/{{ORDER_ID}}/review" background-color="#1F8B4C" padding-top="14px">Noter cette commande</mj-button>
+      </mj-column>
+    </mj-section>
+
+    <!-- Programme fidélité -->
+    <mj-section background-color="#FFFFFF" padding="28px 32px 0">
+      <mj-column>
+        <mj-text mj-class="eyebrow">Fidélité YARAM</mj-text>
+        <mj-text padding-top="8px">
+          Tu viens de gagner <strong style="color:#1F8B4C">{{LOYALTY_POINTS}} points</strong>.
+          À {{NEXT_TIER_POINTS}} points, tu débloques le palier suivant et -10% à vie.
+        </mj-text>
+        <mj-text padding-top="14px">
+          <a href="https://yaram.app/?route=loyalty" class="yaram-link">Voir mes avantages →</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#FAFAFA" padding="24px 32px" border-radius="0 0 14px 14px">
+      <mj-column>
+        <mj-text mj-class="muted" align="center">
+          Une question ? WhatsApp
+          <a href="https://wa.me/{{WA_RAW}}" class="yaram-link">+221 77 760 89 83</a>
+        </mj-text>
+        <mj-text mj-class="muted" align="center" padding-top="12px">
+          YARAM · Dakar, Sénégal · <a href="https://yaram.app" class="yaram-link">yaram.app</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>

@@ -1,0 +1,77 @@
+<mjml>
+  <mj-include path="./_layout.mjml" />
+  <mj-body background-color="#F4F4F2" width="600px">
+
+    <!-- Header avec check vert -->
+    <mj-section background-color="#FFFFFF" padding="40px 32px 24px" border-radius="14px 14px 0 0">
+      <mj-column>
+        <mj-text align="center" font-size="48px" padding="0">✅</mj-text>
+        <mj-text mj-class="h1" align="center" padding-top="12px">Paiement reçu</mj-text>
+        <mj-text align="center" padding-top="8px">
+          On vérifie ton virement <strong>{{PAYMENT_METHOD}}</strong> de <strong>{{AMOUNT}} FCFA</strong>.
+          Dès confirmation (max 1h en journée), on déclenche la livraison.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Détails virement -->
+    <mj-section background-color="#FFFFFF" padding="8px 32px 0">
+      <mj-column>
+        <mj-section padding="0">
+          <mj-column background-color="#FAFAFA" border-radius="12px" padding="18px">
+            <mj-table>
+              <tr>
+                <td style="font-size:13px;color:#888;padding-bottom:8px">Commande</td>
+                <td style="font-size:13px;text-align:right;font-weight:600;padding-bottom:8px">#{{ORDER_ID}}</td>
+              </tr>
+              <tr>
+                <td style="font-size:13px;color:#888;padding-bottom:8px">Montant</td>
+                <td style="font-size:13px;text-align:right;font-weight:600;padding-bottom:8px">{{AMOUNT}} FCFA</td>
+              </tr>
+              <tr>
+                <td style="font-size:13px;color:#888">Méthode</td>
+                <td style="font-size:13px;text-align:right;font-weight:600">{{PAYMENT_METHOD}}</td>
+              </tr>
+            </mj-table>
+          </mj-column>
+        </mj-section>
+      </mj-column>
+    </mj-section>
+
+    <!-- Timeline -->
+    <mj-section background-color="#FFFFFF" padding="28px 32px 0">
+      <mj-column>
+        <mj-text font-size="13px" font-weight="700" color="#888" text-transform="uppercase" letter-spacing="1px">Et maintenant ?</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section background-color="#FFFFFF" padding="12px 32px 0">
+      <mj-column>
+        <mj-text>
+          <strong style="color:#1F8B4C">✓</strong> Paiement reçu (à l'instant)<br/>
+          <strong style="color:#888">○</strong> Vérification admin (sous 1h)<br/>
+          <strong style="color:#888">○</strong> Préparation pharmacie<br/>
+          <strong style="color:#888">○</strong> Livraison sous 24h
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- CTA -->
+    <mj-section background-color="#FFFFFF" padding="28px 32px 8px">
+      <mj-column>
+        <mj-button href="https://yaram.app/order/{{ORDER_ID}}">Voir le statut →</mj-button>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#FAFAFA" padding="24px 32px" border-radius="0 0 14px 14px">
+      <mj-column>
+        <mj-text mj-class="muted" align="center">
+          Un souci avec ton virement ? Réponds à ce mail ou WhatsApp
+          <a href="https://wa.me/{{WA_RAW}}" class="yaram-link">+221 77 760 89 83</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>

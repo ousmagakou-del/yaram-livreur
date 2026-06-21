@@ -1,0 +1,55 @@
+<mjml>
+  <mj-include path="./_layout.mjml" />
+  <mj-body background-color="#F4F4F2" width="600px">
+
+    <!-- Header avec scooter -->
+    <mj-section background-color="#FFFFFF" padding="40px 32px 16px" border-radius="14px 14px 0 0">
+      <mj-column>
+        <mj-text align="center" font-size="48px" padding="0">🛵</mj-text>
+        <mj-text mj-class="h1" align="center" padding-top="12px">{{LIVREUR_NAME}} arrive !</mj-text>
+        <mj-text align="center" padding-top="8px">
+          Ton livreur est en route avec ta commande <strong>#{{ORDER_ID}}</strong>.
+          ETA : <strong>{{ETA_LABEL}}</strong>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Card livreur -->
+    <mj-section background-color="#FFFFFF" padding="20px 32px 0">
+      <mj-column background-color="#FAFAFA" border-radius="12px" padding="18px">
+        <mj-text font-size="13px" color="#888" font-weight="700" text-transform="uppercase" letter-spacing="1px">Ton livreur</mj-text>
+        <mj-text padding-top="8px">
+          <strong>{{LIVREUR_NAME}}</strong><br/>
+          📞 <a href="tel:{{LIVREUR_PHONE_RAW}}" class="yaram-link">{{LIVREUR_PHONE}}</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Cash à préparer -->
+    <mj-section background-color="#FFFFFF" padding="20px 32px 0">
+      <mj-column background-color="#FFF7E5" border="2px solid #F4B53A" border-radius="12px" padding="18px">
+        <mj-text align="center" font-size="13px" color="#8B6B00" font-weight="700">💵 PRÉPARE TON RÈGLEMENT</mj-text>
+        <mj-text align="center" font-size="32px" color="#0E5B33" font-weight="800" padding-top="6px">{{AMOUNT_DUE}} FCFA</mj-text>
+        <mj-text align="center" mj-class="muted" padding-top="4px">À régler au livreur à l'arrivée</mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- CTA suivi -->
+    <mj-section background-color="#FFFFFF" padding="24px 32px 8px">
+      <mj-column>
+        <mj-button href="https://yaram.app/order/{{ORDER_ID}}">Suivre en direct →</mj-button>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#FAFAFA" padding="24px 32px" border-radius="0 0 14px 14px">
+      <mj-column>
+        <mj-text mj-class="muted" align="center">
+          Une question ? WhatsApp
+          <a href="https://wa.me/{{WA_RAW}}" class="yaram-link">+221 77 760 89 83</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>
