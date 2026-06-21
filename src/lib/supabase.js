@@ -1352,14 +1352,10 @@ export async function getUnreadCount(userId) {
   return count || 0;
 }
 
-export async function markNotificationRead(notifId) {
-  return supabase.from('notifications').update({ read: true }).eq('id', notifId);
-}
-
-export async function markAllNotificationsRead(userId) {
-  return supabase.from('notifications').update({ read: true })
-    .eq('user_id', userId).eq('read', false);
-}
+// markNotificationRead + markAllNotificationsRead : versions RPC plus bas dans
+// le fichier (utilisent count_unread_notifications/mark_*_read SECURITY DEFINER).
+// Les anciennes versions update direct ont été supprimées pour éviter la
+// duplication d'export (qui bloquait le build Vite/Rolldown).
 
 export async function createNotification({ userId, title, body, url, type = 'info' }) {
   return supabase.from('notifications').insert({
