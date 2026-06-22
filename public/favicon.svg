@@ -1,22 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" shape-rendering="geometricPrecision">
   <!--
-    YARAM — icone carree (favicon + PWA).
-    Y blanc MATHEMATIQUEMENT centre dans le carre 256x256.
+    YARAM — icone carree (favicon + PWA + iOS app icon source).
+    Centrage VISUEL parfait (compense le desequilibre optique du Y).
 
-    Calcul du centrage :
-      Path bbox dans viewBox 256x256 d'origine :
-        x=[87.63, 166.78], y=[64.45, 164.5]
-        centre = (127.205, 114.475), width=79.15, height=100.05
+    Path bbox: x=[87.63, 166.78], y=[64.45, 164.5], centre=(127.205, 114.475)
 
-      Plan pour centrage parfait avec scale(1.5) :
-        scale(1.5) → centre bbox devient (190.81, 171.71)
-        translate(128 - 190.81, 128 - 171.71) = translate(-62.81, -43.71)
-        Y final fait 79.15*1.5 = 118.7px = 46% du carre (standard iOS)
+    Plan avec scale(1.125) :
+      scale(1.125) → centre bbox devient (143.10, 128.78)
+      translate(-15.10, -3.54) → centre final a (128, 125.25)
+      soit 2.75px au-dessus du milieu : compensation optique du Y
+      Y final fait 79.15*1.125 = 89.0px = 35% du carre (style Apple icons)
   -->
   <rect fill="#009640" x="0" y="0" width="256" height="256" rx="40" ry="40"/>
-  <g transform="translate(-62.81 -43.71) scale(1.5)">
+  <g transform="translate(-15.10 -3.54) scale(1.125)">
     <path fill="#fff" d="M153.9,64.45l-20.93,30.57-21.02-30.57h-24.32l28.48,41.39v58.66h23.8v-60.88l26.87-39.16h-12.87Z"/>
   </g>
-  <!-- Point orange signature en bas-droit (proportionnel a la version 1024) -->
-  <circle fill="#e94e1b" cx="195" cy="195" r="14"/>
+  <!-- Point orange (proportionnel a 1024: cx=820/cy=820/r=72 → /4) -->
+  <circle fill="#e94e1b" cx="205" cy="205" r="18"/>
 </svg>
