@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" shape-rendering="geometricPrecision">
+  <!-- YARAM App Icon centré pour iOS / Android -->
+  <!-- Fond plein vert YARAM #1F8B4C, coins arrondis 22% (iOS style) -->
+  <rect fill="#1F8B4C" x="0" y="0" width="1024" height="1024" rx="180" ry="180"/>
+
+  <!-- Y blanc parfaitement centré au milieu du 1024x1024.
+       Path source bounding box : 87.62→166.77 (x), 64.45→164.5 (y).
+       Centre du Y = (127.20, 114.48).
+       Scale 4.4 → centre devient (559.68, 503.71).
+       Translate (512-559.68, 512-503.71) = (-47.68, 8.29). -->
+  <g transform="translate(-48 8) scale(4.4)">
+    <path fill="#FFFFFF" d="M153.9,64.45l-20.93,30.57-21.02-30.57h-24.32l28.48,41.39v58.66h23.8v-60.88l26.87-39.16h-12.87Z"/>
+  </g>
+
+  <!-- Pastille orange signature en bas-droite, ratio préservé (cercle r=64) -->
+  <circle fill="#E94E1B" cx="780" cy="780" r="56"/>
+</svg>

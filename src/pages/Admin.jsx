@@ -103,20 +103,61 @@ export default function Admin() {
   const [pinModalError, setPinModalError] = useState('');
   const [pinModalOk, setPinModalOk] = useState('');
 
+  // ─── Sonnerie nouvelle commande admin (Web Audio, mute persistant) ───
+  const [adminMuted, setAdminMutedState] = useState(() => {
+    try { return localStorage.getItem('yaram-admin-mute') === '1'; } catch { return false; }
+  });
+  const setAdminMuted = (v) => {
+    setAdminMutedState(v);
+    try { localStorage.setItem('yaram-admin-mute', v ? '1' : '0'); } catch {}
+  };
+  const playAdminAlarm = () => {
+    if (adminMuted) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume?.();
+      [880, 1320, 1760].forEach((freq, i) => {
+        const t0 = ctx.currentTime + i * 0.18;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(0.5, t0 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + (i === 2 ? 0.28 : 0.18));
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.32);
+      });
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+      // Notif système (best effort si permission accordée)
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🛍️ Nouvelle commande YARAM', {
+          body: 'Une nouvelle commande vient d\'arriver.',
+          tag: 'yaram-admin-new-order',
+          icon: '/icon-192.png',
+        });
+      }
+      setTimeout(() => ctx.close().catch(() => {}), 1200);
+    } catch { /* no-op */ }
+  };
+
   useEffect(() => {
     if (!session) return;
     // PERF : 3 couches de détection nouvelle commande (du + rapide au + lent) :
     //   1. broadcast realtime (instant, déclenché par client)
     //   2. postgres_changes INSERT sur orders (instant, déclenché par DB)
     //   3. polling 120s safety net (au cas où realtime tombe)
+    const onNewOrder = () => {
+      setNewOrdersCount(c => c + 1);
+      playAdminAlarm();
+    };
     const channel = supabase
       .channel('yaram-new-orders')
-      .on('broadcast', { event: 'new_order' }, () => {
-        setNewOrdersCount(c => c + 1);
-      })
+      .on('broadcast', { event: 'new_order' }, onNewOrder)
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
-        () => { setNewOrdersCount(c => c + 1); }
+        onNewOrder
       )
       .subscribe();
 
@@ -131,6 +172,7 @@ export default function Admin() {
         if (!row) return;
         if (lastSeen && row.created_at !== lastSeen && row.created_at > lastSeen) {
           setNewOrdersCount(c => c + 1);
+          playAdminAlarm();
         }
         lastSeen = row.created_at;
       } catch { /* silencieux */ }
@@ -276,6 +318,22 @@ export default function Admin() {
           ))}
         </nav>
         <div className="adm-side-foot">
+          <button
+            className="adm-app-link"
+            onClick={() => setAdminMuted(!adminMuted)}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+            title="Active/désactive la sonnerie pour les nouvelles commandes"
+          >
+            {adminMuted ? '🔕 Sonnerie OFF' : '🔔 Sonnerie ON'}
+          </button>
+          <button
+            className="adm-app-link"
+            onClick={playAdminAlarm}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+            title="Tester la sonnerie"
+          >
+            🎵 Test sonnerie
+          </button>
           <button
             className="adm-app-link"
             onClick={() => setPinModal(true)}

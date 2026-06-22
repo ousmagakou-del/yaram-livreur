@@ -292,10 +292,17 @@
   padding: 32px 18px 8px;
 }
 .intlp-reveal {
-  opacity: 0;
-  transform: translateY(24px);
+  opacity: 1;
+  transform: translateY(0);
   transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
               transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Le reveal animé n'est appliqué QUE si JS a attaché un ref via setSectionRef.
+   Le ref ajoute `data-reveal` au mount → seul ce subset commence opacity:0.
+   Sinon (sections sans ref) → visible direct par défaut. */
+.intlp-reveal[data-reveal]:not(.is-visible) {
+  opacity: 0;
+  transform: translateY(24px);
 }
 .intlp-reveal.is-visible {
   opacity: 1;

@@ -260,6 +260,8 @@ export default function International() {
 
   const setSectionRef = (idx) => (el) => {
     sectionsRef.current[idx] = el;
+    // Marque la section pour le CSS reveal animé (sinon visible direct)
+    if (el) el.setAttribute('data-reveal', '1');
   };
 
   // ─── Submit formulaire ───
