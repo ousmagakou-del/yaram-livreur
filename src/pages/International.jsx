@@ -133,10 +133,9 @@ export default function International() {
     }, 12000);
     (async () => {
       try {
-        // FIX juin 2026 : avant on faisait `.or('is_imported.eq.true,origin_country.not.is.null')`
-        // mais 615 produits matchent cette condition (presque tous ont origin_country renseigne
-        // a "SN" pour le Senegal) → les 2 vrais imports etaient pushed hors du top 20.
-        // Nouveau : filtre strict is_imported=true, qui matche exactement nos imports.
+        // FIX juin 2026 v2 : filtre strict is_imported=true, status approved.
+        // On ajoute aussi un fallback `select('*')` si la colonne `image_url`
+        // n'existait pas dans le schema courant (la query 400 → catch → vide).
         const { data, error } = await supabase
           .from('products')
           .select('id, name, brand, price, image_url, img, origin_country, is_imported, status')
@@ -145,10 +144,29 @@ export default function International() {
           .eq('status', 'approved')
           .order('created_at', { ascending: false })
           .limit(40);
-        if (error) throw error;
-        if (!cancelled) setIntlProducts(data || []);
+
+        if (error) {
+          console.error('[Intl] products fetch error:', error.message, error);
+          // Fallback : retry sans 'image_url' au cas où la colonne n'existe pas
+          if (!cancelled) {
+            const { data: data2 } = await supabase
+              .from('products')
+              .select('id, name, brand, price, img, origin_country, is_imported, status')
+              .eq('active', true)
+              .eq('is_imported', true)
+              .eq('status', 'approved')
+              .limit(40);
+            setIntlProducts(data2 || []);
+          }
+        } else {
+          if (!cancelled) {
+            console.log('[Intl] products loaded:', data?.length || 0);
+            setIntlProducts(data || []);
+          }
+        }
       } catch (e) {
-        console.warn('[Intl] products fetch error:', e?.message);
+        console.warn('[Intl] products fetch exception:', e?.message);
+        if (!cancelled) setIntlProducts([]);
       } finally {
         if (!cancelled) setIntlProductsLoading(false);
         clearTimeout(safety);
@@ -429,24 +447,37 @@ export default function International() {
       </section>
 
       {/* ═══════════ C-bis. PRODUITS DISPONIBLES À COMMANDER ═══════════ */}
-      {(intlProductsLoading || intlProducts.length > 0) && (
-        <section className="intlp-section intlp-reveal">
-          <div className="intlp-section-head">
-            <div className="intlp-section-eyebrow">DÉJÀ EN STOCK</div>
-            <h2 className="intlp-section-title">Produits disponibles</h2>
-            <p className="intlp-section-sub">
-              Importés sous 15 jours ou déjà arrivés à Dakar
-            </p>
+      {/* TOUJOURS visible : si vide, on affiche un message clair au lieu de cacher la section */}
+      <section className="intlp-section intlp-reveal">
+        <div className="intlp-section-head">
+          <div className="intlp-section-eyebrow">DÉJÀ EN STOCK</div>
+          <h2 className="intlp-section-title">Produits disponibles</h2>
+          <p className="intlp-section-sub">
+            Importés sous 15 jours ou déjà arrivés à Dakar
+          </p>
+        </div>
+        {intlProductsLoading ? (
+          <div className="intlp-products-grid">
+            {[0,1,2,3].map(i => (
+              <div key={i} className="intlp-product-card intlp-product-skeleton" />
+            ))}
           </div>
-          {intlProductsLoading ? (
-            <div className="intlp-products-grid">
-              {[0,1,2,3].map(i => (
-                <div key={i} className="intlp-product-card intlp-product-skeleton" />
-              ))}
-            </div>
-          ) : (
-            <div className="intlp-products-grid">
-              {intlProducts.map(p => {
+        ) : intlProducts.length === 0 ? (
+          <div style={{
+            background: 'rgba(255,255,255,0.85)',
+            border: '1.5px dashed rgba(31,139,76,0.25)',
+            borderRadius: 18, padding: 32, textAlign: 'center',
+            color: '#4A6B5A', fontSize: 14, lineHeight: 1.6,
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>📦</div>
+            <strong style={{ color: '#0E5B33', display: 'block', marginBottom: 6 }}>
+              Pas encore de stock immédiat
+            </strong>
+            Utilise le formulaire ci-dessous pour commander n'importe quelle marque sur-mesure.
+          </div>
+        ) : (
+          <div className="intlp-products-grid">
+            {intlProducts.map(p => {
                 const img = p.image_url || p.img || null;
                 return (
                   <button
@@ -477,7 +508,6 @@ export default function International() {
             </div>
           )}
         </section>
-      )}
 
       {/* ═══════════ D. FORMULAIRE DEMANDE ═══════════ */}
       <section
