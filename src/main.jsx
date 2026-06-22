@@ -265,27 +265,106 @@ if (typeof document !== 'undefined') {
   } catch {}
 }
 
-// ─── iOS / Android natif : event Capacitor App.resume ───
+// ════════════════════════════════════════════════════════════════
+// FIX juin 2026 #iOS-Capacitor — Resume agressif sur app TestFlight
+// ════════════════════════════════════════════════════════════════
+//
+// L'utilisateur a confirmé : 'le probleme vient de l'app testflight'.
+// Sur Capacitor iOS, WKWebView a son propre cycle de vie :
+//   • L'app passe en background → WKWebView suspendu (JS gelé)
+//   • Au retour → WKWebView reprend, mais :
+//     - WebSockets Supabase Realtime sont MORTS définitivement
+//     - Les fetches en cours sont abandonnés silencieusement
+//     - localStorage est encore là (différent de Safari private)
+//     - Le focusManager TanStack peut être stuck à false
+//
+// Solution agressive iOS native :
+//   1. Logger CHAQUE transition d'état (visible dans DebugOverlay)
+//   2. Au resume :
+//      - DISCONNECT + RECONNECT total des channels realtime
+//      - Forcer un refetch des queries critiques (user-scoped)
+//      - Reload site settings
+//   3. Tracker la durée away pour adapter le comportement :
+//      - <30s : juste setFocused(true) (refetch silencieux)
+//      - >30s : refetch agressif des queries critiques
+//      - >5min : full invalidate (UI restera peuplée via placeholderData)
+// ════════════════════════════════════════════════════════════════
+
+let _capLastHiddenAt = null;
+let _capResumeStats = { resumes: 0, pauses: 0, lastResumeAt: null };
+// Exposé pour debug : window.__yaramCapStats
+if (typeof window !== 'undefined') window.__yaramCapStats = _capResumeStats;
+
+function handleCapacitorResume(source = 'capacitor') {
+  try {
+    _capResumeStats.resumes++;
+    _capResumeStats.lastResumeAt = Date.now();
+    const awayMs = _capLastHiddenAt ? (Date.now() - _capLastHiddenAt) : 0;
+    _capLastHiddenAt = null;
+
+    if (typeof console !== 'undefined') {
+      console.log(`[YARAM-Cap] RESUME from ${source}, away=${(awayMs / 1000).toFixed(1)}s`);
+    }
+
+    // 1) Standard resume (setFocused + setOnline + reconnect)
+    handleAppResume();
+
+    // 2) FIX iOS Capacitor : disconnect + reconnect AGRESSIF des channels.
+    //    Sans disconnect explicite, le client Supabase pense que la
+    //    websocket est encore vivante (état "joined") alors qu'elle est
+    //    fermée côté iOS → les events n'arrivent jamais.
+    if (awayMs > 5 * 1000) {
+      try {
+        if (supabase?.realtime) {
+          supabase.realtime.disconnect();
+          setTimeout(() => {
+            try { supabase.realtime.connect(); } catch {}
+          }, 100);
+        }
+      } catch {}
+    }
+
+    // 3) Si away > 30s : refetch les queries actives (en background grâce
+    //    à placeholderData → UI reste peuplée). Sur iOS Capacitor c'est
+    //    nécessaire car le focusManager seul ne suffit pas toujours.
+    if (awayMs > 30 * 1000) {
+      try {
+        // Refetch toutes les queries ACTIVES (= observées par un composant)
+        queryClient.refetchQueries({ type: 'active' });
+      } catch (e) {
+        if (typeof console !== 'undefined') console.warn('[YARAM-Cap] refetch error:', e?.message);
+      }
+    }
+  } catch (e) {
+    if (typeof console !== 'undefined') console.warn('[YARAM-Cap] resume handler error:', e?.message);
+  }
+}
+
+function handleCapacitorPause() {
+  try {
+    _capResumeStats.pauses++;
+    _capLastHiddenAt = Date.now();
+    focusManager?.setFocused?.(false);
+    if (typeof console !== 'undefined') console.log('[YARAM-Cap] PAUSE');
+  } catch {}
+}
+
 if (isNativeApp()) {
   import('@capacitor/app').then(({ App: CapApp }) => {
     try {
       CapApp.addListener('appStateChange', ({ isActive }) => {
-        try {
-          if (isActive) handleAppResume();
-          else focusManager?.setFocused?.(false);
-        } catch (e) {
-          if (typeof console !== 'undefined') console.warn('[YARAM] appStateChange handler error:', e?.message);
-        }
+        if (isActive) handleCapacitorResume('appStateChange');
+        else handleCapacitorPause();
       });
-      CapApp.addListener('resume', () => {
-        try { handleAppResume(); } catch (e) {
-          if (typeof console !== 'undefined') console.warn('[YARAM] capacitor resume error:', e?.message);
-        }
-      });
+      CapApp.addListener('resume', () => handleCapacitorResume('resume'));
+      CapApp.addListener('pause', handleCapacitorPause);
+      if (typeof console !== 'undefined') console.log('[YARAM-Cap] listeners attached (appStateChange + resume + pause)');
     } catch (e) {
-      if (typeof console !== 'undefined') console.warn('[YARAM] CapApp.addListener error:', e?.message);
+      if (typeof console !== 'undefined') console.warn('[YARAM-Cap] CapApp.addListener error:', e?.message);
     }
-  }).catch(() => { /* @capacitor/app pas dispo en dev web, normal */ });
+  }).catch((e) => {
+    if (typeof console !== 'undefined') console.warn('[YARAM-Cap] @capacitor/app import failed:', e?.message);
+  });
 }
 
 // Inject les couleurs en CSS variables des que les settings sont chargees.

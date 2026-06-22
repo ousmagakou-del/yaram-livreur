@@ -123,15 +123,29 @@ export default function DebugOverlay() {
           <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4 }}>
             Path: {typeof window !== 'undefined' ? window.location.pathname : '/'}
           </div>
-          {/* FIX iOS : afficher les infos spécifiques iOS Safari */}
+          {/* FIX iOS : afficher les infos spécifiques iOS Safari + Capacitor */}
           {typeof window !== 'undefined' && (
-            <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span>UA: {/iPhone|iPad|iPod/i.test(navigator.userAgent) ? '📱iOS' : '💻'}</span>
-              <span>PWA: {window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches ? '✓' : '✗'}</span>
-              <span>SW: {('serviceWorker' in navigator && navigator.serviceWorker.controller) ? '✓' : '✗'}</span>
-              <span>Focused: {document.hasFocus() ? '✓' : '✗'}</span>
-              <span>Vis: {document.visibilityState}</span>
-            </div>
+            <>
+              <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span>UA: {/iPhone|iPad|iPod/i.test(navigator.userAgent) ? '📱iOS' : '💻'}</span>
+                <span>Cap: {window.Capacitor?.isNativePlatform?.() ? '🟢native' : '🌐web'}</span>
+                <span>PWA: {window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches ? '✓' : '✗'}</span>
+              </div>
+              <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span>SW: {('serviceWorker' in navigator && navigator.serviceWorker.controller) ? '✓' : '✗'}</span>
+                <span>Focused: {document.hasFocus() ? '✓' : '✗'}</span>
+                <span>Vis: {document.visibilityState}</span>
+              </div>
+              {/* Capacitor resume stats (visible UNIQUEMENT sur iOS native) */}
+              {window.__yaramCapStats && window.Capacitor?.isNativePlatform?.() && (
+                <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4, color: '#86EFAC' }}>
+                  Cap resumes: {window.__yaramCapStats.resumes} · pauses: {window.__yaramCapStats.pauses}
+                  {window.__yaramCapStats.lastResumeAt && (
+                    <> · last: {timeAgo(window.__yaramCapStats.lastResumeAt)}</>
+                  )}
+                </div>
+              )}
+            </>
           )}
           {queries.length === 0 ? (
             <div style={{ opacity: 0.6, fontSize: 10 }}>Aucune query</div>
