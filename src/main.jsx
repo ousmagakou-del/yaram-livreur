@@ -16,6 +16,67 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { focusManager, onlineManager } from '@tanstack/react-query'
 import { queryClient, queryPersister } from './lib/queryClient'
 
+// ════════════════════════════════════════════════════════════════
+// FIX juin 2026 : Anti-page-blanche défensif au niveau window
+// ════════════════════════════════════════════════════════════════
+//
+// 1) Si un chunk JS lazy fail à charger (deploy + SW cache poisoning),
+//    Vite throw 'Failed to fetch dynamically imported module' → page blanche.
+//    On intercepte cette erreur et on force un reload propre.
+// 2) Si le SW envoie SW_UPDATED, on prépare un reload doux à la prochaine
+//    navigation pour éviter le mismatch HTML/chunks.
+if (typeof window !== 'undefined') {
+  let _chunkErrorReloaded = false;
+  const isChunkLoadError = (msg) => {
+    if (!msg) return false;
+    const s = String(msg).toLowerCase();
+    return s.includes('failed to fetch dynamically imported module')
+      || s.includes('importing a module script failed')
+      || s.includes('error loading chunk')
+      || s.includes('loading css chunk');
+  };
+  const handleChunkError = (msg) => {
+    if (!isChunkLoadError(msg)) return;
+    if (_chunkErrorReloaded) return;
+    _chunkErrorReloaded = true;
+    if (typeof console !== 'undefined') console.warn('[YARAM] chunk load error → reload propre');
+    // Sentinel localStorage pour éviter une boucle infinie de reloads
+    try {
+      const last = parseInt(localStorage.getItem('yaram_last_chunk_reload') || '0', 10);
+      if (Date.now() - last < 10000) {
+        // Si on a déjà rechargé < 10s ago, c'est probablement vraiment cassé
+        // → on affiche le fallback HTML au lieu de reload en boucle
+        return;
+      }
+      localStorage.setItem('yaram_last_chunk_reload', String(Date.now()));
+    } catch {}
+    // Reload sans cache (force fetch frais)
+    window.location.reload();
+  };
+  window.addEventListener('error', (e) => {
+    handleChunkError(e?.message || e?.error?.message);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    handleChunkError(e?.reason?.message || e?.reason);
+  });
+
+  // Listener message du Service Worker (cf sw.js activate)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event?.data?.type === 'SW_UPDATED') {
+        if (typeof console !== 'undefined') console.log('[YARAM] SW updated →', event.data.build);
+        // Reload doux : on attend que le user soit idle puis reload
+        // (évite de couper une action en cours type checkout)
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(() => window.location.reload(), { timeout: 5000 });
+        } else {
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      }
+    });
+  }
+}
+
 // ─── Init Sentry + SW DIFFÉRÉ à l'idle ───
 // Sentry charge ~80kb gzip de @sentry/browser. Le faire au boot bloque le
 // 1er paint sur LTE Sénégal. On le laisse partir quand le main thread est
@@ -99,44 +160,55 @@ function handleAppResume() {
   }
 }
 
+// FIX juin 2026 : envelopper TOUS les listeners dans try/catch défensif.
+// Un throw au mount (avant React) crashait la page en blanc sans fallback.
 if (typeof document !== 'undefined') {
-  // ── Web + PWA : visibilitychange est l'event LE PLUS fiable sur tous
-  //    les navigateurs (Chrome desktop/Android, Safari mobile/desktop) ──
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      handleAppResume();
-    } else {
-      // App passe en background → on note la pause TanStack (économise des
-      // refetch inutiles, évite les race conditions au retour)
-      focusManager.setFocused(false);
+    try {
+      if (document.visibilityState === 'visible') {
+        handleAppResume();
+      } else {
+        focusManager?.setFocused?.(false);
+      }
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] visibilitychange listener error:', e?.message);
     }
   });
-  // ── Fallback web : focus window (cas où l'onglet reste visible mais
-  //    perd le focus, ex. switch entre fenêtres sur desktop) ──
-  window.addEventListener('focus', handleAppResume);
-  // ── Reconnexion réseau (le plus utile à Dakar avec coupures LTE) ──
+  window.addEventListener('focus', () => {
+    try { handleAppResume(); } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] focus listener error:', e?.message);
+    }
+  });
   window.addEventListener('online', () => {
-    onlineManager.setOnline(true);
-    handleAppResume();
+    try {
+      onlineManager?.setOnline?.(true);
+      handleAppResume();
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] online listener error:', e?.message);
+    }
   });
 }
 
 // ─── iOS / Android natif : event Capacitor App.resume ───
-// Sur Capacitor, l'event JS `focus`/`visibilitychange` n'est pas toujours
-// déclenché quand l'app revient du background (iOS suspend le WebView).
-// On utilise donc l'event natif `appStateChange` qui est garanti.
 if (isNativeApp()) {
-  // Import dynamique pour ne pas charger Capacitor sur le web
   import('@capacitor/app').then(({ App: CapApp }) => {
-    CapApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) {
-        handleAppResume();
-      } else {
-        focusManager.setFocused(false);
-      }
-    });
-    // Event 'resume' (Android principalement, double safety net)
-    CapApp.addListener('resume', handleAppResume);
+    try {
+      CapApp.addListener('appStateChange', ({ isActive }) => {
+        try {
+          if (isActive) handleAppResume();
+          else focusManager?.setFocused?.(false);
+        } catch (e) {
+          if (typeof console !== 'undefined') console.warn('[YARAM] appStateChange handler error:', e?.message);
+        }
+      });
+      CapApp.addListener('resume', () => {
+        try { handleAppResume(); } catch (e) {
+          if (typeof console !== 'undefined') console.warn('[YARAM] capacitor resume error:', e?.message);
+        }
+      });
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] CapApp.addListener error:', e?.message);
+    }
   }).catch(() => { /* @capacitor/app pas dispo en dev web, normal */ });
 }
 
@@ -163,35 +235,76 @@ function BootedApp() {
   return <App />;
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    {/* PersistQueryClientProvider hydrate depuis IndexedDB AVANT le 1er render
-        (asynchrone mais court-circuité par <PersistGate> implicite : si pas
-        de cache persisté, l'app monte normalement). Ensuite il persiste
-        toutes les mutations du queryClient en background, throttled 1s. */}
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister: queryPersister,
-        maxAge: 24 * 60 * 60 * 1000, // 24 h max d'âge pour le cache persisté
-        buster: 'v1',
-        // Ne persister que les queries qui ne sont pas user-sensitive
-        // (pas d'auth token, pas de panier non commité).
-        dehydrateOptions: {
-          shouldDehydrateQuery: (q) => {
-            // Skip les queries qui ont explicitement opted-out via meta
-            if (q.meta?.persist === false) return false;
-            // Skip les erreurs
-            if (q.state.status !== 'success') return false;
-            return true;
+// FIX juin 2026 : wrap createRoot dans try/catch avec fallback HTML brut.
+// Sans ça, si #root est introuvable OU si createRoot/PersistQueryClientProvider
+// throw au mount → page blanche TOTALE car React n'a pas encore d'ErrorBoundary.
+// Avec ce fallback : l'user voit au moins un message + bouton Recharger.
+function mountReact() {
+  const rootEl = document.getElementById('root');
+  if (!rootEl) {
+    throw new Error('YARAM: #root element introuvable dans index.html');
+  }
+  createRoot(rootEl).render(
+    <StrictMode>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: queryPersister,
+          maxAge: 24 * 60 * 60 * 1000,
+          buster: 'v2',
+          dehydrateOptions: {
+            shouldDehydrateQuery: (q) => {
+              if (q.meta?.persist === false) return false;
+              if (q.state.status !== 'success') return false;
+              return true;
+            },
           },
-        },
-      }}
-    >
-      <BootedApp />
-    </PersistQueryClientProvider>
-  </StrictMode>,
-)
+        }}
+      >
+        <BootedApp />
+      </PersistQueryClientProvider>
+    </StrictMode>,
+  );
+}
+
+try {
+  mountReact();
+} catch (e) {
+  // Crash fatal AVANT React → on tue le splash + on affiche un message texte
+  // récupérable avec un bouton "Recharger" qui nuke tous les caches.
+  if (typeof console !== 'undefined') console.error('[YARAM FATAL]', e);
+  try { hideBootSplash(); } catch {}
+  const fb = document.createElement('div');
+  fb.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;color:#0D4D27;font-family:-apple-system,Segoe UI,sans-serif;padding:24px;text-align:center;z-index:99999';
+  fb.innerHTML = `
+    <div style="font-size:48px;margin-bottom:16px">🌿</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px">YARAM</div>
+    <div style="font-size:14px;color:#6b7280;max-width:300px;margin-bottom:24px;line-height:1.5">
+      Petit souci au démarrage. On recharge l'application proprement ?
+    </div>
+    <button id="yaram-nuke-btn" style="background:#1F8B4C;color:#fff;border:none;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">
+      Recharger
+    </button>
+    <div style="font-size:11px;color:#9ca3af;margin-top:20px;max-width:280px;line-height:1.4">${(e?.message || 'erreur inconnue').slice(0, 200)}</div>
+  `;
+  document.body.appendChild(fb);
+  document.getElementById('yaram-nuke-btn')?.addEventListener('click', async () => {
+    // Nuke caches + SW + IndexedDB pour reset complet
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      try { localStorage.clear(); } catch {}
+      try { sessionStorage.clear(); } catch {}
+    } catch {}
+    window.location.reload();
+  });
+}
 
 // Fallback : si pour une raison X le wrapper ne se monte pas en 3s, on retire
 // quand meme le splash pour ne pas bloquer l'utilisatrice.

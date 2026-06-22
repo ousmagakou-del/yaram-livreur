@@ -96,7 +96,7 @@ export default function ClientConfirm() {
       <div className="cc-screen">
         <div className="cc-card cc-success">
           <div style={{ fontSize: 64 }}>🎉</div>
-          <h1>Merci {order.address?.name?.split(' ')[0]} !</h1>
+          <h1>Merci {(order.address?.name || 'toi').split(' ')[0]} !</h1>
           <p>Ta livraison est officiellement confirmée.</p>
           {order.delivery_rating ? (
             <div style={{ marginTop: 20 }}>
@@ -136,7 +136,7 @@ export default function ClientConfirm() {
       <main className="cc-main">
         <div className="cc-card">
           <div className="cc-greeting">
-            <h1>Salut {order.address?.name?.split(' ')[0]} 👋</h1>
+            <h1>Salut {(order.address?.name || 'toi').split(' ')[0]} 👋</h1>
             <p>Le livreur indique avoir livré ta commande.</p>
           </div>
 

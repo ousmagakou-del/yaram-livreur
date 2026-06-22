@@ -22,7 +22,9 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import { get, set, del } from 'idb-keyval';
 
 // ─── Buster : bump quand on change une signature de query ───
-const BUSTER = 'v1-2026-06';
+// v2 : juin 2026 — ajout keepPreviousData sur useMyOrders/useMyFavorites,
+// invalide les anciens caches qui pourraient avoir une structure incompatible.
+const BUSTER = 'v2-2026-06-22';
 
 // ─── QueryClient ───────────────────────────────────────────
 export const queryClient = new QueryClient({
@@ -80,9 +82,27 @@ export const queryPersister = createAsyncStoragePersister({
   key: `yaram-query-cache-${BUSTER}`,
   // Throttle write : ne pas spam IndexedDB à chaque clé qui change
   throttleTime: 1000,
-  // Serialize en JSON simple (les datasets YARAM sont < 1 MB)
-  serialize: (data) => JSON.stringify(data),
-  deserialize: (data) => JSON.parse(data),
+  // FIX juin 2026 : serialize/deserialize WRAPPÉS dans try/catch.
+  // Sans ça, un JSON corrompu en IndexedDB (quota plein, ancien format, écriture
+  // interrompue) faisait throw au boot AVANT que React monte → page blanche.
+  // Avec ce wrap : on retourne null en cas de fail → TanStack démarre vierge
+  // et revalidate depuis Supabase au mount des composants.
+  serialize: (data) => {
+    try { return JSON.stringify(data); }
+    catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] persister.serialize fail:', e?.message);
+      return '{}';
+    }
+  },
+  deserialize: (data) => {
+    try { return JSON.parse(data); }
+    catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] persister.deserialize fail (cache corrompu, reset) :', e?.message);
+      // Nuke le cache corrompu pour qu'au prochain boot on parte propre
+      try { del(`yaram-query-cache-${BUSTER}`); } catch {}
+      return null;
+    }
+  },
 });
 
 // ─── Cleanup des anciens busters au cold start ────────────

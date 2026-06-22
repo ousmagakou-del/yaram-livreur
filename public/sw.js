@@ -16,7 +16,7 @@
 // Compat : iOS Safari + Chrome Android. Skip-waiting + clients.claim().
 // ════════════════════════════════════════════════
 
-const SW_BUILD = 'yaram-v13-2026-06-22-orders-race-fix';
+const SW_BUILD = 'yaram-v14-2026-06-22-defensive-boot';
 const C_PRECACHE = `${SW_BUILD}-precache`;
 const C_ASSETS   = `${SW_BUILD}-assets`;
 const C_IMAGES   = `${SW_BUILD}-images`;
@@ -64,18 +64,35 @@ self.addEventListener('install', (event) => {
 
 // ─── ACTIVATE ──────────────────────────────────────
 self.addEventListener('activate', (event) => {
-  console.log('[SW v8] activate', SW_BUILD);
+  console.log('[SW] activate', SW_BUILD);
   event.waitUntil(
     (async () => {
-      // Purge tous les caches qui ne correspondent pas à la version courante
+      // FIX juin 2026 : PURGE TOTALE des anciens caches (y compris ceux qui
+      // pourraient avoir un index.html stale référant des chunks JS qui
+      // n'existent plus après nos deploys récents v11→v12→v13→v14).
       const names = await caches.keys();
       await Promise.all(
         names.filter(n => !KNOWN_CACHES.has(n)).map(n => {
-          console.log('[SW v8] delete old cache', n);
+          console.log('[SW] delete old cache', n);
           return caches.delete(n);
         })
       );
       await self.clients.claim();
+
+      // FIX juin 2026 : FORCER les clients à recharger pour éviter le
+      // "old index.html → chunk 404 → page blanche". Sans ce navigate(),
+      // l'utilisateur garde son HTML caché en mémoire qui pointe vers
+      // d'anciens chunks JS qui ont été dégagés par la purge ci-dessus.
+      try {
+        const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clientList) {
+          // postMessage : permet à main.jsx d'afficher un toast "Mise à jour"
+          // puis de reload en douceur sans flash blanc.
+          try { client.postMessage({ type: 'SW_UPDATED', build: SW_BUILD }); } catch {}
+        }
+      } catch (e) {
+        console.warn('[SW] activate notify error:', e?.message);
+      }
     })()
   );
 });

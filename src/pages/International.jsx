@@ -463,7 +463,7 @@ export default function International() {
                 style={{ background: `linear-gradient(135deg, ${b.accent}ee, ${b.accent}aa)` }}
                 aria-hidden
               >
-                {b.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+                {(b.name || '?').split(' ').map(w => w?.[0] || '').slice(0, 2).join('')}
               </div>
               <div className="intlp-brand-info">
                 <div className="intlp-brand-name">{b.name}</div>
