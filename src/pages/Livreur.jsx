@@ -443,7 +443,7 @@ export default function Livreur() {
 
   const isCash = order?.payment_method === 'cod';
   const clientWaUrl = order?.address?.phone
-    ? `https://wa.me/${order.address.phone.replace(/\D/g, '')}?text=${encodeURIComponent('Salut, je suis ton livreur YARAM, je suis en route !')}`
+    ? `https://wa.me/${(order.address?.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent('Salut, je suis ton livreur YARAM, je suis en route !')}`
     : null;
   const clientMapsUrl = order?.address
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address.line || ''}, ${order.address.city || 'Dakar'}`)}`

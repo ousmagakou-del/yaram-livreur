@@ -120,6 +120,10 @@ function startRoutineReminderCheck() {
 // ═══════════════════════════════════════════════════════════════════
 
 export async function getMyNotifications(limit = 50) {
+  // FIX juin 2026 : check session avant query (RLS-protected)
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error('session_not_ready');
+
   const { data, error } = await supabase
     .from('notifications')
     .select('id, title, body, icon, url, type, read, sent_at')
@@ -127,7 +131,9 @@ export async function getMyNotifications(limit = 50) {
     .limit(limit);
   if (error) {
     console.warn('[notifs] getMy error:', error.message);
-    return [];
+    // FIX : throw au lieu de return [] (sinon le cache TanStack est empoisonné
+    // avec [] et l'UI reste figée à "aucune notification")
+    throw error;
   }
   return data || [];
 }

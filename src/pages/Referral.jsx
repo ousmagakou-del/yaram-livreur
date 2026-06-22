@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase, getOrCreateReferralCode, getReferralStats } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import './Referral.css';
 
 // ─── Hook : compteur animé au mount ───
@@ -46,53 +47,41 @@ export default function Referral() {
   const { navigate } = useNav();
   const { user } = useUser();
 
-  const [code, setCode] = useState('');
-  const [stats, setStats] = useState({ count: 0, bonusEarned: 0, list: [] });
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState('');
 
   const REWARD_PER_REFERRAL = 3000; // FCFA (affichage) — 500 pts × 6 FCFA dans ton modèle
 
-  useEffect(() => {
-    if (!user || !user.id) { setLoading(false); return; }
-    let cancelled = false;
-    setLoading(true);
-    // Safety 12s : libère l'UI si une RPC referral hang
-    const safety = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
+  // Migré vers usePersistedData → cache module-level user-scoped.
+  // Plus de skeleton au remount/back navigation.
+  const { data: referralData, loading } = usePersistedData(
+    'referral-' + (user?.id || 'anon'),
+    async () => {
+      // Préserve la logique : referral_code prioritaire, fallback helper
+      let userCode = user.referral_code || null;
+      if (!userCode) userCode = await getOrCreateReferralCode(user.id);
 
-    (async () => {
+      const s = await getReferralStats(user.id);
+
+      // Leaderboard (anonymisé). On essaie une RPC dédiée, fallback silencieux.
+      let lb = [];
       try {
-        // Préserve la logique : referral_code prioritaire, fallback helper
-        let userCode = user.referral_code || null;
-        if (!userCode) userCode = await getOrCreateReferralCode(user.id);
+        const { data } = await supabase.rpc('referral_leaderboard', { p_limit: 10 });
+        if (Array.isArray(data)) lb = data;
+      } catch {}
 
-        const s = await getReferralStats(user.id);
+      return {
+        code: userCode || 'YARAM',
+        stats: s || { count: 0, bonusEarned: 0, list: [] },
+        leaderboard: lb,
+      };
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!user?.id }
+  );
 
-        // Leaderboard (anonymisé). On essaie une RPC dédiée, fallback silencieux.
-        let lb = [];
-        try {
-          const { data } = await supabase.rpc('referral_leaderboard', { p_limit: 10 });
-          if (Array.isArray(data)) lb = data;
-        } catch {}
-
-        if (cancelled) return;
-        setCode(userCode || 'YARAM');
-        setStats(s || { count: 0, bonusEarned: 0, list: [] });
-        setLeaderboard(lb);
-      } catch (e) {
-        console.warn('[Referral] fetch failed:', e?.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
-      }
-    })();
-
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, [user]);
+  const code = referralData?.code || '';
+  const stats = referralData?.stats || { count: 0, bonusEarned: 0, list: [] };
+  const leaderboard = referralData?.leaderboard || [];
 
   // ─── Compteurs animés ───
   const invitesSent = Math.max(stats.count, stats.list?.length || 0); // approx envois

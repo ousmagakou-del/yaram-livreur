@@ -6,9 +6,10 @@
    • Disparaît si aucune promo active
    ═══════════════════════════════════════════════════════════════════ */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNav } from '../App';
+import { usePersistedData } from '../lib/usePersistedData';
 import './BonsPlansWidget.css';
 
 const DISMISS_KEY = 'yaram_bons_plans_widget_dismissed_at';
@@ -34,52 +35,56 @@ function bestPromoScore(p) {
 
 export default function BonsPlansWidget() {
   const { navigate } = useNav();
-  const [promo, setPromo] = useState(null);
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
 
-  // ─── 1. check dismiss state ───
-  useEffect(() => {
-    let alive = true;
+  // ─── 1. check dismiss state (computed une fois au mount) ───
+  // Si dismissed récemment, on désactive le fetch via enabled=false.
+  const isDismissed = useMemo(() => {
     try {
       const raw = localStorage.getItem(DISMISS_KEY);
       if (raw) {
         const dismissedAt = parseInt(raw, 10);
         const hoursAgo = (Date.now() - dismissedAt) / (1000 * 60 * 60);
-        if (hoursAgo < DISMISS_HOURS) return; // silence
+        if (hoursAgo < DISMISS_HOURS) return true;
       }
     } catch {}
-
-    // ─── 2. fetch best active promo ───
-    (async () => {
-      try {
-        // FIX juin 2026 : .or() chaînés cassaient l'URL → 400. Filter dates client.
-        const now = Date.now();
-        const { data } = await supabase
-          .from('promo_codes')
-          .select('*')
-          .eq('active', true)
-          .neq('is_referral', true)
-          .limit(20);
-
-        const usable = (data || []).filter(p => {
-          if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
-          if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
-          return !p.max_uses || p.uses_count < p.max_uses;
-        });
-        if (usable.length === 0) return;
-
-        const best = usable.sort((a, b) => bestPromoScore(b) - bestPromoScore(a))[0];
-        if (!alive) return;
-        setPromo(best);
-        // ─── 3. delay reveal ───
-        setTimeout(() => { if (alive) setVisible(true); }, REVEAL_DELAY_MS);
-      } catch (e) {
-        console.error('[BonsPlansWidget] load error:', e);
-      }
-    })();
-    return () => { alive = false; };
+    return false;
   }, []);
+
+  // ─── 2. fetch best active promo via usePersistedData ───
+  // Namespace séparé de carousel pour éviter de partager setData.
+  const { data: promo } = usePersistedData(
+    'bons-plans-widget',
+    async () => {
+      // FIX juin 2026 : .or() chaînés cassaient l'URL → 400. Filter dates client.
+      const now = Date.now();
+      const { data } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('active', true)
+        .neq('is_referral', true)
+        .limit(20);
+
+      const usable = (data || []).filter(p => {
+        if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
+        if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
+        return !p.max_uses || p.uses_count < p.max_uses;
+      });
+      if (usable.length === 0) return null;
+
+      return usable.sort((a, b) => bestPromoScore(b) - bestPromoScore(a))[0];
+    },
+    { ttl: 5 * 60 * 1000, enabled: !isDismissed }
+  );
+
+  // ─── 3. delay reveal une fois la promo dispo ───
+  useEffect(() => {
+    if (!promo || isDismissed) return;
+    let alive = true;
+    const t = setTimeout(() => { if (alive) setVisible(true); }, REVEAL_DELAY_MS);
+    return () => { alive = false; clearTimeout(t); };
+  }, [promo, isDismissed]);
 
   const handleDismiss = (e) => {
     e?.stopPropagation();

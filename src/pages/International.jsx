@@ -18,6 +18,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase, getCachedSetting, subscribeSettings } from '../lib/supabase';
 import { getUserPosition, getPermissionState } from '../lib/geo';
 import { useNav } from '../App';
+import { usePersistedData } from '../lib/usePersistedData';
 import './International.css';
 
 // ─── Catalogue marques internationales premium ──────────────────────────────
@@ -122,58 +123,40 @@ export default function International() {
   // On affiche les produits actifs marqués is_imported = true OU avec un
   // origin_country défini hors Sénégal. Ça donne une vraie grille tappable
   // qui ouvre la fiche produit standard.
-  const [intlProducts, setIntlProducts] = useState([]);
-  const [intlProductsLoading, setIntlProductsLoading] = useState(true);
+  // Migré vers usePersistedData → cache module-level, plus de skeleton au remount.
+  const { data: intlProductsData, loading: intlProductsLoading } = usePersistedData(
+    'international-products',
+    async () => {
+      // FIX juin 2026 v2 : filtre strict is_imported=true, status approved.
+      // On ajoute aussi un fallback `select('*')` si la colonne `image_url`
+      // n'existait pas dans le schema courant (la query 400 → catch → vide).
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, brand, price, image_url, img, origin_country, is_imported, status')
+        .eq('active', true)
+        .eq('is_imported', true)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false })
+        .limit(40);
 
-  useEffect(() => {
-    let cancelled = false;
-    // Safety 12s : libère le spinner de la grille produits si la requête hang
-    const safety = setTimeout(() => {
-      if (!cancelled) setIntlProductsLoading(false);
-    }, 12000);
-    (async () => {
-      try {
-        // FIX juin 2026 v2 : filtre strict is_imported=true, status approved.
-        // On ajoute aussi un fallback `select('*')` si la colonne `image_url`
-        // n'existait pas dans le schema courant (la query 400 → catch → vide).
-        const { data, error } = await supabase
+      if (error) {
+        console.error('[Intl] products fetch error:', error.message, error);
+        // Fallback : retry sans 'image_url' au cas où la colonne n'existe pas
+        const { data: data2 } = await supabase
           .from('products')
-          .select('id, name, brand, price, image_url, img, origin_country, is_imported, status')
+          .select('id, name, brand, price, img, origin_country, is_imported, status')
           .eq('active', true)
           .eq('is_imported', true)
           .eq('status', 'approved')
-          .order('created_at', { ascending: false })
           .limit(40);
-
-        if (error) {
-          console.error('[Intl] products fetch error:', error.message, error);
-          // Fallback : retry sans 'image_url' au cas où la colonne n'existe pas
-          if (!cancelled) {
-            const { data: data2 } = await supabase
-              .from('products')
-              .select('id, name, brand, price, img, origin_country, is_imported, status')
-              .eq('active', true)
-              .eq('is_imported', true)
-              .eq('status', 'approved')
-              .limit(40);
-            setIntlProducts(data2 || []);
-          }
-        } else {
-          if (!cancelled) {
-            console.log('[Intl] products loaded:', data?.length || 0);
-            setIntlProducts(data || []);
-          }
-        }
-      } catch (e) {
-        console.warn('[Intl] products fetch exception:', e?.message);
-        if (!cancelled) setIntlProducts([]);
-      } finally {
-        if (!cancelled) setIntlProductsLoading(false);
-        clearTimeout(safety);
+        return data2 || [];
       }
-    })();
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, []);
+      console.log('[Intl] products loaded:', data?.length || 0);
+      return data || [];
+    },
+    { ttl: 15 * 60 * 1000 }
+  );
+  const intlProducts = intlProductsData || [];
 
   // ─── State FAQ collapsible ───
   const [openFaq, setOpenFaq] = useState(null);

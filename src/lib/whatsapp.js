@@ -42,7 +42,7 @@ export async function uploadMarketingImage(file) {
     return { url: null, error: 'file_too_large_max_10mb' };
   }
 
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const ext = ((file?.name || '').split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
   const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg';
   const filename = `campaign_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
 

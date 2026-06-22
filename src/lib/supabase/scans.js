@@ -68,8 +68,8 @@ export async function getLatestSkinScan() {
 
 export async function getProductsForSkinDiagnosis(diagnosis) {
   const allProducts = await getAllProducts();
-  const recommendedIngredients = (diagnosis.ingredients_recommandes || []).map(i => i.toLowerCase());
-  const avoidIngredients = (diagnosis.ingredients_a_eviter || []).map(i => i.toLowerCase());
+  const recommendedIngredients = (diagnosis.ingredients_recommandes || []).map(i => String(i || '').toLowerCase());
+  const avoidIngredients = (diagnosis.ingredients_a_eviter || []).map(i => String(i || '').toLowerCase());
   const compatibles = [], avoid = [];
   for (const product of allProducts) {
     const productText = `${product.name || ''} ${product.description || ''} ${product.ingredients || ''}`.toLowerCase();

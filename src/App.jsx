@@ -348,13 +348,18 @@ function ClientApp() {
         } catch { /* realtime pas dispo, on s'en moque */ }
 
         // 3. Dispatch event que les pages peuvent écouter pour reload
-        window.dispatchEvent(new CustomEvent('yaram-app-resumed', {
-          detail: { awayDuration },
-        }));
+        // FIX juin 2026 : wrappé try/catch (listener custom peut throw et casser le boot foreground)
+        try {
+          window.dispatchEvent(new CustomEvent('yaram-app-resumed', {
+            detail: { awayDuration },
+          }));
+        } catch (e) { console.warn('[YARAM] yaram-app-resumed dispatch error:', e?.message); }
 
-        // 4. Force remount de la page courante en bumpant le compteur
-        // (inclus dans pageKey plus bas → toute la page se reload "from scratch")
-        setResumeCount(c => c + 1);
+        // 4. FIX juin 2026 : on n'incrémente PLUS resumeCount
+        // (resumeCount n'est plus dans pageKey, donc inutile + causait remounts
+        // qui resetaient tous les useState locaux des pages → skeletons).
+        // Le focusManager.setFocused(true) de main.jsx déclenche déjà un refetch
+        // intelligent des queries stale, sans remount.
       } catch (e) {
         console.warn('[App] resume handler error:', e?.message);
       }

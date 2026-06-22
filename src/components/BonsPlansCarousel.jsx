@@ -6,9 +6,10 @@
    • Si aucune promo active → la section disparaît proprement
    ═══════════════════════════════════════════════════════════════════ */
 
-import { useEffect, useState, memo } from 'react';
+import { memo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNav } from '../App';
+import { usePersistedData } from '../lib/usePersistedData';
 import './BonsPlansCarousel.css';
 
 const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
@@ -102,39 +103,33 @@ function PromoCard({ promo, index, onClick }) {
 
 function BonsPlansCarousel() {
   const { navigate } = useNav();
-  const [promos, setPromos] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        // FIX juin 2026 : les .or() chaînés avec ISO timestamp produisaient
-        // une URL 400 (caractères spéciaux mal encodés). On simplifie : filter
-        // actif + non-referral côté SQL, dates côté client (peu de rows).
-        const now = Date.now();
-        const { data } = await supabase
-          .from('promo_codes')
-          .select('*')
-          .eq('active', true)
-          .neq('is_referral', true)
-          .order('created_at', { ascending: false })
-          .limit(20);
+  // Migré vers usePersistedData → cache module-level, plus de skeleton au remount.
+  const { data: promosData, loading } = usePersistedData(
+    'bons-plans-carousel',
+    async () => {
+      // FIX juin 2026 : les .or() chaînés avec ISO timestamp produisaient
+      // une URL 400 (caractères spéciaux mal encodés). On simplifie : filter
+      // actif + non-referral côté SQL, dates côté client (peu de rows).
+      const now = Date.now();
+      const { data } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('active', true)
+        .neq('is_referral', true)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-        const filtered = (data || []).filter(p => {
-          if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
-          if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
-          if (p.max_uses && p.uses_count >= p.max_uses) return false;
-          return true;
-        });
-        if (alive) setPromos(filtered);
-      } catch (e) {
-        console.error('[BonsPlansCarousel] load error:', e);
-      }
-      if (alive) setLoading(false);
-    })();
-    return () => { alive = false; };
-  }, []);
+      return (data || []).filter(p => {
+        if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
+        if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
+        if (p.max_uses && p.uses_count >= p.max_uses) return false;
+        return true;
+      });
+    },
+    { ttl: 5 * 60 * 1000 }
+  );
+  const promos = promosData || [];
 
   const handleCardClick = (promo) => {
     try {

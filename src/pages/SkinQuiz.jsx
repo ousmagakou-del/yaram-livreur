@@ -269,8 +269,8 @@ export default function SkinQuiz({ onComplete }) {
     // Génère les recos produits (ne bloque pas en cas d'erreur)
     try {
       const all = await getAllProducts();
-      const recoIngs = diag.ingredients_recommandes.map(i => i.toLowerCase());
-      const avoidIngs = diag.ingredients_a_eviter.map(i => i.toLowerCase());
+      const recoIngs = (diag.ingredients_recommandes || []).map(i => String(i || '').toLowerCase());
+      const avoidIngs = (diag.ingredients_a_eviter || []).map(i => String(i || '').toLowerCase());
       const matches = [];
       for (const p of all) {
         if (!p.active) continue;

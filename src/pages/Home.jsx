@@ -208,6 +208,9 @@ export default function Home() {
 
   // Ref pour eviter les re-fetch concurrents
   const fetchingRef = useRef(false);
+  // FIX juin 2026 : flag pour annuler les setState des Phase 2/3 si unmount.
+  // Évite "setState après unmount" warning + memory leak listeners.
+  const loadCancelledRef = useRef(false);
 
   // ─── GPS au demarrage ───
   useEffect(() => {
@@ -289,7 +292,7 @@ export default function Home() {
           if (!catMap[prod.category]) {
             catMap[prod.category] = {
               id: prod.category, slug: prod.category,
-              name: prod.category.charAt(0).toUpperCase() + prod.category.slice(1),
+              name: (prod.category || '').charAt(0).toUpperCase() + (prod.category || '').slice(1),
               bg_color: DEFAULT_CATEGORY_PRESET.bg_color,
               text_color: DEFAULT_CATEGORY_PRESET.text_color,
               icon_url: null, product_count: 0,
@@ -308,11 +311,14 @@ export default function Home() {
 
       // ═══ PHASE 2 : ENRICHISSEMENT (best sellers, brands, banners, pharmacies) ═══
       // Lancé en parallele mais NE BLOQUE PAS l'UI. Si une promise rame, on s'en moque.
+      // FIX juin 2026 : flag cancelled vérifié avant chaque setState pour éviter
+      // les "setState après unmount" warnings + memory leaks.
       Promise.all([
         getAllPharmacies().catch(() => []),
         getAllBrands().catch(() => []),
         getAllBanners().catch(() => []),
       ]).then(([ph, br, bn]) => {
+        if (loadCancelledRef.current) return;  // ← Phase 2 guard
         setPharmacies(ph);
         homeDataCache.pharmacies = ph;
         qc.setQueryData(QUERY_KEYS.pharmacies, ph);
@@ -326,8 +332,7 @@ export default function Home() {
           .slice(0, 10);
         setTopBrands(sortedBrands);
         homeDataCache.topBrands = sortedBrands;
-        qc.setQueryData(QUERY_KEYS.brands, br); // tous les brands pour TanStack
-
+        qc.setQueryData(QUERY_KEYS.brands, br);
 
         // Banners (filtre par dates)
         const now = new Date();
@@ -340,27 +345,32 @@ export default function Home() {
         setBanners(activeBn);
         homeDataCache.banners = activeBn;
         qc.setQueryData(QUERY_KEYS.banners, activeBn);
-        // PERSIST Phase 2 dans sessionStorage + localStorage
         persistHomeCache();
       }).catch(e => console.warn('[Home] phase 2 enrichissement failed (non-bloquant):', e?.message));
 
       // ═══ PHASE 3 : USER-SPECIFIC (favorites, last scan, best sellers RPC) ═══
-      // Aussi non-bloquant. Si user pas connecte, skip.
       if (user?.id) {
         supabase.from('favorites').select('product_id').eq('user_id', user.id)
-          .then(({ data }) => setFavIds((data || []).map(f => f.product_id)))
+          .then(({ data }) => {
+            if (loadCancelledRef.current) return;
+            setFavIds((data || []).map(f => f.product_id));
+          })
           .catch(() => {});
 
         supabase.from('skin_scans').select('*')
           .eq('user_id', user.id).order('created_at', { ascending: false })
           .limit(1).maybeSingle()
-          .then(({ data }) => setLatestScan(data))
+          .then(({ data }) => {
+            if (loadCancelledRef.current) return;
+            setLatestScan(data);
+          })
           .catch(() => {});
       }
 
       // Best sellers RPC (cote serveur, peut etre lent) — non-bloquant
       supabase.rpc('public_best_sellers', { p_limit: 30 })
         .then(({ data: rows }) => {
+          if (loadCancelledRef.current) return;
           const best = (rows || []).map(r => p.find(pr => pr.id === r.product_id)).filter(Boolean);
           setBestSellers(best);
           homeDataCache.bestSellers = best;
@@ -380,8 +390,14 @@ export default function Home() {
   };
 
   // ─── Load au mount + quand l'user change ───
+  // FIX juin 2026 : cleanup pose le flag cancelled pour les promises Phase 2/3
+  // qui pourraient résoudre après unmount.
   useEffect(() => {
+    loadCancelledRef.current = false;
     loadData();
+    return () => {
+      loadCancelledRef.current = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -506,7 +522,7 @@ export default function Home() {
     } else score += 15;
     score += (p.score || 50) * 0.3;
     if (diag.ingredients_recommandes) {
-      const rec = diag.ingredients_recommandes.map(i => i.toLowerCase());
+      const rec = (diag.ingredients_recommandes || []).map(i => String(i || '').toLowerCase());
       const txt = `${p.name || ''} ${p.inci || ''} ${p.short_desc || ''}`.toLowerCase();
       score += rec.filter(ing => txt.includes(ing)).length * 5;
     }
@@ -516,7 +532,7 @@ export default function Home() {
       score -= avo.filter(ing => txt.includes(ing)).length * 10;
     }
     if (concernsList.length > 0 && p.short_desc) {
-      const desc = p.short_desc.toLowerCase();
+      const desc = (p.short_desc || '').toLowerCase();
       concernsList.forEach(c => { if (desc.includes(c.toLowerCase())) score += 5; });
     }
     if (favIds.includes(p.id)) score += 20;

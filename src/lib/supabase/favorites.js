@@ -7,7 +7,8 @@ import { cachedFetch } from '../dataCache';
 
 export async function getMyFavorites() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return [];
+  // FIX juin 2026 : throw au lieu de return [] (cache poisoning)
+  if (!session?.user) throw new Error('session_not_ready');
   return cachedFetch(`my_favs_${session.user.id}`, async () => {
     // PERF : SELECT précis au lieu de products(*) qui ramenait inci, long_desc, etc.
     // Pour la liste favoris on a juste besoin de quoi afficher les ProductTile.
