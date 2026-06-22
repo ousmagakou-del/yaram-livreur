@@ -128,6 +128,21 @@ export function usePersistedData(namespace, fetcher, options = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespace, enabled]);
 
+  // ─── FIX iOS juin 2026 : refresh silencieux au pageshow bfcache ─
+  // iOS Safari restore les pages depuis bfcache sans firer visibilitychange.
+  // Le hook doit refresh ses data dès qu'on revient sur la page.
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+    const onPageShow = (event) => {
+      if (event.persisted) {
+        // bfcache restore iOS → refresh silencieux
+        doFetch(true);
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, [enabled, doFetch]);
+
   // ─── Refresh manuel (ex: pull-to-refresh) ──────────────────
   const refresh = useCallback(() => doFetch(false), [doFetch]);
 

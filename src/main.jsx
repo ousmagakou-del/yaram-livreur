@@ -196,6 +196,73 @@ if (typeof document !== 'undefined') {
       if (typeof console !== 'undefined') console.warn('[YARAM] online listener error:', e?.message);
     }
   });
+
+  // ════════════════════════════════════════════════════════════════
+  // FIX juin 2026 #iOS — Events spécifiques Safari mobile + PWA iOS
+  // ════════════════════════════════════════════════════════════════
+  //
+  // iOS Safari a des comportements différents des autres navigateurs :
+  //   • visibilitychange peut NE PAS firer au retour de background si
+  //     l'app était dans le bfcache (back/forward cache)
+  //   • Au lieu, iOS fire un event 'pageshow' avec event.persisted=true
+  //   • iOS suspend tout le JS quand l'app passe en background, donc
+  //     les setInterval/setTimeout sont gelés → polling cassé
+  //   • iOS Safari PWA (mode standalone, ajouté à l'écran d'accueil)
+  //     a un cycle de vie encore plus restreint (kills + cold restart)
+  //   • Page Lifecycle API : 'freeze' / 'resume' (Chrome iOS / Safari 14+)
+  //
+  // C'EST POUR ÇA QUE LE USER VOYAIT TOUJOURS DES BUGS SUR SAFARI iOS
+  // mais pas en desktop : les events standards ne se déclenchaient pas.
+  // ════════════════════════════════════════════════════════════════
+
+  // ── pageshow : LE MOMENT CRITIQUE iOS Safari ──
+  // Fire à chaque retour du bfcache + au cold load. event.persisted=true
+  // signifie "page restaurée depuis le cache iOS" → c'est ÇA le moment
+  // où il faut refresh les queries stale (sinon UI montre des données
+  // vieilles de plusieurs heures).
+  window.addEventListener('pageshow', (event) => {
+    try {
+      if (event.persisted) {
+        // Restauration depuis bfcache iOS → comportement = retour foreground
+        if (typeof console !== 'undefined') console.log('[YARAM-iOS] pageshow persisted=true (bfcache restore) → handleAppResume');
+        handleAppResume();
+      }
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] pageshow listener error:', e?.message);
+    }
+  });
+
+  // ── pagehide : iOS Safari peut tuer la page en background ──
+  // On note l'état pour que au prochain pageshow on sache si c'était un cold
+  // restart ou un simple bfcache restore.
+  window.addEventListener('pagehide', () => {
+    try {
+      focusManager?.setFocused?.(false);
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] pagehide listener error:', e?.message);
+    }
+  });
+
+  // ── Page Lifecycle API : 'resume' (Safari 14+, plus fiable que visibilitychange) ──
+  document.addEventListener('resume', () => {
+    try { handleAppResume(); } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[YARAM] document resume error:', e?.message);
+    }
+  });
+
+  // ── iOS PWA standalone détection (mode "app installée") ──
+  // En PWA standalone, le cycle de vie est encore plus restrictif.
+  // On force le focusManager à true au boot pour éviter qu'il reste
+  // stuck à false après un cold restart de la PWA.
+  try {
+    const isStandaloneiOS = window.navigator.standalone === true;
+    const isStandalonePWA = window.matchMedia('(display-mode: standalone)').matches;
+    if (isStandaloneiOS || isStandalonePWA) {
+      if (typeof console !== 'undefined') console.log('[YARAM-iOS] PWA standalone detected — force focusManager=true au boot');
+      focusManager?.setFocused?.(true);
+      onlineManager?.setOnline?.(true);
+    }
+  } catch {}
 }
 
 // ─── iOS / Android natif : event Capacitor App.resume ───

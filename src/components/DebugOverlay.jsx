@@ -123,6 +123,16 @@ export default function DebugOverlay() {
           <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4 }}>
             Path: {typeof window !== 'undefined' ? window.location.pathname : '/'}
           </div>
+          {/* FIX iOS : afficher les infos spécifiques iOS Safari */}
+          {typeof window !== 'undefined' && (
+            <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <span>UA: {/iPhone|iPad|iPod/i.test(navigator.userAgent) ? '📱iOS' : '💻'}</span>
+              <span>PWA: {window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches ? '✓' : '✗'}</span>
+              <span>SW: {('serviceWorker' in navigator && navigator.serviceWorker.controller) ? '✓' : '✗'}</span>
+              <span>Focused: {document.hasFocus() ? '✓' : '✗'}</span>
+              <span>Vis: {document.visibilityState}</span>
+            </div>
+          )}
           {queries.length === 0 ? (
             <div style={{ opacity: 0.6, fontSize: 10 }}>Aucune query</div>
           ) : (
