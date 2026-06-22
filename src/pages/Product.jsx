@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNav } from '../App';
 import { supabase, getProductAvailability, isFavorite, toggleFavorite } from '../lib/supabase';
+import { usePersistedData, invalidatePersisted } from '../lib/usePersistedData';
 import { scoreClass, formatPrice, getWhatsAppNumber } from '../lib/utils';
 import { haptic } from '../lib/haptic';
 import { addToCart as cartAddToCart } from '../lib/cart';
@@ -74,10 +75,7 @@ function Collapse({ title, icon, defaultOpen = false, children }) {
 
 export default function Product({ id }) {
   const { navigate } = useNav();
-  const [product, setProduct] = useState(null);
-  const [pharmacies, setPharmacies] = useState([]);
   const [selectedPh, setSelectedPh] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [fav, setFav] = useState(false);
   const [favAnim, setFavAnim] = useState(false);
   const [qty, setQty] = useState(1);
@@ -85,8 +83,85 @@ export default function Product({ id }) {
   const [flashSuccess, setFlashSuccess] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [galleryIdx, setGalleryIdx] = useState(0);
-  const [topReviews, setTopReviews] = useState([]);
-  const [similar, setSimilar] = useState([]);
+
+  // FIX juin 2026 : usePersistedData regroupe product + pharmacies + similar + topReviews
+  // → hydrate depuis cache au remount, plus de skeleton 1-3s.
+  const namespace = `product-${id || 'none'}`;
+  const { data: bundle, loading, refresh: refreshBundle } = usePersistedData(
+    namespace,
+    async () => {
+      const { data: p, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (error || !p) return { product: null, pharmacies: [], similar: [], topReviews: [] };
+
+      // ─── ANALYTICS : product_viewed ───
+      try {
+        trackEvent('product_viewed', {
+          product_id: p.id, name: p.name, brand: p.brand,
+          price: p.price, category: p.category,
+        });
+      } catch {}
+
+      const [av] = await Promise.all([
+        getProductAvailability(p.id).catch(() => []),
+      ]);
+
+      // Produits similaires (meme categorie OU meme brand en fallback)
+      let sim = [];
+      if (p.category) {
+        const { data } = await supabase
+          .from('products')
+          .select('id, name, brand, img, price, rating, score, review_count')
+          .eq('category', p.category)
+          .eq('active', true)
+          .neq('id', p.id)
+          .order('review_count', { ascending: false })
+          .limit(8);
+        sim = data || [];
+      }
+
+      // Top 3 reviews (best-effort)
+      let rev = [];
+      try {
+        const { data } = await supabase
+          .from('reviews')
+          .select('id, rating, comment, user_name, created_at')
+          .eq('product_id', p.id)
+          .order('rating', { ascending: false })
+          .limit(3);
+        rev = data || [];
+      } catch (_) { /* table optionnelle */ }
+
+      return { product: p, pharmacies: av || [], similar: sim, topReviews: rev };
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!id }
+  );
+  const product = bundle?.product || null;
+  const pharmacies = bundle?.pharmacies || [];
+  const similar = bundle?.similar || [];
+  const topReviews = bundle?.topReviews || [];
+
+  // ─── Initialiser selectedPh quand pharmacies changent ───
+  useEffect(() => {
+    if (pharmacies.length > 0 && !selectedPh) {
+      setSelectedPh(pharmacies[0]);
+    } else if (pharmacies.length === 0 && selectedPh) {
+      setSelectedPh(null);
+    }
+  }, [pharmacies, selectedPh]);
+
+  // ─── Fav state séparé (mutation-driven, ne fait pas partie du bundle) ───
+  useEffect(() => {
+    if (!product?.id) return;
+    let cancelled = false;
+    isFavorite(product.id).then(v => {
+      if (!cancelled) setFav(v);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [product?.id]);
 
   const scrollRef = useRef(null);
   const galleryTrackRef = useRef(null);
@@ -151,81 +226,8 @@ export default function Product({ id }) {
     })),
   } : null, `similar-${id}`);
 
-  // Fetch produit + pharmacies + similaires + top reviews
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setProduct(null);
-    setPharmacies([]);
-    setSelectedPh(null);
-    setSimilar([]);
-    setTopReviews([]);
-    setGalleryIdx(0);
-
-    (async () => {
-      try {
-        const { data: p, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        if (cancelled) return;
-        if (error || !p) { setProduct(null); return; }
-        setProduct(p);
-
-        // ─── ANALYTICS : product_viewed ───
-        try {
-          trackEvent('product_viewed', {
-            product_id: p.id,
-            name: p.name,
-            brand: p.brand,
-            price: p.price,
-            category: p.category,
-          });
-        } catch {}
-
-        const [av, isFav] = await Promise.all([
-          getProductAvailability(p.id).catch(() => []),
-          isFavorite(p.id).catch(() => false),
-        ]);
-        if (cancelled) return;
-        setPharmacies(av || []);
-        setFav(isFav);
-        if (av && av.length > 0) setSelectedPh(av[0]);
-
-        // Produits similaires (meme categorie OU meme brand en fallback)
-        if (p.category) {
-          const { data: sim } = await supabase
-            .from('products')
-            .select('id, name, brand, img, price, rating, score, review_count')
-            .eq('category', p.category)
-            .eq('active', true)
-            .neq('id', p.id)
-            .order('review_count', { ascending: false })
-            .limit(8);
-          if (!cancelled) setSimilar(sim || []);
-        }
-
-        // Top 3 reviews (best-effort, ignore si table absente)
-        try {
-          const { data: rev } = await supabase
-            .from('reviews')
-            .select('id, rating, comment, user_name, created_at')
-            .eq('product_id', p.id)
-            .order('rating', { ascending: false })
-            .limit(3);
-          if (!cancelled && rev) setTopReviews(rev);
-        } catch (_) { /* table reviews optionnelle */ }
-      } catch (e) {
-        console.warn('[Product] load failed:', e?.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    const safety = setTimeout(() => { if (!cancelled) setLoading(false); }, 15000);
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, [id]);
+  // Reset gallery index quand on change de produit
+  useEffect(() => { setGalleryIdx(0); }, [id]);
 
   // Scroll listener pour header glass + sticky CTA reveal
   useEffect(() => {
@@ -361,12 +363,8 @@ export default function Product({ id }) {
 
   const handlePullRefresh = async () => {
     try {
-      const { data: p } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
-      if (p) {
-        setProduct(p);
-        const av = await getProductAvailability(p.id).catch(() => []);
-        setPharmacies(av || []);
-      }
+      invalidatePersisted(namespace);
+      await refreshBundle();
       await new Promise(r => setTimeout(r, 300));
     } catch (e) { console.warn('[Product] pull refresh failed:', e?.message); }
   };

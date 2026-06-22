@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import { haptic } from '../lib/haptic';
 import TabBar from '../components/TabBar';
 import './Loyalty.css';
@@ -78,42 +79,25 @@ function useCounter(target, duration = 1100) {
 export default function Loyalty() {
   const { navigate } = useNav();
   const { user, refreshUser } = useUser();
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
   const [progressPct, setProgressPct] = useState(0);
 
-  /* PRESERVE : fetch loyalty transactions */
-  useEffect(() => {
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    // Safety 12s : libère l'UI si la requête loyalty_transactions hang
-    const safety = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('loyalty_transactions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(30);
-        if (cancelled) return;
-        if (!error) setTransactions(data || []);
-      } catch (e) {
-        console.warn('[Loyalty] fetch failed:', e?.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
-      }
-    })();
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, [user?.id]);
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache au remount.
+  const { data: txData, loading } = usePersistedData(
+    `loyalty-tx-${user?.id || 'anon'}`,
+    async () => {
+      const { data, error } = await supabase
+        .from('loyalty_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return data || [];
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!user?.id }
+  );
+  const transactions = txData || [];
 
   const balance = user?.loyalty_points || 0;
   const totalEarned = user?.loyalty_total_earned || balance || 0;

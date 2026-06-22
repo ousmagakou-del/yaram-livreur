@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNav, useUser } from '../App';
 import { getMySkinScans } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import SignedImage from '../components/SignedImage';
 import './Evolution.css';
 
@@ -43,32 +44,32 @@ function useCountUp(target, durationMs = 900, deps = []) {
 
 export default function Evolution() {
   const { navigate } = useNav();
-  const user = useUser();
-  const [scans, setScans] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useUser();
   const [chartReady, setChartReady] = useState(false);
   // Slider position pour le avant/après (0 = 100% premier scan, 100 = 100% dernier)
   const [sliderPos, setSliderPos] = useState(50);
   // Photo crossfade key — change quand on swipe l'image
   const [photoView, setPhotoView] = useState('after'); // 'before' | 'after'
 
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache au remount.
+  // Plus de skeleton 1-3s au retour de navigation / foreground.
+  const { data: scansData, loading } = usePersistedData(
+    `evolution-${user?.id || 'anon'}`,
+    async () => {
+      const data = await getMySkinScans();
+      return data || [];
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!user?.id }
+  );
+  const scans = scansData || [];
+
+  // Lance l'animation du chart après mount
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await getMySkinScans();
-        if (!cancelled) {
-          setScans(data || []);
-          setTimeout(() => setChartReady(true), 250);
-        }
-      } catch (e) {
-        console.warn('[Evolution] fetch failed:', e?.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+    if (!loading && scans.length > 0) {
+      const t = setTimeout(() => setChartReady(true), 250);
+      return () => clearTimeout(t);
+    }
+  }, [loading, scans.length]);
 
   // ═══ Derived data ═══
 

@@ -1,36 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNav } from '../App';
 import { getAllPharmacies } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import TabBar from '../components/TabBar';
 import './Pharmacies.css';
 
 export default function Pharmacies() {
   const { navigate } = useNav();
-  const [pharmacies, setPharmacies] = useState([]);
   const [filter, setFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    // Safety net : si le cachedFetch reste collé > 12s (promise dédupliquée
-    // zombie), on libère l'UI avec une liste vide plutôt que skeleton à vie.
-    const safety = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
-    (async () => {
-      try {
-        const all = await getAllPharmacies();
-        if (!cancelled) setPharmacies(all || []);
-      } catch (e) {
-        console.warn('[Pharmacies] load failed:', e?.message);
-        if (!cancelled) setPharmacies([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
-      }
-    })();
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, []);
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache module au remount,
+  // évite le skeleton 1-3s au retour de navigation / foreground.
+  const { data: pharmaciesData, loading } = usePersistedData(
+    'pharmacies-all',
+    async () => {
+      const all = await getAllPharmacies();
+      return all || [];
+    },
+    { ttl: 5 * 60 * 1000 }
+  );
+  const pharmacies = pharmaciesData || [];
 
   const cities = ['all', ...Array.from(new Set(pharmacies.map(p => p.city)))];
   const filtered = filter === 'all' ? pharmacies : pharmacies.filter(p => p.city === filter);

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNav, useUser } from '../App';
 import { getMyAddresses, saveAddress, deleteAddress, setDefaultAddress } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import { haptic } from '../lib/haptic';
 import { toast, confirmDialog } from '../lib/toast';
 import './Addresses.css';
@@ -16,24 +17,22 @@ const PRESET_ICONS = [
 export default function Addresses() {
   const { navigate } = useNav();
   const { user } = useUser();
-  const [addresses, setAddresses] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // null | {id, label, ...}
 
-  useEffect(() => { refresh(); }, []);
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache au remount.
+  // Plus de skeleton 1-3s au retour de navigation.
+  const { data: addressesData, loading, refresh: refreshAddresses } = usePersistedData(
+    `addresses-${user?.id || 'anon'}`,
+    async () => {
+      const list = await getMyAddresses();
+      return list || [];
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!user?.id }
+  );
+  const addresses = addressesData || [];
 
   const refresh = async () => {
-    setLoading(true);
-    try {
-      const list = await getMyAddresses();
-      setAddresses(list || []);
-    } catch (e) {
-      // Si la query echoue (reseau, RLS, etc.) on n'affiche pas un Chargement infini
-      console.warn('[Addresses] refresh failed:', e?.message);
-      setAddresses([]);
-    } finally {
-      setLoading(false);
-    }
+    await refreshAddresses();
   };
 
   const handleNew = () => {

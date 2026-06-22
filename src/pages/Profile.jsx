@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase, signOut, updateProfile } from '../lib/supabase';
+import { usePersistedData, invalidatePersisted } from '../lib/usePersistedData';
 import { toggleTheme, getTheme } from '../lib/theme';
 import { getWhatsAppNumber, getWhatsAppDisplay, safeFormatDate, safeNumber } from '../lib/utils';
 import { isIOSApp } from '../lib/platform';
@@ -14,43 +15,13 @@ export default function Profile() {
   const { navigate } = useNav();
   const { user, refreshUser } = useUser();
 
-  // Stats dynamiques chargées depuis Supabase
-  const [stats, setStats] = useState({
-    skinScore: null,
-    concernsCount: null,
-    favoritesCount: null,
-    ordersCount: null,
-    savings: null,
-    lastScan: null,
-    loading: true,
-  });
-
-  // Adresse par défaut (pour afficher la vraie ville de l'user, pas "Dakar" hardcodé)
-  const [defaultAddr, setDefaultAddr] = useState(null);
-  useEffect(() => {
-    if (!user?.id) return;
-    (async () => {
-      try {
-        const list = await getMyAddresses();
-        const def = (list || []).find(a => a.is_default) || list?.[0] || null;
-        setDefaultAddr(def);
-      } catch { /* silent */ }
-    })();
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!user?.id) {
-      console.log('[Profile] skip loadStats: user not ready');
-      return;
-    }
-    let cancelled = false;
-
-    const loadStats = async () => {
-      console.log('[Profile] loadStats start, user.id=', user.id);
-
+  // FIX juin 2026 : usePersistedData regroupe stats + defaultAddr
+  // → hydrate depuis cache au remount, plus de skeleton 1-3s.
+  const statsNamespace = `profile-stats-${user?.id || 'anon'}`;
+  const { data: statsBundle, refresh: refreshStats } = usePersistedData(
+    statsNamespace,
+    async () => {
       // FIX juin 2026 : purge brute force tout cache 'my_orders_*' (toutes versions LS)
-      // Même topic que Orders.jsx : un cache stale persisté pouvait poisoner
-      // les compteurs.
       try {
         const toDel = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -58,12 +29,8 @@ export default function Profile() {
           if (k && /^yaram_cache_v\d+_my_orders_/.test(k)) toDel.push(k);
         }
         toDel.forEach(k => localStorage.removeItem(k));
-        if (toDel.length) console.log('[Profile] purged stale orders cache keys:', toDel.length);
       } catch {}
 
-      // FIX : on récupère explicitement la session pour utiliser
-      // session.user.id (= auth.uid() côté RLS). user.id du contexte vient
-      // de users_profile, normalement identique mais on évite tout drift.
       let authUserId = user.id;
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -77,7 +44,6 @@ export default function Profile() {
         .eq('user_id', authUserId)
         .order('created_at', { ascending: false })
         .limit(1);
-
       const lastScan = scans && scans[0] ? scans[0] : null;
       const diag = lastScan?.diagnosis || {};
       const skinScore = lastScan?.skin_score ?? diag.skin_score ?? null;
@@ -89,68 +55,68 @@ export default function Profile() {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', authUserId);
 
-      // 3. Count commandes — FIX juin 2026 :
-      //  - on log les erreurs RLS/network au lieu de les avaler en silence
-      //  - on a un fallback: si count=null (HEAD intercepté par proxy), on
-      //    refait un SELECT id pour recompter via le tableau retourné.
+      // 3. Count commandes
       let ordersCount = 0;
       try {
         const { count, error } = await supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', authUserId);
-        if (error) {
-          console.warn('[Profile] orders count error:', error.message);
-        }
+        if (error) console.warn('[Profile] orders count error:', error.message);
         if (typeof count === 'number') {
           ordersCount = count;
         } else {
-          // Fallback : un proxy / SW peut bouffer le header Content-Range
-          // → count=null. On retombe sur un SELECT id classique.
-          console.warn('[Profile] orders count=null, fallback SELECT id');
-          const { data: rows, error: e2 } = await supabase
-            .from('orders')
-            .select('id')
-            .eq('user_id', authUserId);
-          if (e2) console.warn('[Profile] orders fallback error:', e2.message);
+          const { data: rows } = await supabase
+            .from('orders').select('id').eq('user_id', authUserId);
           ordersCount = (rows || []).length;
         }
       } catch (e) {
         console.warn('[Profile] orders count threw:', e?.message);
       }
-      console.log('[Profile] ordersCount=', ordersCount, 'favCount=', favCount);
-
-      if (cancelled) return;
-      setStats({
+      return {
         skinScore,
         concernsCount,
         favoritesCount: favCount ?? 0,
         ordersCount,
         savings: null,
         lastScan,
-        loading: false,
-      });
-    };
-    loadStats();
+      };
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!user?.id }
+  );
+  // stats.loading reste basé sur l'absence de bundle pour matcher l'API d'origine
+  const stats = statsBundle
+    ? { ...statsBundle, loading: false }
+    : { skinScore: null, concernsCount: null, favoritesCount: null,
+        ordersCount: null, savings: null, lastScan: null, loading: true };
 
-    // Auto-refresh sur retour navigation (popstate iOS + nav programmatique)
+  // Adresse par défaut
+  const addrNamespace = `profile-default-addr-${user?.id || 'anon'}`;
+  const { data: defaultAddr, setData: setDefaultAddr } = usePersistedData(
+    addrNamespace,
+    async () => {
+      const list = await getMyAddresses();
+      return (list || []).find(a => a.is_default) || list?.[0] || null;
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!user?.id }
+  );
+
+  // Listeners route-back + app-resumed → refresh stats
+  useEffect(() => {
+    if (!user?.id) return;
     const handleRouteBack = (e) => {
       const target = e?.detail?.to?.name;
       if (target && target !== 'profile') return;
-      loadStats();
+      refreshStats();
     };
+    const handleAppResumed = () => refreshStats();
     window.addEventListener('yaram-route-back', handleRouteBack);
-
-    // FIX v7 : refresh aussi au resume app (Capacitor / PWA)
-    const handleAppResumed = () => loadStats();
     window.addEventListener('yaram-app-resumed', handleAppResumed);
-
     return () => {
-      cancelled = true;
       window.removeEventListener('yaram-route-back', handleRouteBack);
       window.removeEventListener('yaram-app-resumed', handleAppResumed);
     };
-  }, [user?.id]);
+  }, [user?.id, refreshStats]);
 
   const handleLogout = async () => {
     if (!(await confirmDialog('Te déconnecter ?', { confirmLabel: 'Déconnexion', danger: true }))) {
@@ -287,6 +253,10 @@ export default function Profile() {
         await refreshUser();
         const { invalidateCache } = await import('../lib/supabase');
         invalidateCache(`my_addresses_${user.id}`);
+        // Invalide les caches usePersistedData et relance les fetchs
+        invalidatePersisted(statsNamespace);
+        invalidatePersisted(addrNamespace);
+        await refreshStats();
         const list = await getMyAddresses();
         const def = (list || []).find(a => a.is_default) || list?.[0] || null;
         setDefaultAddr(def);

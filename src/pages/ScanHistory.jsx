@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNav } from '../App';
+import { useNav, useUser } from '../App';
 import { getMySkinScans } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import SignedImage from '../components/SignedImage';
 import './ScanHistory.css';
 
@@ -13,36 +14,27 @@ function formatDateFull(d) {
 
 export default function ScanHistory() {
   const { navigate } = useNav();
-  const [scans, setScans] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useUser();
   const [chartReady, setChartReady] = useState(false);
 
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache au remount.
+  const { data: scansData, loading } = usePersistedData(
+    `scan-history-${user?.id || 'anon'}`,
+    async () => {
+      const data = await getMySkinScans();
+      return data || [];
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!user?.id }
+  );
+  const scans = scansData || [];
+
+  // Lance l'animation du chart après hydratation
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    // Safety 12s : libère l'UI si la requête skin_scans hang
-    const safety = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
-
-    (async () => {
-      try {
-        const data = await getMySkinScans();
-        if (!cancelled) {
-          setScans(data || []);
-          // Lance l'animation du chart après mount
-          setTimeout(() => setChartReady(true), 200);
-        }
-      } catch (e) {
-        console.warn('[ScanHistory] fetch failed:', e?.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
-      }
-    })();
-
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, []);
+    if (!loading) {
+      const t = setTimeout(() => setChartReady(true), 200);
+      return () => clearTimeout(t);
+    }
+  }, [loading]);
 
   // Stats globales
   const stats = useMemo(() => {

@@ -6,6 +6,7 @@ import {
   markNotificationRead,
   subscribeNotificationsCount,
 } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import TabBar from '../components/TabBar';
 import { toast } from '../lib/toast';
 import './Notifications.css';
@@ -100,8 +101,6 @@ const BUCKET_ORDER = ['today', 'yesterday', 'week', 'older'];
 export default function Notifications() {
   const { navigate } = useNav();
   const { user } = useUser();
-  const [notifs, setNotifs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -110,24 +109,25 @@ export default function Notifications() {
   const touchStartY = useRef(null);
   const pullDelta = useRef(0);
 
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache au remount.
+  // Plus de skeleton 1-3s au retour de navigation / foreground.
+  const { data: notifsData, loading, refresh: refreshNotifs, setData: setNotifs } = usePersistedData(
+    `notifications-${user?.id || 'anon'}`,
+    async () => {
+      const list = await getMyNotifications(100);
+      return list || [];
+    },
+    { ttl: 2 * 60 * 1000, enabled: !!user?.id }
+  );
+  const notifs = notifsData || [];
+
   const load = useCallback(async () => {
     try {
-      const list = await getMyNotifications(100);
-      setNotifs(list);
-    } catch (e) {
-      console.warn('[Notifs] load error:', e?.message);
+      await refreshNotifs();
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  }, []);
-
-  // FIX juin 2026 : attendre que user soit prêt avant de fetch, sinon RLS
-  // bloque silencieusement et retourne [] (la page reste vide pour toujours).
-  useEffect(() => {
-    if (!user?.id) { setLoading(true); return; }
-    load();
-  }, [user?.id, load]);
+  }, [refreshNotifs]);
 
   // ─── Real-time subscription : nouvelle notif arrive → refresh liste ───
   useEffect(() => {
@@ -175,7 +175,7 @@ export default function Notifications() {
   const handleTap = async (notif) => {
     if (!notif.read) {
       // Optimistic UI
-      setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+      setNotifs(notifs.map(n => n.id === notif.id ? { ...n, read: true } : n));
       markNotificationRead(notif.id).catch(() => { /* swallow */ });
     }
     // Navigation : url = chemin interne (/order/abc) ou route name
@@ -194,7 +194,7 @@ export default function Notifications() {
     if (markingAll) return;
     setMarkingAll(true);
     // Optimistic
-    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifs(notifs.map(n => ({ ...n, read: true })));
     const count = await markAllNotificationsRead();
     setMarkingAll(false);
     if (count > 0) toast.success(`${count} notification${count > 1 ? 's' : ''} marquée${count > 1 ? 's' : ''} lue${count > 1 ? 's' : ''}`);

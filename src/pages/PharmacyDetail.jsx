@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNav } from '../App';
 import { supabase, isFavorite, toggleFavorite } from '../lib/supabase';
+import { usePersistedData, invalidatePersisted } from '../lib/usePersistedData';
 import { getUserPosition, haversineDistance, formatDistance } from '../lib/geo';
 import { haptic } from '../lib/haptic';
 import ProductTile from '../components/ProductTile';
@@ -44,12 +45,6 @@ function parseHoursStatus(hoursStr) {
 // ──────────────────────────────────────────────────
 export default function PharmacyDetail({ pharmacyId }) {
   const { navigate } = useNav();
-  const [pharmacy, setPharmacy] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [fav, setFav] = useState(false);
   const [userPos, setUserPos] = useState(null);
@@ -58,76 +53,45 @@ export default function PharmacyDetail({ pharmacyId }) {
   const rootRef = useRef(null);
   const heroImgRef = useRef(null);
 
-  // ── Chargement pharmacie + produits + reviews ────
-  // PROD HARDENING : si pharmacyId absent au mount → on coupe le loader tout de
-  // suite (l'écran "Pharmacie introuvable" apparait au lieu d'un spinner infini).
-  // Safety timeout 12s : si une requête hang malgré le customFetch timeout (cas
-  // rare : Service Worker bug, AbortController qui ne fire pas sur certains
-  // proxies LTE Sénégal), on rend la main à l'UI plutôt que de pourrir l'expé.
-  useEffect(() => {
-    if (!pharmacyId) {
-      setLoading(false);
-      setLoadError(true);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setLoadError(false);
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache au remount.
+  // Plus de spinner 1-3s au retour de navigation.
+  // On retourne { pharmacy, products, reviews, error } pour grouper le state.
+  const namespace = `pharmacy-detail-${pharmacyId || 'none'}`;
+  const { data: bundleData, loading, error: fetchError, refresh } = usePersistedData(
+    namespace,
+    async () => {
+      if (!pharmacyId) return { pharmacy: null, products: [], reviews: [], error: true };
+      // .maybeSingle() : retourne {data:null} si 0 rows AU LIEU de {error:PGRST116}.
+      const { data: ph, error: phErr } = await supabase
+        .from('pharmacies')
+        .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, active, rating, review_count')
+        .eq('id', pharmacyId).maybeSingle();
+      if (phErr) console.warn('[PharmacyDetail] pharmacy fetch error:', phErr.message);
+      if (!ph) return { pharmacy: null, products: [], reviews: [], error: true };
 
-    const safety = setTimeout(() => {
-      if (cancelled) return;
-      console.warn('[PharmacyDetail] safety timeout 12s — release UI');
-      setLoading(false);
-      setLoadError(true);
-    }, 12000);
+      const { data: inv, error: invErr } = await supabase
+        .from('inventory').select('product_id, stock, products(*)')
+        .eq('pharmacy_id', pharmacyId).gt('stock', 0).eq('active', true);
+      if (invErr) console.warn('[PharmacyDetail] inventory error:', invErr.message);
 
-    (async () => {
-      try {
-        // .maybeSingle() : retourne {data:null} si 0 rows AU LIEU de {error:PGRST116}.
-        // Évite que le warn 0-row pollue Sentry et clarifie le path "pharmacie inactive".
-        const { data: ph, error: phErr } = await supabase
-          .from('pharmacies')
-          .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, active, rating, review_count')
-          .eq('id', pharmacyId).maybeSingle();
-        if (cancelled) return;
-        if (phErr) {
-          console.warn('[PharmacyDetail] pharmacy fetch error:', phErr.message);
-        }
-        setPharmacy(ph || null);
+      const list = [];
+      (inv || []).forEach(i => {
+        if (i.products && i.products.id) list.push({ ...i.products, stock: i.stock });
+      });
+      return { pharmacy: ph, products: list, reviews: [], error: false };
+    },
+    { ttl: 5 * 60 * 1000, enabled: !!pharmacyId }
+  );
+  const pharmacy = bundleData?.pharmacy || null;
+  const products = bundleData?.products || [];
+  const reviews = bundleData?.reviews || [];
+  const loadError = bundleData?.error === true || !!fetchError || (!pharmacyId);
 
-        // Si pas de pharmacie → on arrête le flow (loading off, error true).
-        // Inutile d'aller chercher l'inventaire / les avis.
-        if (!ph) {
-          setLoadError(true);
-          return;
-        }
-
-        const { data: inv, error: invErr } = await supabase
-          .from('inventory').select('product_id, stock, products(*)')
-          .eq('pharmacy_id', pharmacyId).gt('stock', 0).eq('active', true);
-        if (cancelled) return;
-        if (invErr) console.warn('[PharmacyDetail] inventory error:', invErr.message);
-
-        const list = [];
-        (inv || []).forEach(i => {
-          if (i.products && i.products.id) list.push({ ...i.products, stock: i.stock });
-        });
-        setProducts(list);
-
-        // Reviews : best-effort. La table publique est `reviews` (par produit),
-        // pas `pharmacy_reviews` (n'existe pas en DB). On laisse la liste vide
-        // proprement plutôt que de logger un 42P01 dans Sentry à chaque vue.
-        if (!cancelled) setReviews([]);
-      } catch (e) {
-        console.warn('[PharmacyDetail] load failed:', e?.message);
-        if (!cancelled) setLoadError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
-      }
-    })();
-    return () => { cancelled = true; clearTimeout(safety); };
-  }, [pharmacyId, reloadKey]);
+  // Retry helper : invalide le cache et relance le fetch.
+  const setReloadKey = () => {
+    invalidatePersisted(namespace);
+    refresh();
+  };
 
   // ── Géolocalisation utilisateur (silencieuse) ────
   useEffect(() => {
@@ -244,7 +208,7 @@ export default function PharmacyDetail({ pharmacyId }) {
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20, flexWrap: 'wrap' }}>
           {loadError && (
             <button
-              onClick={() => { setReloadKey(k => k + 1); }}
+              onClick={() => { setReloadKey(); }}
               style={{ padding: '10px 20px', background: '#1F8B4C', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
             >
               Réessayer

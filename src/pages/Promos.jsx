@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNav, useUser } from '../App';
 import { supabase } from '../lib/supabase';
+import { usePersistedData } from '../lib/usePersistedData';
 import TabBar from '../components/TabBar';
 import './Promos.css';
 
@@ -41,51 +42,47 @@ export default function Promos() {
   const { user } = useUser();
   const now = useNow(1000);
 
-  const [promos, setPromos] = useState([]);
-  const [userUses, setUserUses] = useState({});
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [copiedCode, setCopiedCode] = useState('');
   const [toast, setToast] = useState('');
 
-  // ─── Fetch promos (preservé) ───
-  useEffect(() => {
-    (async () => {
-      try {
-        // FIX juin 2026 : .or() chaînés timestamp cassaient l'URL → 400.
-        const now = Date.now();
-        const { data: promosData } = await supabase
-          .from('promo_codes')
-          .select('*')
-          .eq('active', true)
-          .neq('is_referral', true)
-          .order('created_at', { ascending: false });
+  // FIX juin 2026 : usePersistedData → hydrate depuis cache au remount.
+  // On regroupe promos + userUses dans un seul fetch pour éviter le skeleton.
+  const { data: promosBundle, loading } = usePersistedData(
+    `promos-${user?.id || 'anon'}`,
+    async () => {
+      // FIX juin 2026 : .or() chaînés timestamp cassaient l'URL → 400.
+      const nowMs = Date.now();
+      const { data: promosData } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('active', true)
+        .neq('is_referral', true)
+        .order('created_at', { ascending: false });
 
-        const filtered = (promosData || []).filter(p => {
-          if (p.expires_at && new Date(p.expires_at).getTime() <= now) return false;
-          if (p.starts_at && new Date(p.starts_at).getTime() > now) return false;
-          if (p.max_uses && p.uses_count >= p.max_uses) return false;
-          return true;
+      const filtered = (promosData || []).filter(p => {
+        if (p.expires_at && new Date(p.expires_at).getTime() <= nowMs) return false;
+        if (p.starts_at && new Date(p.starts_at).getTime() > nowMs) return false;
+        if (p.max_uses && p.uses_count >= p.max_uses) return false;
+        return true;
+      });
+
+      let counts = {};
+      if (user?.id) {
+        const { data: uses } = await supabase
+          .from('promo_uses')
+          .select('promo_code')
+          .eq('user_id', user.id);
+        (uses || []).forEach(u => {
+          counts[u.promo_code] = (counts[u.promo_code] || 0) + 1;
         });
-        setPromos(filtered);
-
-        if (user?.id) {
-          const { data: uses } = await supabase
-            .from('promo_uses')
-            .select('promo_code')
-            .eq('user_id', user.id);
-          const counts = {};
-          (uses || []).forEach(u => {
-            counts[u.promo_code] = (counts[u.promo_code] || 0) + 1;
-          });
-          setUserUses(counts);
-        }
-      } catch (e) {
-        console.error('Promos load error:', e);
       }
-      setLoading(false);
-    })();
-  }, [user?.id]);
+      return { promos: filtered, userUses: counts };
+    },
+    { ttl: 5 * 60 * 1000 }
+  );
+  const promos = promosBundle?.promos || [];
+  const userUses = promosBundle?.userUses || {};
 
   // ─── Copy code ───
   const handleCopy = async (code) => {
