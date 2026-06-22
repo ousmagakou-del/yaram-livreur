@@ -16,7 +16,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { supabase, getAllProducts, getAllBrands, getAllCategories, getAllBanners, getAllPharmacies } from './supabase';
+import { supabase, getAllProducts, getAllBrands, getAllCategories, getAllBanners, getAllPharmacies, getProductCategorySlugs } from './supabase';
 import { getHomePayload } from './supabase/homePayload';
 import { getMyOrders } from './supabase/orders';
 import { getMyFavorites, toggleFavorite } from './supabase/favorites';
@@ -29,6 +29,7 @@ export const QUERY_KEYS = {
   product:     (id) => ['product', id],
   brands:      ['brands', 'list'],
   categories:  ['categories', 'list'],
+  categorySlugs: ['products', 'categorySlugs'],
   banners:     ['banners', 'list'],
   pharmacies:  ['pharmacies', 'list'],
   orders:      (userId) => ['orders', userId],
@@ -116,6 +117,20 @@ export function usePharmacies() {
   return useQuery({
     queryKey: QUERY_KEYS.pharmacies,
     queryFn: getAllPharmacies,
+    staleTime: 15 * 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Slugs catégories des produits (pour le count par catégorie sur Categories.jsx).
+ * FIX juin 2026 : exposé via TanStack pour que Categories.jsx bénéficie
+ * de keepPreviousData (plus de skeletons au remount).
+ */
+export function useProductCategorySlugs() {
+  return useQuery({
+    queryKey: QUERY_KEYS.categorySlugs,
+    queryFn: getProductCategorySlugs,
     staleTime: 15 * 60 * 1000,
     placeholderData: keepPreviousData,
   });

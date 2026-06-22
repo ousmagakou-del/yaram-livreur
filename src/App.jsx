@@ -839,12 +839,23 @@ function ClientApp() {
     default: page = <Home />;
   }
 
-  // PERF/STABILITY : key unique par route force le remount complet de la page.
-  // Évite le bug "page ne se charge pas au retour" causé par du state React
-  // stuck d'un précédent rendu (loading=true jamais reset, fetch perdu, etc.)
-  // + Inclut resumeCount : après reprise du background avec session refresh,
-  //   la page se remount → tous les fetches repartent avec le nouveau JWT.
-  const pageKey = route.name + (route.params ? JSON.stringify(route.params) : '') + '-r' + resumeCount;
+  // ════════════════════════════════════════════════════════════════
+  // FIX juin 2026 #9 (CAUSE RACINE PAGE BLANCHE TOUTES PAGES AU RETOUR BG)
+  //
+  // AVANT : pageKey = route.name + params + '-r' + resumeCount
+  //   → resumeCount s'incrémentait à chaque retour de background (>60s)
+  //   → key change → REMOUNT COMPLET de TOUTES les pages
+  //   → tous les useState reset (loading=true) → skeletons partout
+  //   → user excédé qui dit "TOUTES les pages galère au retour"
+  //
+  // APRÈS : pageKey stable = route.name + params (sans resumeCount)
+  //   → pas de remount au retour de background
+  //   → les pages gardent leur state local + leur cache TanStack
+  //   → handleAppResume() (main.jsx) déclenche focusManager.setFocused(true)
+  //     qui fait du refetch INTELLIGENT en background des queries stale
+  //   → l'UI reste peuplée pendant que les données se rafraîchissent
+  // ════════════════════════════════════════════════════════════════
+  const pageKey = route.name + (route.params ? JSON.stringify(route.params) : '');
 
   return (
     <NavContext.Provider value={{ navigate, goBack, route }}>

@@ -1,10 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNav } from '../App';
-import {
-  getAllCategories,
-  getAllBrands,
-  getProductCategorySlugs,
-} from '../lib/supabase';
+import { useCategories, useBrands, useProductCategorySlugs } from '../lib/queries';
 import { haptic } from '../lib/haptic';
 import TabBar from '../components/TabBar';
 import './Categories.css';
@@ -126,78 +122,59 @@ function pickSoft(seed) {
 
 export default function Categories() {
   const { navigate } = useNav();
-  const [categories, setCategories] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [counts, setCounts] = useState({});
-  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    // Safety 12s : libère l'UI si une des 3 RPC reste pendante
-    const safety = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
-    const load = async () => {
-      try {
-        const [catData, slugRows, brandData] = await Promise.all([
-          getAllCategories(),
-          getProductCategorySlugs(),
-          getAllBrands(),
-        ]);
-        if (cancelled) return;
+  // ════════════════════════════════════════════════════════════════
+  //  FIX juin 2026 #10 (RACINE PAGE BLANCHE CATÉGORIES) :
+  //  Migré de useState+useEffect→getAll() vers TanStack Query.
+  //
+  //  AVANT : useState([]) + useEffect → 3 appels Supabase → loading=true
+  //  pendant 1-3s. Au retour navigation, useState repart à [] → skeletons
+  //  permanents tant que les 3 RPCs n'avaient pas tous répondu.
+  //
+  //  APRÈS : useCategories + useBrands + useProductCategorySlugs avec
+  //  placeholderData: keepPreviousData → l'UI reste peuplée même quand
+  //  une revalidation tourne en arrière-plan. PLUS DE SKELETONS au retour.
+  // ════════════════════════════════════════════════════════════════
+  const { data: categoriesRaw = [], isLoading: catLoading } = useCategories();
+  const { data: brands = [], isLoading: brandsLoading } = useBrands();
+  const { data: slugRows = [], isLoading: slugsLoading } = useProductCategorySlugs();
 
-        const c = {};
-        (slugRows || []).forEach((row) => {
-          if (row.category) c[row.category] = (c[row.category] || 0) + 1;
-        });
-        setCounts(c);
+  // Counts par catégorie depuis les slugRows (mémoïsé)
+  const counts = useMemo(() => {
+    const c = {};
+    (slugRows || []).forEach((row) => {
+      if (row.category) c[row.category] = (c[row.category] || 0) + 1;
+    });
+    return c;
+  }, [slugRows]);
 
-        if (catData && catData.length) {
-          setCategories(catData);
-        } else {
-          // fallback : reconstitue depuis les slugs
-          const map = {};
-          (slugRows || []).forEach((row) => {
-            const cat = row.category;
-            if (!cat) return;
-            if (!map[cat]) {
-              map[cat] = {
-                id: cat,
-                slug: cat,
-                name: cat.charAt(0).toUpperCase() + cat.slice(1),
-              };
-            }
-          });
-          setCategories(
-            Object.values(map).sort(
-              (a, b) => (c[b.slug] || 0) - (c[a.slug] || 0),
-            ),
-          );
-        }
-
-        setBrands(brandData || []);
-      } catch (e) {
-        console.error('Categories load error:', e);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
+  // Categories : utilise catData, sinon reconstruit depuis slugRows
+  const categories = useMemo(() => {
+    if (categoriesRaw && categoriesRaw.length) return categoriesRaw;
+    // Fallback : reconstitue depuis les slugs
+    const map = {};
+    (slugRows || []).forEach((row) => {
+      const cat = row.category;
+      if (!cat) return;
+      if (!map[cat]) {
+        map[cat] = {
+          id: cat,
+          slug: cat,
+          name: cat.charAt(0).toUpperCase() + cat.slice(1),
+        };
       }
-    };
-    load();
+    });
+    return Object.values(map).sort(
+      (a, b) => (counts[b.slug] || 0) - (counts[a.slug] || 0),
+    );
+  }, [categoriesRaw, slugRows, counts]);
 
-    const handleRouteBack = (e) => {
-      const target = e?.detail?.to?.name;
-      if (target && target !== 'categories') return;
-      load();
-    };
-    window.addEventListener('yaram-route-back', handleRouteBack);
-    return () => {
-      cancelled = true;
-      clearTimeout(safety);
-      window.removeEventListener('yaram-route-back', handleRouteBack);
-    };
-  }, []);
+  // Loading = true UNIQUEMENT au tout premier fetch (jamais eu de data).
+  // Au retour navigation, les hooks gardent leur previous data via keepPreviousData.
+  const loading = (catLoading && categoriesRaw.length === 0) ||
+                  (brandsLoading && brands.length === 0) ||
+                  (slugsLoading && slugRows.length === 0);
 
   // Featured tiles enrichies avec le count reel
   const featuredTiles = useMemo(
