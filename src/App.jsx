@@ -56,19 +56,36 @@ const DeleteAccount   = lazy(() => import('./pages/DeleteAccount'));
 const International = lazy(() => import('./pages/International'));
 const Newsletter      = lazy(() => import('./pages/Newsletter'));
 
-// Fallback leger pour Suspense (evite de re-trigger le SplashScreen plein-ecran)
+// ════════════════════════════════════════════════════════════════
+//  FIX juin 2026 #8 — LazyFallback FULL SCREEN (CAUSE RACINE BLANCHE)
+//
+//  AVANT : minHeight 60vh + texte "Chargement…" sur fond blanc
+//  → invisible sur petit écran, l'user voyait du blanc.
+//
+//  MAINTENANT : 100dvh + fond YARAM vert subtil + spinner discret.
+//  Couvre toute la zone, donne un feedback visuel cohérent.
+// ════════════════════════════════════════════════════════════════
 function LazyFallback() {
   return (
     <div style={{
+      position: 'fixed',
+      inset: 0,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: '60vh',
-      color: '#1F8B4C',
-      fontSize: 14,
-      fontWeight: 600,
+      background: 'linear-gradient(180deg, #F8FAF7 0%, #EAF5EE 100%)',
+      zIndex: 1,
+      pointerEvents: 'none',
     }}>
-      Chargement…
+      <div style={{
+        width: 32,
+        height: 32,
+        borderRadius: '50%',
+        border: '2.5px solid rgba(31, 139, 76, 0.12)',
+        borderTopColor: '#1F8B4C',
+        animation: 'yaram-spin 0.8s linear infinite',
+      }} />
+      <style>{`@keyframes yaram-spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
 }

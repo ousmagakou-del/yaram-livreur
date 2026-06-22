@@ -115,12 +115,11 @@
 }
 
 .intl-pill-dot {
-  width: 7px;
-  height: 7px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: #4ade80;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.85);
-  animation: intl-pill-pulse 1.6s ease-in-out infinite;
+  /* FIX juin 2026 : box-shadow + animation virés (visible comme "gros point glow") */
 }
 
 @keyframes intl-pill-pulse {

@@ -144,18 +144,27 @@ loadSiteSettings().catch(() => { /* DB unavailable, keep fallback */ });
  */
 function handleAppResume() {
   try {
-    // 1) TanStack Query : marque comme focused + online → déclenche refetch
+    // ════════════════════════════════════════════════════════════════
+    //  FIX juin 2026 #6 (CAUSE RACINE PAGE BLANCHE CONFIRMÉE PAR 4 AGENTS)
+    //
+    //  AVANT : on appelait queryClient.invalidateQueries() SANS filtre
+    //  → marquait TOUTES les queries du cache comme stale → toutes les
+    //  pages re-fetchaient → flash blanc PARTOUT à chaque retour.
+    //
+    //  MAINTENANT : on garde uniquement focusManager.setFocused(true).
+    //  TanStack v5 réagit en refetchant UNIQUEMENT les queries déjà
+    //  considérées stale (au-delà de staleTime, ex: 5min sur Home).
+    //  Les queries fraîches restent affichées → AUCUN flash.
+    //
+    //  Effet bonus : moins de requêtes réseau (LTE Dakar) au resume.
+    // ════════════════════════════════════════════════════════════════
     focusManager.setFocused(true);
     onlineManager.setOnline(true);
-    // 2) Invalide TOUT le cache mémoire (mais on garde la donnée affichée
-    //    en stale tant que la revalidation n'est pas finie → pas de flash)
-    queryClient.invalidateQueries();
-    // 3) Reconnecte les channels Supabase Realtime (commandes live, etc.)
+    // Reconnecte les channels Supabase Realtime (commandes live, etc.)
     try { supabase?.realtime?.connect?.(); } catch {}
-    // 4) Refresh des site_settings (numéro WA, commission, couleurs…)
+    // Refresh des site_settings (numéro WA, commission, couleurs…)
     loadSiteSettings().catch(() => {});
   } catch (e) {
-    // Silent : on ne veut surtout pas casser le retour app
     if (typeof console !== 'undefined') console.warn('[YARAM] resume handler error:', e?.message);
   }
 }

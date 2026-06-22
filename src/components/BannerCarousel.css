@@ -98,22 +98,23 @@
 .bc-dots {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 3px;
+  margin-top: 8px;
 }
 
+/* FIX juin 2026 : dots ultra-fins (était 6→20 active visible "gros point") */
 .bc-dot {
-  width: 6px;
-  height: 6px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  background: #DDD;
+  background: rgba(0, 0, 0, 0.16);
   border: none;
   cursor: pointer;
   padding: 0;
-  transition: all 0.3s;
+  transition: width 0.25s ease, background 0.2s ease;
 }
 
 .bc-dot.active {
-  width: 20px;
+  width: 9px;
   background: var(--primary, #1F8B4C);
 }

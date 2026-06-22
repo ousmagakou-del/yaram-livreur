@@ -40,16 +40,24 @@ export const QUERY_KEYS = {
 //  QUERIES (lectures)
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+//  FIX juin 2026 #7 — placeholderData partout (CAUSE RACINE BLANCHE)
+//
+//  3 agents convergents : sans placeholderData, à chaque remount/key
+//  change, data devient undefined 1 tick → isLoading=true → si le
+//  composant render null/skeleton invisible → page blanche.
+//  Avec keepPreviousData : l'UI reste PEUPLÉE pendant le refetch.
+// ════════════════════════════════════════════════════════════════
+
 /**
  * Le Home payload en 1 seule RPC : categories + brands + banners + promos.
- * Idéal pour la Home.jsx — au cold start, retourne le cache persisté
- * en <50 ms puis revalide en arrière-plan.
  */
 export function useHomePayload() {
   return useQuery({
     queryKey: QUERY_KEYS.homePayload,
     queryFn: getHomePayload,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -61,6 +69,7 @@ export function useProducts() {
     queryKey: QUERY_KEYS.products,
     queryFn: getAllProducts,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -71,7 +80,8 @@ export function useBrands() {
   return useQuery({
     queryKey: QUERY_KEYS.brands,
     queryFn: getAllBrands,
-    staleTime: 15 * 60 * 1000, // marques bougent rarement
+    staleTime: 15 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -83,6 +93,7 @@ export function useCategories() {
     queryKey: QUERY_KEYS.categories,
     queryFn: getAllCategories,
     staleTime: 15 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -94,6 +105,7 @@ export function useBanners() {
     queryKey: QUERY_KEYS.banners,
     queryFn: getAllBanners,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -105,6 +117,7 @@ export function usePharmacies() {
     queryKey: QUERY_KEYS.pharmacies,
     queryFn: getAllPharmacies,
     staleTime: 15 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 

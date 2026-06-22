@@ -156,22 +156,8 @@
         transition: opacity 380ms ease-out;
         pointer-events: none;
       }
-      #yaram-boot::before {
-        content: ''; position: absolute;
-        top: -100px; right: -100px;
-        width: 320px; height: 320px;
-        background: rgba(255,255,255,0.05);
-        border-radius: 50%;
-        filter: blur(40px);
-      }
-      #yaram-boot::after {
-        content: ''; position: absolute;
-        bottom: -150px; left: -50px;
-        width: 260px; height: 260px;
-        background: rgba(232,119,34,0.15);
-        border-radius: 50%;
-        filter: blur(50px);
-      }
+      /* FIX juin 2026 : halos décoratifs VIRÉS (l'user les voyait comme des "gros points")
+         #yaram-boot::before + ::after supprimés pour rendre le splash 100% épuré. */
       #yaram-boot .yb-logo {
         position: relative; z-index: 2;
         width: 120px; height: 120px;

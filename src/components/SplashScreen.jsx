@@ -1,10 +1,15 @@
 import './SplashScreen.css';
 
+/**
+ * FIX juin 2026 : suppression complète du loader 3 dots (le user voyait
+ * encore des "gros points" sur le splash malgré display:none côté CSS).
+ * Le splash YARAM est désormais 100% épuré : logo + tagline.
+ * Il ne dure qu'<1s grâce au cache IndexedDB de TanStack Query.
+ */
 export default function SplashScreen({ tagline = 'BEAUTÉ SÉNÉGAL' }) {
   return (
     <div className="yspl-screen">
       <div className="yspl-logo-wrap">
-        {/* Logo officiel YARAM — meme SVG inline que le boot dans index.html */}
         <div className="yspl-logo">
           <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-label="YARAM">
             <rect fill="rgba(255,255,255,0.1)" x="0" y="0" width="256" height="256" rx="40" ry="40"/>
@@ -15,11 +20,6 @@ export default function SplashScreen({ tagline = 'BEAUTÉ SÉNÉGAL' }) {
           </svg>
         </div>
         <div className="yspl-tagline">{tagline}</div>
-      </div>
-      <div className="yspl-loader">
-        <div className="yspl-loader-dot" />
-        <div className="yspl-loader-dot" />
-        <div className="yspl-loader-dot" />
       </div>
     </div>
   );
