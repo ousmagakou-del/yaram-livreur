@@ -38,6 +38,8 @@ export default function PharmaSettings({ pharmacy, onUpdate }) {
     phone: '', whatsapp: '',
     hours: '', delivery_hours: '',
     logo: '', cover: '',
+    notification_email: '',
+    notify_on_new_order: true,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -70,6 +72,8 @@ export default function PharmaSettings({ pharmacy, onUpdate }) {
       delivery_hours: pharmacy.delivery_hours || '',
       logo: pharmacy.logo || '',
       cover: pharmacy.cover || '',
+      notification_email: pharmacy.notification_email || '',
+      notify_on_new_order: pharmacy.notify_on_new_order !== false, // default true
     });
     setLogoBroken(false);
     setCoverBroken(false);
@@ -459,6 +463,79 @@ export default function PharmaSettings({ pharmacy, onUpdate }) {
             />
             <p className="phar-hint">🛵 Quand peuvent passer nos livreurs ?</p>
           </div>
+        </div>
+
+        {/* ═══════ NOTIFICATIONS EMAIL ═══════ */}
+        <div style={{
+          background: 'linear-gradient(135deg, #E8F5EC 0%, #FFF7E5 100%)',
+          border: '1.5px solid rgba(31,139,76,0.2)',
+          borderRadius: 14,
+          padding: 18,
+          marginTop: 16,
+        }}>
+          <h3 style={{
+            margin: '0 0 6px',
+            fontSize: 15,
+            fontWeight: 800,
+            color: '#0E5B33',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>📧 Notifications par email</h3>
+          <p style={{
+            margin: '0 0 16px',
+            fontSize: 12,
+            color: '#4A6B5A',
+            lineHeight: 1.5,
+          }}>
+            Reçois un email premium dès qu'une nouvelle commande arrive (avec récap produits + total + lien dashboard).
+          </p>
+
+          <div className="phar-field" style={{ marginBottom: 14 }}>
+            <label className="phar-label" style={{ color: '#0E5B33' }}>Email de notification *</label>
+            <input
+              type="email"
+              className="phar-input"
+              value={form.notification_email}
+              onChange={handleChange('notification_email')}
+              placeholder="commandes@mapharmacie.sn"
+              style={{ background: 'white', borderColor: 'rgba(31,139,76,0.25)' }}
+            />
+            <p className="phar-hint" style={{ color: '#6B8275' }}>
+              Une seule adresse. Tu peux mettre une boîte mail partagée (commandes@…) pour que toute l'équipe reçoive.
+            </p>
+          </div>
+
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: 12,
+            background: 'white',
+            borderRadius: 10,
+            border: '1px solid rgba(31,139,76,0.15)',
+            cursor: 'pointer',
+          }}>
+            <input
+              type="checkbox"
+              checked={form.notify_on_new_order}
+              onChange={(e) => {
+                setForm(prev => ({ ...prev, notify_on_new_order: e.target.checked }));
+                if (saved) setSaved(false);
+              }}
+              style={{ width: 20, height: 20, accentColor: '#1F8B4C', cursor: 'pointer' }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#0E5B33' }}>
+                {form.notify_on_new_order ? '🔔 Notifications actives' : '🔕 Notifications désactivées'}
+              </div>
+              <div style={{ fontSize: 11, color: '#6B8275', marginTop: 2 }}>
+                {form.notify_on_new_order
+                  ? 'Tu reçois un email à chaque nouvelle commande validée.'
+                  : 'Aucun email envoyé pour les nouvelles commandes.'}
+              </div>
+            </div>
+          </label>
         </div>
 
         {/* Boutons sauvegarde */}

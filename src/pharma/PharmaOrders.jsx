@@ -30,9 +30,39 @@ export default function PharmaOrders({ pharmacyId, pharmacyName, onPendingChange
   const [refusing, setRefusing] = useState(null);
 
   useEffect(() => {
+    if (!pharmacyId) return;
     refresh();
-    const interval = setInterval(refresh, 15000);
-    return () => clearInterval(interval);
+
+    // ─── REALTIME triple safety net ───────────────────────────
+    // 1. Broadcast (déclenché par client checkout)
+    // 2. Postgres INSERT sur orders (déclenché par DB)
+    // 3. Polling 15s safety net
+    const channel = supabase
+      .channel(`pharma-orders-${pharmacyId}`)
+      .on('broadcast', { event: 'new_order' }, ({ payload }) => {
+        const ids = Array.isArray(payload?.pharmacy_ids) ? payload.pharmacy_ids : [];
+        if (ids.includes(pharmacyId)) refresh();
+      })
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => refresh()
+      )
+      .subscribe();
+
+    // Polling 30s (filet — réduit de 15s à 30s car realtime fait le boulot)
+    const interval = setInterval(refresh, 30000);
+
+    // Refresh quand l'app revient en foreground (PWA, retour onglet)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [pharmacyId]);
 
   const refresh = async () => {

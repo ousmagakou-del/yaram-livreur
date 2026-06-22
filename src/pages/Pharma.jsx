@@ -6,6 +6,7 @@ import PharmaProducts from '../pharma/PharmaProducts';
 import PharmaInventory from '../pharma/PharmaInventory';
 import PharmaCommission from '../pharma/PharmaCommission';
 import PharmaSettings from '../pharma/PharmaSettings';
+import PharmaBrands from '../pharma/PharmaBrands';
 import { useOrderAlerts } from '../lib/useOrderAlerts';
 import './Pharma.css';
 
@@ -25,6 +26,7 @@ const NAV = [
   { id: 'orders',     icon: '📦', label: 'Commandes', badge: true },
   { id: 'products',   icon: '📷', label: 'Mes produits' },
   { id: 'inventory',  icon: '📚', label: 'Inventaire' },
+  { id: 'brands',     icon: '🏷️', label: 'Marques' },
   { id: 'commission', icon: '💰', label: 'Mes commissions' },
   { id: 'settings',   icon: '⚙️', label: 'Paramètres' },
 ];
@@ -372,6 +374,9 @@ export default function Pharma() {
           <PharmaInventory
             pharmacyId={selectedPharmacy.id}
           />
+        )}
+        {section === 'brands' && (
+          <PharmaBrands />
         )}
         {section === 'commission' && (
           <PharmaCommission
