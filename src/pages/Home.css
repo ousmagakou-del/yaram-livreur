@@ -487,23 +487,25 @@
 .yhome-banner-dots {
   display: flex;
   justify-content: center;
-  gap: 5px;
-  margin-top: 10px;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
 }
 
+/* Dots ultra-fins et discrets (style Apple Music) */
 .yhome-banner-dot {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: #DDD;
+  background: rgba(0, 0, 0, 0.18);
   border: none;
   cursor: pointer;
   padding: 0;
-  transition: all 0.2s;
+  transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease;
 }
 
 .yhome-banner-dot.active {
-  width: 18px;
+  width: 12px;
   border-radius: 999px;
   background: #1F8B4C;
 }
@@ -527,7 +529,8 @@
 .yhome-cat-tile {
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 16px;
+  /* Cercle parfait au lieu de carré arrondi */
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -535,12 +538,26 @@
   font-size: 24px;
   font-weight: 800;
   overflow: hidden;
+  box-shadow:
+    0 4px 12px rgba(14, 91, 51, 0.06),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  transition: transform 0.18s ease, box-shadow 0.2s ease;
 }
 
+.yhome-cat-tile:hover {
+  box-shadow: 0 6px 18px rgba(14, 91, 51, 0.14);
+}
+
+.yhome-cat-item:active .yhome-cat-tile {
+  transform: scale(0.94);
+}
+
+/* L'image / logo remplit bien le cercle, centré */
 .yhome-cat-tile img {
-  width: 60%;
-  height: 60%;
+  width: 78%;
+  height: 78%;
   object-fit: contain;
+  display: block;
 }
 
 .yhome-cat-name {

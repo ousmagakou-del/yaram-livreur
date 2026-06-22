@@ -185,19 +185,19 @@
         margin-top: 18px;
         animation: yaramBootFadeUp 600ms ease-out 400ms both;
       }
-      /* Progress bar light : fine + discrète */
+      /* Progress bar ultra-discret (style Apple Pay) */
       #yaram-boot .yb-progress {
-        position: absolute; bottom: 70px;
-        width: 64px; height: 2px;
-        background: rgba(255,255,255,0.14);
+        position: absolute; bottom: 64px;
+        width: 48px; height: 1.5px;
+        background: rgba(255,255,255,0.10);
         border-radius: 2px; overflow: hidden;
         animation: yaramBootFadeUp 400ms ease-out 700ms both;
       }
       #yaram-boot .yb-progress::after {
         content: ''; display: block;
-        width: 35%; height: 100%;
-        background: rgba(255,255,255,0.85); border-radius: 2px;
-        animation: yaramBootBar 1400ms ease-in-out infinite;
+        width: 30%; height: 100%;
+        background: rgba(255,255,255,0.7); border-radius: 2px;
+        animation: yaramBootBar 1500ms ease-in-out infinite;
       }
       @keyframes yaramBootFadeIn { from { opacity: 0 } to { opacity: 1 } }
       @keyframes yaramBootFadeUp {
