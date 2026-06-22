@@ -502,16 +502,16 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   margin-top: 8px;
 }
 
 /* Dots ultra-fins et discrets (style Apple Music) */
 .yhome-banner-dot {
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.16);
   border: none;
   cursor: pointer;
   padding: 0;
@@ -519,7 +519,7 @@
 }
 
 .yhome-banner-dot.active {
-  width: 12px;
+  width: 9px;
   border-radius: 999px;
   background: #1F8B4C;
 }

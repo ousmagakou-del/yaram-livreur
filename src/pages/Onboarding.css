@@ -173,16 +173,17 @@
 
 .ob-dots {
   display: flex;
-  gap: 8px;
+  gap: 5px;
   justify-content: center;
   margin-bottom: 18px;
 }
 
+/* Dots ultra-fins YARAM (style Apple Music) */
 .ob-dot {
-  width: 8px;
-  height: 8px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.3);
   border: none;
   padding: 0;
   cursor: pointer;
@@ -193,8 +194,8 @@
 
 .ob-dot.active {
   background: white;
-  width: 28px;
-  border-radius: 4px;
+  width: 16px;
+  border-radius: 999px;
 }
 
 .ob-next-btn {
