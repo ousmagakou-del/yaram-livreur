@@ -72,25 +72,15 @@
   animation: yspl-fade-in 0.8s ease-out 0.5s both;
 }
 
-/* Loader ultra-discret (style Apple loader) */
+/* Loader splash : VIRÉ. Splash dure < 1s grâce au cache IndexedDB,
+   pas besoin d'indicateur visible. Garde le markup mais display:none
+   pour ne pas casser SplashScreen.jsx existant. */
 .yspl-loader {
-  position: absolute;
-  bottom: 52px;
-  display: flex;
-  gap: 4px;
-  animation: yspl-fade-in 0.5s ease-out 1s both;
+  display: none;
 }
-
 .yspl-loader-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.32);
-  animation: yspl-loader 1.6s ease-in-out infinite;
+  display: none;
 }
-
-.yspl-loader-dot:nth-child(2) { animation-delay: 0.2s; }
-.yspl-loader-dot:nth-child(3) { animation-delay: 0.4s; }
 
 /* Animations */
 @keyframes yspl-fade-in {
