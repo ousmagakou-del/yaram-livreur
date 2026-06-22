@@ -16,7 +16,7 @@
 // Compat : iOS Safari + Chrome Android. Skip-waiting + clients.claim().
 // ════════════════════════════════════════════════
 
-const SW_BUILD = 'yaram-v16-2026-06-22-pagekey-stable';
+const SW_BUILD = 'yaram-v17-2026-06-22-search-tracking-debug';
 const C_PRECACHE = `${SW_BUILD}-precache`;
 const C_ASSETS   = `${SW_BUILD}-assets`;
 const C_IMAGES   = `${SW_BUILD}-images`;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNav } from '../App';
-import { getAllProducts, getAllBrands, getAllCategories } from '../lib/supabase';
+import { useProducts, useBrands, useCategories } from '../lib/queries';
 import ProductTile from '../components/ProductTile';
 import TabBar from '../components/TabBar';
 import { usePageSEO, useJsonLd } from '../lib/seo';
@@ -125,10 +125,19 @@ export default function Search({ initialCategory, initialBrand }) {
   const [qDebounced, setQDebounced] = useState(''); // valeur utilisée pour filtrer
   const [category, setCategory] = useState(initialCategory || null);
   const [brand, setBrand] = useState(initialBrand || null);
-  const [products, setProducts] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  // FIX juin 2026 #11 (CAUSE RACINE PAGE BLANCHE SEARCH) :
+  // Migré de useState+useEffect+Promise.all vers TanStack Query.
+  // Les 3 hooks ont placeholderData: keepPreviousData → l'UI reste peuplée
+  // au remount, plus de skeletons figés sur Search?category=cheveux.
+  const { data: products = [], isLoading: prodLoading } = useProducts();
+  const { data: brands = [], isLoading: brandsLoading } = useBrands();
+  const { data: categories = [], isLoading: catLoading } = useCategories();
+  // loading=true UNIQUEMENT au tout 1er fetch (jamais eu de data).
+  // Au retour navigation, on a déjà des produits → loading=false → pas de skeletons.
+  const loading = (prodLoading && products.length === 0) ||
+                  (brandsLoading && brands.length === 0) ||
+                  (catLoading && categories.length === 0);
 
   const [tab, setTab] = useState('all');
   const [sort, setSort] = useState('relevance');
@@ -142,46 +151,6 @@ export default function Search({ initialCategory, initialBrand }) {
     const t = setTimeout(() => setQDebounced(q), DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [q]);
-
-  // ─── Load data ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    // Safety 12s : libère l'UI même si Promise.all reste collé (ex: une RPC hang)
-    const safety = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
-    const load = async () => {
-      try {
-        const [p, b, c] = await Promise.all([
-          getAllProducts(),
-          getAllBrands(),
-          getAllCategories(),
-        ]);
-        if (cancelled) return;
-        setProducts(p || []);
-        setBrands(b || []);
-        setCategories(c || []);
-      } catch (e) {
-        console.error('Search load error:', e);
-      } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(safety);
-      }
-    };
-    load();
-
-    const handleRouteBack = (e) => {
-      const target = e?.detail?.to?.name;
-      if (target && target !== 'search') return;
-      load();
-    };
-    window.addEventListener('yaram-route-back', handleRouteBack);
-    return () => {
-      cancelled = true;
-      clearTimeout(safety);
-      window.removeEventListener('yaram-route-back', handleRouteBack);
-    };
-  }, []);
 
   // Réagir aux changements de props initiales (navigation Home → Search)
   useEffect(() => {

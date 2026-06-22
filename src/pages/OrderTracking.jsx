@@ -63,6 +63,15 @@ function statusHero(status, isPreorder) {
   return { tone: 'prep', icon: '📦', title: 'En cours', subtitle: 'Mise à jour bientôt' };
 }
 
+// ════════════════════════════════════════════════════════════════
+// FIX juin 2026 #12 : cache module-level pour order + tracking.
+// Au remount avec le même orderId (back navigation, retour foreground),
+// on restitue immédiatement la dernière valeur connue → pas de
+// "Chargement du suivi..." pendant 1-3s. Refresh en arrière-plan.
+// ════════════════════════════════════════════════════════════════
+const _orderCache = new Map();    // key: orderId, value: order object
+const _trackingCache = new Map(); // key: orderId, value: tracking object
+
 /* ───────────── ETA estimée ───────────── */
 function computeETA(order, tracking) {
   // Priorité 1 : ETA du tracking (livreur)
@@ -91,10 +100,13 @@ function computeETA(order, tracking) {
 
 export default function OrderTracking({ orderId }) {
   const { navigate } = useNav();
-  const [order, setOrder] = useState(null);
-  const [tracking, setTracking] = useState(null);
+  // FIX juin 2026 : on hydrate depuis le cache module-level si dispo.
+  // Évite l'écran "Chargement du suivi…" au retour navigation.
+  const [order, setOrder] = useState(() => (orderId ? _orderCache.get(orderId) || null : null));
+  const [tracking, setTracking] = useState(() => (orderId ? _trackingCache.get(orderId) || null : null));
   const [loadError, setLoadError] = useState(false);
-  const [firstLoadDone, setFirstLoadDone] = useState(false);
+  // firstLoadDone=true si on a déjà des données en cache (pas besoin d'attendre)
+  const [firstLoadDone, setFirstLoadDone] = useState(() => !!_orderCache.get(orderId));
   const [showRating, setShowRating] = useState(false);
   const [itemsExpanded, setItemsExpanded] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -136,14 +148,20 @@ export default function OrderTracking({ orderId }) {
     try {
       const { data: orderData, error: orderErr } = await supabase.rpc('client_get_order_by_id', { p_order_id: orderId });
       if (orderErr) console.warn('[OrderTracking] order RPC error:', orderErr.message);
-      if (orderData) setOrder(orderData);
-      else if (isFirst) setLoadError(true);
+      if (orderData) {
+        setOrder(orderData);
+        _orderCache.set(orderId, orderData); // Cache pour retour navigation instantané
+      }
+      else if (isFirst && !_orderCache.get(orderId)) setLoadError(true);
 
       const { data: trackingData } = await supabase.from('delivery_tracking').select('*').eq('order_id', orderId).maybeSingle();
-      if (trackingData) setTracking(trackingData);
+      if (trackingData) {
+        setTracking(trackingData);
+        _trackingCache.set(orderId, trackingData);
+      }
     } catch (e) {
       console.warn('[OrderTracking] refresh failed:', e?.message);
-      if (isFirst) setLoadError(true);
+      if (isFirst && !_orderCache.get(orderId)) setLoadError(true);
     } finally {
       if (isFirst) setFirstLoadDone(true);
     }

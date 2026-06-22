@@ -33,6 +33,7 @@ import InterstitialPromo from './components/InterstitialPromo';
 import { getNextPromo, computeUserStats } from './lib/promos';
 import NetworkStatus from './components/NetworkStatus';
 import ErrorBoundary from './components/ErrorBoundary';
+import DebugOverlay from './components/DebugOverlay';
 import { initAnalytics, identifyUser, resetAnalytics, trackEvent, trackPageview } from './lib/analytics';
 
 // ─── Lazy-load : pages lourdes / rarement visitees par le client lambda ───
@@ -868,6 +869,10 @@ function ClientApp() {
             <Suspense fallback={<LazyFallback />} key={pageKey}>{page}</Suspense>
           </ErrorBoundary>
           <InstallPrompt />
+          {/* FIX juin 2026 : Debug overlay activable via ?debug=1.
+              Affiche en live l'état des queries TanStack pour diagnostiquer
+              les pages blanches / skeletons figés. */}
+          <DebugOverlay />
         </div>
         <NetworkStatus />
         <Toaster />
