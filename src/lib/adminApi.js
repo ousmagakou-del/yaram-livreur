@@ -281,12 +281,20 @@ export async function adminSearchOrders({ query, limit = 50, offset = 0 } = {}) 
 //   3. renvoyer { success, order_id, error } pour la UI
 
 function readSessionToken() {
+  // FIX juin 2026 : la session admin est dans localStorage (cf adminAuth.js),
+  // pas sessionStorage. On lit les 2 par sécurité.
   try {
-    const raw = typeof sessionStorage !== 'undefined'
-      ? sessionStorage.getItem('yaram-admin-session')
-      : null;
+    let raw = null;
+    if (typeof localStorage !== 'undefined') {
+      raw = localStorage.getItem('yaram-admin-session');
+    }
+    if (!raw && typeof sessionStorage !== 'undefined') {
+      raw = sessionStorage.getItem('yaram-admin-session');
+    }
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    // Check expiry pour éviter d'envoyer un token déjà expiré côté serveur
+    if (parsed?.expires_at && parsed.expires_at < Date.now()) return null;
     return parsed?.token || null;
   } catch {
     return null;

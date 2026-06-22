@@ -132,15 +132,24 @@ export async function updateSiteSettings(updates) {
   const keys = Object.keys(updates || {});
   if (keys.length === 0) return { success: true };
 
-  // Recupere le token admin courant
+  // Recupere le token admin courant.
+  // FIX juin 2026 : la session admin est dans localStorage (cf adminAuth.js),
+  // PAS sessionStorage. On lit les 2 par sécurité (legacy + nouveau).
   let token = null;
   try {
-    const raw = sessionStorage.getItem('yaram-admin-session');
-    if (raw) token = JSON.parse(raw)?.token || null;
+    const raw = localStorage.getItem('yaram-admin-session')
+             || sessionStorage.getItem('yaram-admin-session');
+    if (raw) {
+      const s = JSON.parse(raw);
+      // Check expiry côté client : évite d'envoyer un token déjà expiré
+      if (s?.token && (!s.expires_at || s.expires_at > Date.now())) {
+        token = s.token;
+      }
+    }
   } catch { /* ignore */ }
 
   if (!token) {
-    return { success: false, error: 'Session admin requise pour modifier les paramètres' };
+    return { success: false, error: 'Session admin expirée — reconnecte-toi' };
   }
 
   const { data, error } = await supabase.rpc('admin_update_site_settings', {
