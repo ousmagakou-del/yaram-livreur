@@ -15,7 +15,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCachedSetting, subscribeSettings } from '../lib/supabase';
 import { getUserPosition, getPermissionState } from '../lib/geo';
 import { useNav } from '../App';
 import './International.css';
@@ -280,13 +280,31 @@ export default function International() {
     });
 
     try {
-      // Récupère email user (si connecté) pour reply-to
+      // Récupère email user (si connecté) pour reply-to + log DB
       let userEmail = null;
       try {
         const { data } = await supabase.auth.getUser();
         userEmail = data?.user?.email || null;
       } catch (_) { /* anonymous OK */ }
 
+      // 1) INSERT en DB (source de vérité, traçable dans admin)
+      //    Fire avant l'email pour ne pas perdre la demande si l'email rate.
+      const dbRes = await supabase.rpc('submit_intl_request', {
+        p_brand: formBrand.trim(),
+        p_product: formProduct.trim(),
+        p_budget: formBudget || null,
+        p_phone: formPhone.trim() || null,
+        p_user_email: userEmail || null,
+        p_notes: null,
+      });
+      if (dbRes.error) {
+        console.warn('[intl-request] DB insert error:', dbRes.error.message);
+        // On continue quand même pour tenter l'email
+      } else {
+        console.log('[intl-request] DB id:', dbRes.data?.id);
+      }
+
+      // 2) Email à contact@yaram.app (notif équipe, best effort)
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           to: 'contact@yaram.app',
@@ -295,8 +313,11 @@ export default function International() {
           replyTo: userEmail || undefined,
         },
       });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'send_failed');
+      if (error) console.warn('[intl-request] email error:', error.message);
+      if (!data?.success) console.warn('[intl-request] email failed:', data?.error);
+
+      // Considère succès si au moins le DB insert a marché
+      if (dbRes.error && error) throw new Error('Aucun canal n\'a pu être notifié');
 
       console.log('[intl-request] sent OK', { brand: formBrand, product: formProduct, budget: formBudget });
       setSendStatus('ok');
@@ -325,13 +346,24 @@ export default function International() {
     return new Intl.NumberFormat('fr-FR').format(formBudget) + ' FCFA';
   }, [formBudget]);
 
+  // ─── Hero image custom : même que sur Home (intlBgImage admin setting) ───
+  const heroBgImage = getCachedSetting('intlBgImage');
+  const hasHeroBg = heroBgImage && String(heroBgImage).trim().length > 0;
+  // Force re-render quand le setting change live
+  const [, forceRender] = useState(0);
+  useEffect(() => subscribeSettings(() => forceRender(t => t + 1)), []);
+
   return (
     <div className="intl-premium-page">
 
       {/* ═══════════ A. HERO IMMERSIF ═══════════ */}
-      <section className="intlp-hero">
-        <div className="intlp-hero-aurora" aria-hidden />
-        <div className="intlp-hero-globe" aria-hidden>🌍</div>
+      <section
+        className={`intlp-hero ${hasHeroBg ? 'intlp-hero--has-bg' : ''}`}
+        style={hasHeroBg ? { backgroundImage: `url(${heroBgImage})` } : undefined}
+      >
+        {hasHeroBg && <div className="intlp-hero-bg-overlay" aria-hidden />}
+        {!hasHeroBg && <div className="intlp-hero-aurora" aria-hidden />}
+        {!hasHeroBg && <div className="intlp-hero-globe" aria-hidden>🌍</div>}
 
         <button
           className="intlp-back"

@@ -33,6 +33,7 @@ const LoyaltySection             = lazy(() => import('../admin/LoyaltySection'))
 const NotificationsSection       = lazy(() => import('../admin/NotificationsSection'));
 const PushBroadcastSection       = lazy(() => import('../admin/PushBroadcastSection'));
 const NewsletterSection          = lazy(() => import('../admin/NewsletterSection'));
+const IntlRequestsSection        = lazy(() => import('../admin/IntlRequestsSection'));
 
 import './Admin.css';
 
@@ -57,6 +58,7 @@ const NAV = [
   { id: 'notifications', icon: '📲', label: 'Notifications WhatsApp' },
   { id: 'push',          icon: '🔔', label: 'Push iOS' },
   { id: 'newsletter',    icon: '📬', label: 'Newsletter' },
+  { id: 'intl_requests', icon: '🌍', label: 'Demandes Intl' },
   { id: 'products',    icon: '🛍️', label: 'Produits' },
   { id: 'validation',  icon: '✨', label: 'Validation produits', badge: true },
   { id: 'brands',      icon: '🏷️', label: 'Marques' },
@@ -300,6 +302,7 @@ export default function Admin() {
           {section === 'notifications' && <NotificationsSection />}
           {section === 'push'          && <PushBroadcastSection />}
           {section === 'newsletter'    && <NewsletterSection />}
+          {section === 'intl_requests' && <IntlRequestsSection />}
           {section === 'products'      && <ProductsSection />}
           {section === 'validation'    && <ProductsValidationSection />}
           {section === 'brands'        && <BrandsSection />}

@@ -50,6 +50,57 @@
     0 2px 6px rgba(14, 91, 51, 0.06);
 }
 
+/* Avec image custom uploadée depuis admin (setting intlBgImage) */
+.intlp-hero--has-bg {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #FFFFFF;
+}
+.intlp-hero-bg-overlay {
+  position: absolute;
+  inset: 0;
+  /* Voile vert YARAM doux pour lisibilité texte sur n'importe quelle photo */
+  background: linear-gradient(160deg,
+    rgba(14, 91, 51, 0.55) 0%,
+    rgba(31, 139, 76, 0.42) 50%,
+    rgba(14, 91, 51, 0.72) 100%);
+  z-index: 0;
+  pointer-events: none;
+}
+.intlp-hero--has-bg .intlp-hero-content,
+.intlp-hero--has-bg .intlp-back {
+  position: relative;
+  z-index: 2;
+}
+.intlp-hero--has-bg .intlp-hero-title {
+  color: #FFFFFF;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+.intlp-hero--has-bg .intlp-hero-sub {
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.intlp-hero--has-bg .intlp-hero-pill {
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.intlp-hero--has-bg .intlp-back {
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.intlp-hero--has-bg .intlp-hero-badge {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 .intlp-hero-aurora {
   position: absolute;
   inset: -20px;
@@ -991,8 +1042,11 @@
 }
 
 .intlp-product-card {
-  background: #fff;
-  border: 1px solid rgba(0, 47, 102, 0.10);
+  /* FIX juin 2026 : avant `background: #fff` rendait les cards invisibles sur le
+     fond clair light YARAM. On passe sur un white pur + border verte contrastée
+     + ombre verte pour un vrai relief. */
+  background: #FFFFFF;
+  border: 1.5px solid rgba(31, 139, 76, 0.18);
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
@@ -1001,8 +1055,14 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 14px rgba(0, 47, 102, 0.08);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow:
+    0 6px 18px rgba(14, 91, 51, 0.08),
+    0 2px 4px rgba(14, 91, 51, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.intlp-product-card:hover {
+  border-color: rgba(31, 139, 76, 0.35);
+  box-shadow: 0 10px 24px rgba(14, 91, 51, 0.14);
 }
 
 .intlp-product-card:active {
@@ -1038,7 +1098,7 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #0066CC;
+  color: #1F8B4C;
 }
 
 .intlp-product-name {
