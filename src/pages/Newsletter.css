@@ -13,14 +13,19 @@
   --nl-ink: #0F0F0F;
   --nl-mute: #6B6B6B;
 
-  min-height: 100%;
+  /* FIX scroll : la page doit prendre 100% du shell parent et gérer son
+     propre scroll vertical. Avant : min-height bloquait + overflow-x:hidden
+     coupait l'horizontale mais le scroll Y ne marchait pas. */
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   position: relative;
   background:
     radial-gradient(900px 600px at -10% -10%, rgba(31,139,76,0.07), transparent 60%),
     radial-gradient(900px 600px at 110% 30%, rgba(244,181,58,0.10), transparent 60%),
     radial-gradient(700px 500px at 50% 110%, rgba(232,56,92,0.06), transparent 60%),
     var(--nl-bg);
-  overflow-x: hidden;
   padding-bottom: 60px;
 }
 

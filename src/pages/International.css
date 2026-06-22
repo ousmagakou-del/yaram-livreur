@@ -8,9 +8,14 @@
   background:
     radial-gradient(circle at 50% 0%, rgba(31, 139, 76, 0.06), transparent 40%),
     var(--bg);
-  min-height: 100vh;
-  padding-bottom: 0;
+  /* FIX scroll : la page doit prendre 100% de son app-shell parent et
+     gérer son propre scroll. Avant : min-height: 100vh sans overflow-y
+     → la page débordait du shell mais le scroll ne marchait pas. */
+  height: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 40px;
 }
 
 /* ─── Couleurs locales (charte YARAM light) ─── */
