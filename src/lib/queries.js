@@ -15,7 +15,7 @@
 //   QUERY_KEYS.orders(userId) = ['orders', userId]
 // ════════════════════════════════════════════════════════════════
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase, getAllProducts, getAllBrands, getAllCategories, getAllBanners, getAllPharmacies } from './supabase';
 import { getHomePayload } from './supabase/homePayload';
 import { getMyOrders } from './supabase/orders';
@@ -111,6 +111,14 @@ export function usePharmacies() {
 /**
  * Les commandes de l'utilisateur connecté.
  * Ne fetch QUE si userId fourni.
+ *
+ * FIX juin 2026 : skeletons figés au retour navigation.
+ *   • placeholderData: keepPreviousData → garde l'ancien data pendant
+ *     le refetch silencieux, évite l'état isLoading=true au remount.
+ *   • refetchOnMount: 'always' → refetch garanti même si stale<60s.
+ *   • Si user?.id devient brièvement undefined au remount (race avec
+ *     useUser context reset), keepPreviousData garde l'UI peuplée
+ *     au lieu d'afficher le skeleton.
  */
 export function useMyOrders(userId) {
   return useQuery({
@@ -119,6 +127,8 @@ export function useMyOrders(userId) {
     enabled: !!userId,
     // Les commandes changent vite (status updates) → stale 1 min
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+    refetchOnMount: 'always',
   });
 }
 
@@ -126,12 +136,16 @@ export function useMyOrders(userId) {
  * Les favoris de l'utilisateur.
  * userId optionnel : si fourni, scope la cache key par user (multi-account safe).
  * Sinon utilise 'me' (la session courante dans Supabase client résout l'user).
+ *
+ * FIX juin 2026 : même problème de skeletons figés → même fix.
  */
 export function useMyFavorites(userId = 'me') {
   return useQuery({
     queryKey: QUERY_KEYS.favorites(userId),
     queryFn: getMyFavorites,
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+    refetchOnMount: 'always',
   });
 }
 

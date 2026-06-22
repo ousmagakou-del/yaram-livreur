@@ -27,8 +27,10 @@ export default function Favorites() {
   // ─── TanStack Query : cold start INSTANT depuis IndexedDB ───
   // 2e ouverture : la liste des favoris s'affiche immédiatement (vue précédemment),
   // pendant que le re-fetch silencieux tourne en arrière-plan.
+  // FIX juin 2026 : placeholderData côté hook → l'UI reste peuplée au remount
+  // (navigation back depuis Product detail) au lieu d'afficher le skeleton figé.
   const { data: favorites = [], isLoading, refetch } = useMyFavorites();
-  const loading = isLoading && favorites.length === 0;
+  const loading = isLoading && !favorites.length;
   const qc = useQueryClient();
   // Helper : optimistic remove côté cache (pas de re-fetch attendu après remove)
   const removeFromCache = (productId) => {

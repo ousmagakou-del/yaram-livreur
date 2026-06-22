@@ -46,7 +46,14 @@ export async function createOrder({
 
 export async function getMyOrders() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return [];
+  if (!session?.user) {
+    // FIX juin 2026 #2 : NE PAS retourner [] (qui empoisonnait le cache
+    // TanStack avec une réponse "success vide" puis bloquait isLoading
+    // au retour navigation). On THROW : TanStack retry avec backoff,
+    // le hook reste en isLoading=true → keepPreviousData prend le relais
+    // et affiche les anciennes commandes pendant que le retry tourne.
+    throw new Error('session_not_ready');
+  }
   // FIX juin 2026 : on désactive le cache localStorage (persistLS=false) parce
   // qu'un cache vide stale persisté hier était servi en boucle → la page
   // "Mes commandes" restait vide alors que la DB avait 30+ orders.

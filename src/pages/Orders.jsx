@@ -1,9 +1,6 @@
-import { useEffect } from 'react';
 import { useNav, useUser } from '../App';
 import { invalidateCache, supabase } from '../lib/supabase';
 import { useMyOrders } from '../lib/queries';
-import { useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '../lib/queries';
 import { safeFormatDate } from '../lib/utils';
 import TabBar from '../components/TabBar';
 import PullToRefresh from '../components/PullToRefresh';
@@ -12,19 +9,24 @@ import './Orders.css';
 export default function Orders() {
   const { navigate } = useNav();
   const { user } = useUser();
-  const qc = useQueryClient();
 
   // ════════════════════════════════════════════════════════════════
-  //  TanStack Query : cold start INSTANT
+  //  TanStack Query : cold start INSTANT + retour navigation FLUIDE
   //  - Cache mémoire 1 min + persistance IndexedDB 24h
-  //  - 2e ouverture : affiche les commandes vues précédemment IMMÉDIATEMENT
-  //    pendant que le re-fetch silencieux tourne en arrière-plan
-  //  - Auto refetch on focus / on reconnect (Dakar 4G capricieuse)
+  //  - placeholderData: keepPreviousData → l'UI reste peuplée pendant
+  //    le refetch silencieux au retour de navigation (plus de skeletons figés)
+  //  - refetchOnMount: 'always' → données toujours fraîches au retour
+  //  - handleAppResume() global (main.jsx) gère le retour foreground iOS
+  //
+  //  FIX juin 2026 : on a SUPPRIMÉ le useEffect manuel d'invalidation
+  //  qui créait une double-race avec refetchOnMount + placeholderData
+  //  (skeletons figés en permanence au retour de navigation).
   // ════════════════════════════════════════════════════════════════
-  const { data: orders = [], isLoading, refetch } = useMyOrders(user?.id);
-  // isLoading = true UNIQUEMENT au 1er fetch jamais terminé.
-  // Si on a du cache persisté (cold start), isLoading sera direct false.
-  const loading = isLoading && orders.length === 0;
+  const { data: orders = [], isLoading, isFetching, refetch } = useMyOrders(user?.id);
+  // Loading = true UNIQUEMENT si on n'a JAMAIS eu de data (vrai cold start).
+  // Au retour navigation, on a déjà des orders en cache (placeholderData)
+  // → isLoading=false, on affiche les vraies données pendant le refetch.
+  const loading = isLoading && !orders.length;
 
   // Pull-to-refresh : on invalide le cache legacy ET TanStack
   const handlePullRefresh = async () => {
@@ -35,40 +37,6 @@ export default function Orders() {
       await new Promise(r => setTimeout(r, 300));
     } catch { /* silent */ }
   };
-
-  // ─── Invalidation au retour navigation + resume app ───
-  // TanStack Query gère déjà refetchOnWindowFocus et refetchOnReconnect, mais
-  // ces 2 events YARAM sont customs (popstate iOS, Capacitor resume), donc
-  // on doit forcer un invalidate manuel pour qu'il aille fetch.
-  useEffect(() => {
-    if (!user?.id) return;
-
-    // Purge brute force tout cache legacy 'my_orders_*' au mount
-    try {
-      invalidateCache(`my_orders_${user.id}`);
-      const toDel = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && /^yaram_cache_v\d+_my_orders_/.test(k)) toDel.push(k);
-      }
-      toDel.forEach(k => localStorage.removeItem(k));
-    } catch {}
-
-    const handleRouteBack = (e) => {
-      const target = e?.detail?.to?.name;
-      if (target && target !== 'orders') return;
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.orders(user.id) });
-    };
-    const handleAppResumed = () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.orders(user.id) });
-    };
-    window.addEventListener('yaram-route-back', handleRouteBack);
-    window.addEventListener('yaram-app-resumed', handleAppResumed);
-    return () => {
-      window.removeEventListener('yaram-route-back', handleRouteBack);
-      window.removeEventListener('yaram-app-resumed', handleAppResumed);
-    };
-  }, [user?.id, qc]);
 
   return (
     <div className="orders-screen page-anim">
