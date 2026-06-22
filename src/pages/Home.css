@@ -373,14 +373,28 @@
   font-size: 10px;
   font-weight: 700;
   color: #1A1A1A;
-  padding: 6px;
+  /* Padding 0 → l'image remplit 100% du cercle, sans bord blanc */
+  padding: 0;
   box-sizing: border-box;
+  box-shadow:
+    0 4px 12px rgba(14, 91, 51, 0.06),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  transition: transform 0.18s ease, box-shadow 0.2s ease;
 }
 
+.yhome-brand-item:active .yhome-brand-circle {
+  transform: scale(0.94);
+}
+
+/* L'image épouse parfaitement le cercle (cover + border-radius hérité du parent
+   grâce à overflow:hidden). Les logos de marque sont fournis carrés → cover
+   donne un rendu plein sans bordure blanche disgracieuse. */
 .yhome-brand-circle img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
+  display: block;
 }
 
 .yhome-brand-initials {
