@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" shape-rendering="geometricPrecision">
+  <!-- Fond plein vert YARAM (pas de transparence — Apple refuse l'alpha) -->
+  <rect fill="#009640" x="0" y="0" width="1024" height="1024"/>
+  <!--
+    Y blanc MATHÉMATIQUEMENT centré dans le carré 1024x1024.
+    
+    Path source viewBox 256x256, bbox calculée :
+      x=[87.63, 166.78], y=[64.45, 164.5]
+      centre du Y = (127.205, 114.475)
+      width=79.15, height=100.05
+    
+    Plan :
+      scale(6) → centre devient (763.23, 686.85), width final=474.9 (46% du carré)
+      pour amener le centre à (512, 512) : translate(-251.23, -174.85)
+  -->
+  <g transform="translate(-251.23 -174.85) scale(6)">
+    <path fill="#fff" d="M153.9,64.45l-20.93,30.57-21.02-30.57h-24.32l28.48,41.39v58.66h23.8v-60.88l26.87-39.16h-12.87Z"/>
+  </g>
+  <!-- Point orange signature YARAM en bas-droit -->
+  <circle fill="#e94e1b" cx="780" cy="780" r="56"/>
+</svg>
