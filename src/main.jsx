@@ -3,15 +3,17 @@ import { createRoot } from 'react-dom/client'
 import './lib/theme'
 import './index.css'
 import App from './App.jsx'
-import { loadSiteSettings, subscribeSettings } from './lib/supabase'
+import { loadSiteSettings, subscribeSettings, supabase } from './lib/supabase'
 import { initSentry } from './lib/sentry'
 import { registerServiceWorker } from './lib/sw-register'
 import { prefetchProbableRoutes } from './lib/prefetch'
 import { initWebVitals } from './lib/webVitals'
+import { isNativeApp } from './lib/platform'
 // ─── TanStack Query : cache mémoire + persistance IndexedDB ───
 // Permet de réafficher instantanément les données vues précédemment
 // au cold start, puis revalider en arrière-plan.
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { focusManager, onlineManager } from '@tanstack/react-query'
 import { queryClient, queryPersister } from './lib/queryClient'
 
 // ─── Init Sentry + SW DIFFÉRÉ à l'idle ───
@@ -51,20 +53,91 @@ window.__yaramHideBoot = hideBootSplash;
 // et applique les vraies valeurs des qu'elles arrivent (via getCachedSetting).
 loadSiteSettings().catch(() => { /* DB unavailable, keep fallback */ });
 
-// ─── Refresh settings quand l'app revient en foreground ───
-// Sans ça, l'app garde l'ancien numéro WhatsApp / commission / couleurs
-// indéfiniment tant que l'user ne tue pas l'app. Critique pour iOS (l'app
-// reste en mémoire après un swipe vers Home), critique aussi pour PWA.
+// ════════════════════════════════════════════════════════════════
+// ─── Refresh COMPLET quand l'app revient en foreground ───
+// ════════════════════════════════════════════════════════════════
+//
+// Problème observé : sur iOS Capacitor ET sur web, quand l'utilisateur sort
+// de l'app/onglet pendant quelques minutes et revient, les données restent
+// stale jusqu'à ce qu'il pull-to-refresh manuellement.
+//
+// Causes :
+//   1) Sur iOS Capacitor, window.focus n'est PAS déclenché de manière
+//      fiable au retour du background → TanStack croit que rien n'a changé
+//   2) Les channels Supabase Realtime se déconnectent en background
+//      (iOS gèle les WebSockets) et ne reconnectent pas auto
+//   3) Le service worker peut servir du cache stale sans revalider
+//
+// Fix : on intercepte 3 events (visibilitychange / focus / Capacitor resume)
+// et on déclenche systématiquement :
+//   - focusManager.setFocused(true)  → TanStack refait tous les refetch
+//   - onlineManager.setOnline(true)  → idem côté reconnect
+//   - queryClient.invalidateQueries() → force la revalidation immédiate
+//   - supabase.realtime.connect()    → reconnecte les channels live
+//   - loadSiteSettings()             → settings frais (couleurs, commission…)
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Handler unique appelé à chaque retour foreground (peu importe la source).
+ * Idempotent : safe à appeler plusieurs fois de suite sans effet de bord.
+ */
+function handleAppResume() {
+  try {
+    // 1) TanStack Query : marque comme focused + online → déclenche refetch
+    focusManager.setFocused(true);
+    onlineManager.setOnline(true);
+    // 2) Invalide TOUT le cache mémoire (mais on garde la donnée affichée
+    //    en stale tant que la revalidation n'est pas finie → pas de flash)
+    queryClient.invalidateQueries();
+    // 3) Reconnecte les channels Supabase Realtime (commandes live, etc.)
+    try { supabase?.realtime?.connect?.(); } catch {}
+    // 4) Refresh des site_settings (numéro WA, commission, couleurs…)
+    loadSiteSettings().catch(() => {});
+  } catch (e) {
+    // Silent : on ne veut surtout pas casser le retour app
+    if (typeof console !== 'undefined') console.warn('[YARAM] resume handler error:', e?.message);
+  }
+}
+
 if (typeof document !== 'undefined') {
+  // ── Web + PWA : visibilitychange est l'event LE PLUS fiable sur tous
+  //    les navigateurs (Chrome desktop/Android, Safari mobile/desktop) ──
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      loadSiteSettings().catch(() => { /* silent */ });
+      handleAppResume();
+    } else {
+      // App passe en background → on note la pause TanStack (économise des
+      // refetch inutiles, évite les race conditions au retour)
+      focusManager.setFocused(false);
     }
   });
-  // Aussi sur focus window (cas où l'app perd focus sans cacher l'onglet)
-  window.addEventListener('focus', () => {
-    loadSiteSettings().catch(() => { /* silent */ });
+  // ── Fallback web : focus window (cas où l'onglet reste visible mais
+  //    perd le focus, ex. switch entre fenêtres sur desktop) ──
+  window.addEventListener('focus', handleAppResume);
+  // ── Reconnexion réseau (le plus utile à Dakar avec coupures LTE) ──
+  window.addEventListener('online', () => {
+    onlineManager.setOnline(true);
+    handleAppResume();
   });
+}
+
+// ─── iOS / Android natif : event Capacitor App.resume ───
+// Sur Capacitor, l'event JS `focus`/`visibilitychange` n'est pas toujours
+// déclenché quand l'app revient du background (iOS suspend le WebView).
+// On utilise donc l'event natif `appStateChange` qui est garanti.
+if (isNativeApp()) {
+  // Import dynamique pour ne pas charger Capacitor sur le web
+  import('@capacitor/app').then(({ App: CapApp }) => {
+    CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        handleAppResume();
+      } else {
+        focusManager.setFocused(false);
+      }
+    });
+    // Event 'resume' (Android principalement, double safety net)
+    CapApp.addListener('resume', handleAppResume);
+  }).catch(() => { /* @capacitor/app pas dispo en dev web, normal */ });
 }
 
 // Inject les couleurs en CSS variables des que les settings sont chargees.
