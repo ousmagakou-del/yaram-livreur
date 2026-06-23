@@ -73,3 +73,6 @@ AuthKey_*.p8
 # ═══ OS / éditeurs ═══
 Thumbs.db
 .DS_Store
+
+# React Native bootstrap (lives in ~/Documents/yaram-native)
+yaram-native-bootstrap/
