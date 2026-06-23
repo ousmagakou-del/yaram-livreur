@@ -5,14 +5,38 @@ import { cachedFetch } from '../dataCache';
 // PRODUITS & MARQUES — AVEC CACHE
 // ═══════════════════════════════════════════════
 
-// PERF : colonnes minimales utilisees par les listes (Home, Search, ProductTile).
-// La fiche produit (Product.jsx) fetch deja un seul produit avec select('*')
-// donc elle aura toutes les infos. Cette liste ne sert qu'aux LISTES.
-// Avant : select('*') = ~3-4KB par produit (long_desc, inci, usage, reason...).
-// Apres : ~400 octets par produit = ~7x moins de bande passante.
-// ⚠️ Toutes ces colonnes ONT ETE verifiees comme existantes (cf Product.jsx +
-// admin upsert). Si on rajoute une colonne ici, la verifier d'abord dans la DB.
-const PRODUCT_LIST_COLUMNS = 'id, name, brand, category, score, price, review_count, rating, badges, img, active, created_at, is_imported, lead_time_days, origin_country';
+// PERF : colonnes utilisees par les listes (Home, Search, ProductTile) +
+// par la fiche produit RN qui ne refetch pas systematiquement.
+//
+// HISTORIQUE :
+//   - V1 (avant) : select('*') = ~3-4KB par produit
+//   - V2          : select trim minimal = ~400 octets  (Home / Search OK)
+//   - V3 (2026-06): on rajoute les colonnes manquantes signalees par RN
+//                  (image_url, inci, long_desc, reason, is_imported, etc.)
+//                  pour que getAllProducts soit utilisable comme source
+//                  de verite cote app native sans 2e round-trip.
+//
+// ⚠️ Toutes ces colonnes existent en DB (cf Product.jsx + admin upsert).
+//    Si une colonne manque cote DB, Supabase renvoie une erreur 400 sur
+//    tout le SELECT — il faut alors la creer avant de la rajouter ici.
+//
+// Champ `img` vs `image_url` : la table utilise les DEUX historiquement.
+// Canonical = `image_url`. `img` est un alias maintenu pour back-compat
+// (utilise par ProductTile, Product.jsx, etc.). On les selecte donc tous
+// les deux et on laisse le code consommateur normaliser via
+// `p.image_url || p.img`.
+// NB : supplier_cost / supplier_url sont volontairement EXCLUS (donnees
+// internes margin = admin-only — getAllProducts est public, anon peut le
+// caller). Pour l'admin, fetch direct sur la ligne via Product.jsx ou
+// admin_list_orders/products.
+const PRODUCT_LIST_COLUMNS = [
+  'id', 'name', 'brand', 'category', 'score', 'price', 'review_count',
+  'rating', 'badges', 'img', 'image_url', 'active', 'created_at',
+  // Import / origine
+  'is_imported', 'origin_country', 'usage_duration_days', 'lead_time_days',
+  // Contenu fiche (RN s'en sert pour rendre la fiche sans 2e fetch)
+  'inci', 'long_desc', 'reason',
+].join(', ');
 
 export async function getAllProducts() {
   return cachedFetch('all_products', async () => {
@@ -20,7 +44,13 @@ export async function getAllProducts() {
       .from('products')
       .select(PRODUCT_LIST_COLUMNS)
       .eq('active', true);
-    return data || [];
+    // Normalize : image_url canonique. On garde aussi `img` pour la
+    // back-compat (ProductTile, Product.jsx legacy lisent les deux).
+    return (data || []).map((p) => ({
+      ...p,
+      image_url: p.image_url || p.img || null,
+      img:       p.img || p.image_url || null,
+    }));
   }, { ttl: 5 * 60 * 1000 }); // 5 min
 }
 

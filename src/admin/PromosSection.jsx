@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getAdminToken } from '../lib/adminAuth';
+import { adminLogAction } from '../lib/adminApi';
 import { confirmDialog } from '../lib/toast';
 
 // ⚠️ Doit etre aligne avec validatePromoCode dans src/lib/supabase.js qui lit la table 'promo_codes'.
@@ -51,6 +52,13 @@ export default function PromosSection() {
       p_payload: payload,
     });
     if (error) { setErrMsg('Erreur sauvegarde : ' + error.message); return; }
+    adminLogAction({
+      action:     p.id ? 'update_promo' : 'create_promo',
+      targetType: 'promo_code',
+      targetId:   p.id || null,
+      before:     null,
+      after:      { code: payload.code, type: payload.type, value: payload.value, active: payload.active },
+    }).catch(() => { /* best-effort */ });
     setEditing(null);
     refresh();
   };
@@ -59,8 +67,16 @@ export default function PromosSection() {
     if (!(await confirmDialog('Supprimer ce code promo ?', { confirmLabel: 'Supprimer', danger: true }))) return;
     const token = getAdminToken();
     if (!token) { setErrMsg('Session admin expirée'); return; }
+    const prev = promos.find(p => p.id === id);
     const { error } = await supabase.rpc('admin_delete_promo', { p_token: token, p_id: id });
     if (error) { setErrMsg('Erreur suppression : ' + error.message); return; }
+    adminLogAction({
+      action:     'delete_promo',
+      targetType: 'promo_code',
+      targetId:   id,
+      before:     prev ? { code: prev.code, type: prev.type, value: prev.value } : null,
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     refresh();
   };
 

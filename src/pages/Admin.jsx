@@ -28,6 +28,7 @@ const SettingsSection            = lazy(() => import('../admin/SettingsSection')
 const ProductsValidationSection  = lazy(() => import('../admin/ProductsValidationSection'));
 const CommissionsSection         = lazy(() => import('../admin/CommissionsSection'));
 const BannersSection             = lazy(() => import('../admin/BannersSection'));
+const StoriesSection             = lazy(() => import('../admin/StoriesSection'));
 const CategoriesSection          = lazy(() => import('../admin/CategoriesSection'));
 const LoyaltySection             = lazy(() => import('../admin/LoyaltySection'));
 const NotificationsSection       = lazy(() => import('../admin/NotificationsSection'));
@@ -63,6 +64,7 @@ const NAV = [
   { id: 'validation',  icon: '✨', label: 'Validation produits', badge: true },
   { id: 'brands',      icon: '🏷️', label: 'Marques' },
   { id: 'banners',     icon: '🎨', label: 'Bannières' },
+  { id: 'stories',     icon: '📸', label: 'Stories' },
   { id: 'categories',  icon: '📂', label: 'Catégories' },
   { id: 'promos',      icon: '🎁', label: 'Codes promo' },
   { id: 'marketing',   icon: '📣', label: 'Marketing' },
@@ -365,6 +367,7 @@ export default function Admin() {
           {section === 'validation'    && <ProductsValidationSection />}
           {section === 'brands'        && <BrandsSection />}
           {section === 'banners'       && <BannersSection />}
+          {section === 'stories'       && <StoriesSection />}
           {section === 'categories'    && <CategoriesSection />}
           {section === 'promos'        && <PromosSection />}
           {section === 'marketing'     && <MarketingSection />}

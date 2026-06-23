@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { adminLogAction } from '../lib/adminApi';
 import { confirmDialog } from '../lib/toast';
 
 const CATEGORY_PRESETS = [
@@ -105,6 +106,13 @@ export default function CategoriesSection() {
       return;
     }
 
+    adminLogAction({
+      action:     'upload_category_icon',
+      targetType: 'category',
+      targetId:   cat.id,
+      before:     null,
+      after:      { name: cat.name, icon_filename: filename },
+    }).catch(() => { /* best-effort */ });
     flash(`Icone uploadee pour ${cat.name}`);
     refresh();
   };
@@ -117,6 +125,13 @@ export default function CategoriesSection() {
       .update({ icon_url: null })
       .eq('id', cat.id);
     if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+    adminLogAction({
+      action:     'remove_category_icon',
+      targetType: 'category',
+      targetId:   cat.id,
+      before:     { name: cat.name, had_icon: true },
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     flash('Icone retiree');
     refresh();
   };
@@ -140,6 +155,13 @@ export default function CategoriesSection() {
       : supabase.from('categories').insert(payload);
     const { error } = await op;
     if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+    adminLogAction({
+      action:     cat.id ? 'update_category' : 'create_category',
+      targetType: 'category',
+      targetId:   cat.id || null,
+      before:     null,
+      after:      { name: payload.name, slug: payload.slug, active: payload.active },
+    }).catch(() => { /* best-effort */ });
     flash(cat.id ? 'Categorie modifiee' : 'Categorie creee');
     setEditing(null);
     setShowNew(false);
@@ -151,6 +173,13 @@ export default function CategoriesSection() {
     if (!await confirmDialog(`Supprimer definitivement "${cat.name}" ?\n\nLes produits avec cette categorie ne seront PAS supprimes mais n'apparaitront plus dans le filtre.`)) return;
     const { error } = await supabase.from('categories').delete().eq('id', cat.id);
     if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+    adminLogAction({
+      action:     'delete_category',
+      targetType: 'category',
+      targetId:   cat.id,
+      before:     { name: cat.name, slug: cat.slug, active: cat.active },
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     flash('Categorie supprimee');
     refresh();
   };
@@ -162,6 +191,13 @@ export default function CategoriesSection() {
       .update({ active: !cat.active })
       .eq('id', cat.id);
     if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+    adminLogAction({
+      action:     'toggle_category_active',
+      targetType: 'category',
+      targetId:   cat.id,
+      before:     { active: cat.active,  name: cat.name },
+      after:      { active: !cat.active, name: cat.name },
+    }).catch(() => { /* best-effort */ });
     refresh();
   };
 

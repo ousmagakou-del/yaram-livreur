@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSiteSettings, updateSiteSettings, uploadBannerImage } from '../lib/supabase';
+import { adminLogAction } from '../lib/adminApi';
 import { toast, confirmDialog } from '../lib/toast';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,6 +104,13 @@ export default function SettingsSection() {
     const result = await updateSiteSettings(settings);
     setSaving(false);
     if (result.success) {
+      adminLogAction({
+        action:     'update_site_settings',
+        targetType: 'site_settings',
+        targetId:   null,
+        before:     null,
+        after:      { keys: Object.keys(settings || {}), updated_count: Object.keys(settings || {}).length },
+      }).catch(() => { /* best-effort */ });
       toast.success('Paramètres enregistrés en base de données');
     } else {
       toast.error('Échec sauvegarde : ' + (result.error || 'erreur inconnue'));
@@ -115,8 +123,18 @@ export default function SettingsSection() {
     setSaving(true);
     const result = await updateSiteSettings(DEFAULTS);
     setSaving(false);
-    if (result.success) toast.success('Paramètres réinitialisés');
-    else toast.error('Échec : ' + (result.error || 'erreur inconnue'));
+    if (result.success) {
+      adminLogAction({
+        action:     'reset_site_settings',
+        targetType: 'site_settings',
+        targetId:   null,
+        before:     null,
+        after:      { reset_to_defaults: true, keys: Object.keys(DEFAULTS) },
+      }).catch(() => { /* best-effort */ });
+      toast.success('Paramètres réinitialisés');
+    } else {
+      toast.error('Échec : ' + (result.error || 'erreur inconnue'));
+    }
   };
 
   return (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { adminLogAction } from '../lib/adminApi';
 import { confirmDialog } from '../lib/toast';
 
 export default function BrandsSection() {
@@ -41,9 +42,23 @@ export default function BrandsSection() {
     if (b.id) {
       const { error } = await supabase.from('brands').update(payload).eq('id', b.id);
       if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+      adminLogAction({
+        action:     'update_brand',
+        targetType: 'brand',
+        targetId:   b.id,
+        before:     null,
+        after:      { name: payload.name, country: payload.country, local: payload.local },
+      }).catch(() => { /* best-effort */ });
     } else {
       const { error } = await supabase.from('brands').insert(payload);
       if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+      adminLogAction({
+        action:     'create_brand',
+        targetType: 'brand',
+        targetId:   null,
+        before:     null,
+        after:      { name: payload.name, country: payload.country, local: payload.local },
+      }).catch(() => { /* best-effort */ });
     }
     flash(b.id ? 'Marque modifiée' : 'Marque créée');
     setEditing(null);
@@ -54,6 +69,13 @@ export default function BrandsSection() {
     if (!await confirmDialog(`Supprimer "${b.name}" ?\n\nLes produits de cette marque ne seront pas supprimés.`)) return;
     const { error } = await supabase.from('brands').delete().eq('id', b.id);
     if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+    adminLogAction({
+      action:     'delete_brand',
+      targetType: 'brand',
+      targetId:   b.id,
+      before:     { name: b.name, country: b.country, local: b.local },
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     flash('Marque supprimée');
     refresh();
   };
@@ -121,6 +143,13 @@ export default function BrandsSection() {
       return;
     }
 
+    adminLogAction({
+      action:     'upload_brand_logo',
+      targetType: 'brand',
+      targetId:   brand.id,
+      before:     null,
+      after:      { name: brand.name, logo_filename: filename },
+    }).catch(() => { /* best-effort */ });
     flash(`Logo uploadé pour ${brand.name}`);
     refresh();
   };
@@ -129,6 +158,13 @@ export default function BrandsSection() {
     if (!await confirmDialog(`Retirer le logo de "${b.name}" ?`)) return;
     const { error } = await supabase.from('brands').update({ img: null }).eq('id', b.id);
     if (error) { flash('Erreur : ' + error.message, 'err'); return; }
+    adminLogAction({
+      action:     'remove_brand_logo',
+      targetType: 'brand',
+      targetId:   b.id,
+      before:     { name: b.name, had_logo: true },
+      after:      null,
+    }).catch(() => { /* best-effort */ });
     flash('Logo retiré');
     refresh();
   };
