@@ -340,15 +340,75 @@ function StoryForm({ story, onSave, onCancel }) {
 
         {(form.content_type === 'image' || form.content_type === 'video') && (
           <div className="full">
-            <label>Média (image / vidéo max 20 MB)</label>
+            <label>Média (image / vidéo max 20 MB) — format vertical 9:16 recommandé</label>
             <input type="file" accept={form.content_type === 'image' ? 'image/*' : 'video/*'} onChange={handleUpload} disabled={uploading} />
             {form.media_url && (
-              <div style={{ marginTop: 8 }}>
-                <img src={form.media_url} alt="" style={{ maxHeight: 120, borderRadius: 8 }} />
-                <div className="muted" style={{ fontSize: 11 }}>{form.media_url}</div>
+              <div style={{ marginTop: 16, display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+                {/* Preview iPhone-like 9:16 */}
+                <div style={{
+                  width: 240,
+                  aspectRatio: '9/16',
+                  borderRadius: 24,
+                  overflow: 'hidden',
+                  background: form.bg_color || '#1F8B4C',
+                  position: 'relative',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+                  border: '8px solid #000',
+                }}>
+                  {form.content_type === 'image' ? (
+                    <img
+                      src={form.media_url}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                  ) : (
+                    <video
+                      src={form.media_url}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      controls
+                    />
+                  )}
+                  {/* Overlay texte preview */}
+                  {form.content_text && (
+                    <div style={{
+                      position: 'absolute', bottom: 80, left: 16, right: 16,
+                      color: '#fff', fontWeight: 900, fontSize: 18, textAlign: 'center',
+                      lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                    }}>
+                      {form.content_text}
+                    </div>
+                  )}
+                  {/* CTA pill preview */}
+                  {form.cta_label && (
+                    <div style={{
+                      position: 'absolute', bottom: 16, left: 16, right: 16,
+                      background: '#fff', padding: '10px 16px', borderRadius: 999,
+                      textAlign: 'center', color: form.bg_color, fontWeight: 800, fontSize: 13,
+                    }}>
+                      {form.cta_label} →
+                    </div>
+                  )}
+                </div>
+
+                {/* Métadonnées + URL */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1F8B4C', marginBottom: 4 }}>
+                    📱 Preview tel quel sur l'app
+                  </div>
+                  <div className="muted" style={{ fontSize: 11, wordBreak: 'break-all', marginBottom: 12 }}>
+                    {form.media_url}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => update('media_url', '')}
+                    style={{ fontSize: 12, padding: '6px 12px', borderRadius: 8, background: '#fee', border: '1px solid #fcc', color: '#c00', cursor: 'pointer' }}
+                  >
+                    🗑️ Retirer le média
+                  </button>
+                </div>
               </div>
             )}
-            {uploading && <div className="muted">Upload…</div>}
+            {uploading && <div className="muted" style={{ marginTop: 8 }}>📤 Upload en cours…</div>}
           </div>
         )}
 
