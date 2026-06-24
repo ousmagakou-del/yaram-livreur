@@ -35,6 +35,17 @@ const NotificationsSection       = lazy(() => import('../admin/NotificationsSect
 const PushBroadcastSection       = lazy(() => import('../admin/PushBroadcastSection'));
 const NewsletterSection          = lazy(() => import('../admin/NewsletterSection'));
 const IntlRequestsSection        = lazy(() => import('../admin/IntlRequestsSection'));
+// ─── Nouvelles sections (juin 2026) ────────────────────────────────────────
+const ArticlesSection            = lazy(() => import('../admin/ArticlesSection'));
+const RoutinesSection            = lazy(() => import('../admin/RoutinesSection'));
+const SubscriptionsSection       = lazy(() => import('../admin/SubscriptionsSection'));
+const SupportSection             = lazy(() => import('../admin/SupportSection'));
+const ProductReviewsSection      = lazy(() => import('../admin/ProductReviewsSection'));
+const CounterfeitSection         = lazy(() => import('../admin/CounterfeitSection'));
+const VerifyRequestsSection      = lazy(() => import('../admin/VerifyRequestsSection'));
+const InventorySection           = lazy(() => import('../admin/InventorySection'));
+const RestockAlertsSection       = lazy(() => import('../admin/RestockAlertsSection'));
+const PharmacistSessionsSection  = lazy(() => import('../admin/PharmacistSessionsSection'));
 
 import './Admin.css';
 
@@ -56,6 +67,7 @@ const NAV = [
   { id: 'commissions', icon: '💰', label: 'Commissions' },
   { id: 'finances',    icon: '💸', label: 'Finances' },
   { id: 'loyalty',     icon: '💚', label: 'Fidélité' },
+  { id: 'subscriptions', icon: '👑', label: 'Abonnements YARAM+', badge: true },
   { id: 'notifications', icon: '📲', label: 'Notifications WhatsApp' },
   { id: 'push',          icon: '🔔', label: 'Push iOS' },
   { id: 'newsletter',    icon: '📬', label: 'Newsletter' },
@@ -65,15 +77,24 @@ const NAV = [
   { id: 'brands',      icon: '🏷️', label: 'Marques' },
   { id: 'banners',     icon: '🎨', label: 'Bannières' },
   { id: 'stories',     icon: '📸', label: 'Stories' },
+  { id: 'articles',    icon: '📝', label: 'Articles' },
+  { id: 'routines',    icon: '🧴', label: 'Routines beauté' },
   { id: 'categories',  icon: '📂', label: 'Catégories' },
   { id: 'promos',      icon: '🎁', label: 'Codes promo' },
   { id: 'marketing',   icon: '📣', label: 'Marketing' },
   { id: 'imports',     icon: '✈️', label: 'Imports' },
   { id: 'splash',      icon: '✨', label: 'Splash Promos' },
   { id: 'reviews',     icon: '⭐', label: 'Modération avis' },
+  { id: 'product_reviews', icon: '⭐', label: 'Modération avis produits' },
+  { id: 'counterfeit', icon: '🚨', label: 'Contrefaçons', badge: true },
   { id: 'users',       icon: '👥', label: 'Utilisatrices' },
+  { id: 'support',     icon: '🆘', label: 'Tickets support', badge: true },
+  { id: 'verify',      icon: '🔍', label: 'Vérifications Tier 3' },
   { id: 'deliveries',  icon: '🛵', label: 'Livraisons' },
   { id: 'staff',       icon: '👷', label: 'Équipe' },
+  { id: 'pharmacist_sessions', icon: '🔐', label: 'Sessions pharmaciens' },
+  { id: 'inventory',   icon: '📦', label: 'Inventaire global' },
+  { id: 'restock',     icon: '⚠️', label: 'Alertes restock', badge: true },
   { id: 'history',     icon: '📜', label: 'Historique' },
   { id: 'settings',    icon: '⚙️', label: 'Paramètres' },
   { id: 'adminusers',  icon: '👥', label: 'Gestion admins' },
@@ -381,6 +402,17 @@ export default function Admin() {
           {section === 'settings'      && <SettingsSection />}
           {section === 'adminusers'    && <AdminUsersSection />}
           {section === 'adminlogs'     && <AdminLogsSection />}
+          {/* ─── Nouvelles sections (juin 2026) ─────────────────────────── */}
+          {section === 'articles'             && <ArticlesSection />}
+          {section === 'routines'             && <RoutinesSection />}
+          {section === 'subscriptions'        && <SubscriptionsSection />}
+          {section === 'support'              && <SupportSection />}
+          {section === 'product_reviews'      && <ProductReviewsSection />}
+          {section === 'counterfeit'          && <CounterfeitSection />}
+          {section === 'verify'               && <VerifyRequestsSection />}
+          {section === 'inventory'            && <InventorySection />}
+          {section === 'restock'              && <RestockAlertsSection />}
+          {section === 'pharmacist_sessions'  && <PharmacistSessionsSection />}
         </Suspense>
       </main>
 
