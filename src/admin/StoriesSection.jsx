@@ -298,11 +298,29 @@ function StoryForm({ story, onSave, onCancel }) {
     try {
       const url = await uploadStoryMedia(file);
       update('media_url', url);
-      toast.success('Image uploadée ✓');
+      toast.success('Média uploadé ✓');
     } catch (err) {
       toast.error('Upload échoué : ' + err.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  // ─── Upload cover image (poster) pour story vidéo ───
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const url = await uploadStoryMedia(file);
+      update('cover_url', url);
+      toast.success('Image de couverture uploadée ✓');
+    } catch (err) {
+      toast.error('Upload échoué : ' + err.message);
+    } finally {
+      setUploadingCover(false);
+      e.target.value = '';
     }
   };
 
@@ -409,6 +427,60 @@ function StoryForm({ story, onSave, onCancel }) {
               </div>
             )}
             {uploading && <div className="muted" style={{ marginTop: 8 }}>📤 Upload en cours…</div>}
+
+            {/* ═══ COVER IMAGE pour story VIDÉO uniquement ═══ */}
+            {form.content_type === 'video' && (
+              <div style={{
+                marginTop: 20, padding: 14, background: '#FFF7E6',
+                borderRadius: 12, border: '1px solid #FBBF24',
+              }}>
+                <label style={{ fontWeight: 800, color: '#7C2D12', fontSize: 13 }}>
+                  📸 Image de couverture (poster)
+                </label>
+                <p style={{ fontSize: 11.5, color: '#7C2D12', marginTop: 4, marginBottom: 10 }}>
+                  Affichée dans le <strong>cercle du carousel</strong> en haut de la home + comme <strong>poster</strong>
+                  pendant le chargement de la vidéo. Si non définie, on utilise l'emoji par défaut.
+                </p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCoverUpload}
+                  disabled={uploadingCover}
+                  style={{ marginBottom: 8 }}
+                />
+                {uploadingCover && <div className="muted" style={{ fontSize: 12 }}>📤 Upload cover en cours…</div>}
+
+                {form.cover_url && (
+                  <div style={{ marginTop: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
+                    {/* Preview cercle (comme dans le carousel home) */}
+                    <div style={{
+                      width: 70, height: 70, borderRadius: '50%',
+                      backgroundImage: `url(${form.cover_url})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      border: '3px solid #1F8B4C',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#1F8B4C', marginBottom: 4 }}>
+                        ✓ Cover appliquée
+                      </div>
+                      <div className="muted" style={{ fontSize: 10, wordBreak: 'break-all', marginBottom: 8 }}>
+                        {form.cover_url}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => update('cover_url', '')}
+                        style={{
+                          fontSize: 11, padding: '5px 10px', borderRadius: 6,
+                          background: '#fee', border: '1px solid #fcc', color: '#c00', cursor: 'pointer',
+                        }}
+                      >🗑️ Retirer la cover</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
