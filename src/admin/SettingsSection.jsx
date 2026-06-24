@@ -45,6 +45,8 @@ const DEFAULTS = {
   heroLine3: 'service',
   heroSubtext: 'Livraison à 1 500 FCFA',
   heroBackground: '#1F8B4C',
+  heroImage: '',                // ← URL image de couverture (override la couleur si défini)
+  heroOverlayOpacity: 0.5,      // ← 0.0 à 1.0 : voile noir sur l'image pour lisibilité texte
   heroLine1Color: '#FFF8E5',
   heroLineColor: '#FFFFFF',
   heroSubBg: '#F4B53A',
@@ -87,6 +89,32 @@ export default function SettingsSection() {
   const handleIntlBgClear = async () => {
     if (!(await confirmDialog('Retirer l\'image de fond ?', { confirmLabel: 'Retirer' }))) return;
     setSettings(s => ({ ...s, intlBgImage: '' }));
+    toast.success('Image retirée — clique sur Enregistrer pour appliquer');
+  };
+
+  // ─── Upload image de couverture pour Hero banner home ───
+  const [uploadingHero, setUploadingHero] = useState(false);
+  const handleHeroImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingHero(true);
+    try {
+      const url = await uploadBannerImage(file);
+      if (url) {
+        setSettings(s => ({ ...s, heroImage: url }));
+        toast.success('Image uploadée — clique sur Enregistrer pour appliquer');
+      }
+    } catch (err) {
+      toast.error('Upload échoué : ' + (err?.message || 'erreur'), { duration: 7000 });
+    } finally {
+      setUploadingHero(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleHeroImageClear = async () => {
+    if (!(await confirmDialog('Retirer l\'image de couverture du hero ?', { confirmLabel: 'Retirer' }))) return;
+    setSettings(s => ({ ...s, heroImage: '' }));
     toast.success('Image retirée — clique sur Enregistrer pour appliquer');
   };
 
@@ -259,6 +287,95 @@ export default function SettingsSection() {
               <label>Couleur L2/L3<input type="color" value={settings.heroLineColor} onChange={e => setSettings({ ...settings, heroLineColor: e.target.value })} style={{ height: 40 }} /></label>
               <label>Pill fond<input type="color" value={settings.heroSubBg} onChange={e => setSettings({ ...settings, heroSubBg: e.target.value })} style={{ height: 40 }} /></label>
               <label>Pill texte<input type="color" value={settings.heroSubColor} onChange={e => setSettings({ ...settings, heroSubColor: e.target.value })} style={{ height: 40 }} /></label>
+            </div>
+
+            {/* ════════ IMAGE DE COUVERTURE (override couleur de fond) ════════ */}
+            <div style={{ marginTop: 20, padding: 16, background: '#FAFAFA', borderRadius: 12, border: '1px solid #E5E5E5' }}>
+              <h4 style={{ margin: 0, marginBottom: 8 }}>📸 Image de couverture (optionnel)</h4>
+              <p style={{ fontSize: 12, color: '#6B6B6B', marginBottom: 12 }}>
+                Si tu uploades une image, elle remplace la couleur de fond du hero. Un voile noir transparent
+                est appliqué par dessus pour que le texte blanc reste lisible.
+              </p>
+
+              {/* Aperçu live */}
+              <div style={{
+                position: 'relative',
+                height: 160,
+                borderRadius: 12,
+                overflow: 'hidden',
+                background: settings.heroImage
+                  ? `url(${settings.heroImage}) center/cover`
+                  : settings.heroBackground || '#1F8B4C',
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {settings.heroImage && (
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    background: `rgba(0,0,0,${settings.heroOverlayOpacity || 0.5})`,
+                  }} />
+                )}
+                <div style={{
+                  position: 'relative', zIndex: 1, color: '#fff',
+                  fontSize: 22, fontWeight: 900, textAlign: 'center', letterSpacing: -0.5,
+                  textShadow: settings.heroImage ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
+                }}>
+                  {settings.heroImage ? '✨ Aperçu avec voile' : 'Pas d\'image — fond couleur'}
+                </div>
+              </div>
+
+              {/* Upload + clear */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                <label style={{
+                  display: 'inline-block', padding: '10px 18px',
+                  background: '#1F8B4C', color: '#fff', borderRadius: 8,
+                  cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                  opacity: uploadingHero ? 0.6 : 1,
+                }}>
+                  {uploadingHero ? 'Upload…' : (settings.heroImage ? '🔄 Changer l\'image' : '📤 Uploader une image')}
+                  <input type="file" accept="image/*" onChange={handleHeroImageUpload} disabled={uploadingHero} style={{ display: 'none' }} />
+                </label>
+                {settings.heroImage && (
+                  <button
+                    type="button"
+                    onClick={handleHeroImageClear}
+                    style={{
+                      padding: '10px 14px', background: '#fff', color: '#D9342B',
+                      border: '2px solid #D9342B', borderRadius: 8,
+                      cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                    }}
+                  >Retirer l'image</button>
+                )}
+              </div>
+
+              {/* Slider opacité voile */}
+              {settings.heroImage && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                    Opacité du voile noir : <span style={{ color: '#1F8B4C' }}>{Math.round((settings.heroOverlayOpacity || 0.5) * 100)}%</span>
+                  </label>
+                  <p style={{ fontSize: 11, color: '#6B6B6B', marginBottom: 6 }}>
+                    Voile sombre par dessus l'image pour lisibilité du texte blanc.
+                    0% = image brute (texte peu lisible), 100% = noir total.
+                  </p>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={settings.heroOverlayOpacity || 0.5}
+                    onChange={e => setSettings({ ...settings, heroOverlayOpacity: parseFloat(e.target.value) })}
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>
+                    <span>0% (clair)</span>
+                    <span>50% (recommandé)</span>
+                    <span>100% (sombre)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
