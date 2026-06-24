@@ -54,6 +54,9 @@ const emptyForm = () => ({
   content_type: 'text',
   content_text: '',
   media_url: '',
+  cover_url: '',           // ← Image poster pour stories vidéo
+  badge_label: '',         // ← Badge promo (ex: PROMO, NOUVEAU, -30%)
+  badge_color: '#EF4444',  // ← Couleur du badge (rouge par défaut)
   cta_label: '',
   cta_url: '',
   priority: 0,
@@ -340,6 +343,53 @@ function StoryForm({ story, onSave, onCancel }) {
         <div>
           <label>Emoji</label>
           <input value={form.emoji} onChange={(e) => update('emoji', e.target.value)} placeholder="✨" maxLength={4} style={{ fontSize: 22, textAlign: 'center' }} />
+        </div>
+
+        {/* ═══ BADGE PROMO (chip rouge sur le cercle de la story) ═══ */}
+        <div className="full" style={{ padding: 12, background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10 }}>
+          <label style={{ fontWeight: 800, color: '#991B1B', display: 'block', marginBottom: 4 }}>
+            🏷️ Badge promo (optionnel)
+          </label>
+          <p style={{ fontSize: 11, color: '#7F1D1D', marginBottom: 10 }}>
+            Petit chip qui apparaît en haut du cercle de la story. Idéal pour <strong>PROMO, NOUVEAU, -30%, LIVE</strong>, etc. Laisse vide si pas de badge.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, alignItems: 'end' }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700 }}>Texte (max 8 caractères)</label>
+              <input
+                value={form.badge_label || ''}
+                onChange={(e) => update('badge_label', e.target.value.slice(0, 8))}
+                placeholder="PROMO"
+                maxLength={8}
+                style={{ textTransform: 'uppercase' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700 }}>Couleur</label>
+              <input
+                type="color"
+                value={form.badge_color || '#EF4444'}
+                onChange={(e) => update('badge_color', e.target.value)}
+                style={{ height: 38, width: '100%' }}
+              />
+            </div>
+          </div>
+          {form.badge_label && (
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ fontSize: 11, color: '#7F1D1D', fontWeight: 700 }}>Aperçu :</div>
+              <div style={{
+                background: form.badge_color || '#EF4444',
+                color: '#fff',
+                padding: '3px 9px',
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 900,
+                letterSpacing: 0.3,
+                border: '1.5px solid #fff',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+              }}>{form.badge_label.toUpperCase()}</div>
+            </div>
+          )}
         </div>
 
         <div className="full">
