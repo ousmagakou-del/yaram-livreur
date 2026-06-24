@@ -18,7 +18,7 @@ export default function PharmaciesSection() {
     // refuse toute la query car * demande la permission sur toutes les colonnes.
     const { data, error } = await supabase
       .from('pharmacies')
-      .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, commission, active, rating, review_count, pin_set_at, created_at, updated_at, notification_email, notification_phone')
+      .select('id, name, tagline, owner_name, manager_name, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, description, commission, active, rating, review_count, pin_set_at, created_at, updated_at, notification_email, notification_phone, delivery_radius_km')
       .order('created_at', { ascending: false });
     if (error) console.warn('[PharmaciesSection] fetch error:', error.message);
     setPharmacies(data || []);
@@ -62,6 +62,9 @@ export default function PharmaciesSection() {
         lng: p.lng ? parseFloat(p.lng) : null,
         hours: p.hours, commission: parseFloat(p.commission || 8),
         active: p.active, logo: p.logo, cover: p.cover, tagline: p.tagline,
+        delivery_radius_km: p.delivery_radius_km != null && p.delivery_radius_km !== ''
+          ? Math.max(0.5, Math.min(50, parseFloat(p.delivery_radius_km)))
+          : null,
       };
       // AUDIT : log update pharma (incluant transition active true/false).
       adminLogAction({
@@ -140,7 +143,7 @@ export default function PharmaciesSection() {
       name: '', owner_name: '', address: '', city: 'Dakar', neighborhood: '',
       phone: '', whatsapp: '', lat: '', lng: '',
       hours: '8h-20h', pin: '0000', commission: 8, active: true,
-      logo: '', cover: '', tagline: '',
+      logo: '', cover: '', tagline: '', delivery_radius_km: 8,
     });
   };
 
@@ -187,6 +190,7 @@ export default function PharmaciesSection() {
                   <div>💬 {p.whatsapp || '—'}</div>
                   <div>🕐 {p.hours || '—'}</div>
                   <div>💰 Commission {p.commission || 8}%</div>
+                  <div>🛵 Rayon livraison {p.delivery_radius_km ?? 8} km</div>
                   <div>🔐 {p.pin_set_at ? 'PIN défini' : 'PIN par défaut (0000)'}</div>
                 </div>
                 <div className="adm-ph-actions">
@@ -266,6 +270,21 @@ function PharmacyEditor({ pharmacy, onSave, onCancel }) {
         <div className="adm-form-section">
           <h3>Business</h3>
           <label>Commission YARAM (%)<input type="number" step="0.1" value={p.commission} onChange={e => upd('commission', e.target.value)} /></label>
+          <label>
+            Rayon de livraison (km)
+            <input
+              type="number"
+              step="0.5"
+              min="0.5"
+              max="50"
+              value={p.delivery_radius_km ?? ''}
+              onChange={e => upd('delivery_radius_km', e.target.value)}
+              placeholder="8"
+            />
+            <small style={{ display: 'block', marginTop: 4, color: '#9B9B9B', fontSize: 11 }}>
+              Distance maximale de livraison depuis la pharmacie (0.5 → 50 km). Dakar : 10 km, banlieue : 15 km.
+            </small>
+          </label>
           {!p.id ? (
             <label>PIN d'accès staff initial<input value={p.pin || ''} onChange={e => upd('pin', e.target.value)} placeholder="0000" maxLength={6} /></label>
           ) : (
