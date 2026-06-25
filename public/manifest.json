@@ -65,6 +65,20 @@
       "description": "Suivre mes commandes",
       "url": "/?orders",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Espace Livreur",
+      "short_name": "Livreur",
+      "description": "Mes livraisons assignées",
+      "url": "/?livreur=last",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Espace Pharmacie",
+      "short_name": "Pharmacie",
+      "description": "Mes commandes à préparer",
+      "url": "/?pharma=last",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

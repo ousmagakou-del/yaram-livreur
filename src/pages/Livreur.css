@@ -1373,3 +1373,524 @@ html, body, #root {
     transition: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   HERO TOPBAR PRO (logo YARAM + tracking pill)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.liv-hero-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 600px;
+  margin: 0 auto 14px;
+  position: relative;
+  z-index: 2;
+}
+.liv-hero-brandblock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.liv-yaram-logo {
+  display: block;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  flex-shrink: 0;
+}
+.liv-hero-brandtext {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.liv-hero-brandname {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: white;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.liv-hero-brandsub {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+  margin-top: 3px;
+}
+
+/* ─── Tracking pill (statut global) ─── */
+.liv-tracking-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+.liv-tp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  animation: livPillPulse 1.6s ease-in-out infinite;
+}
+@keyframes livPillPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+  60%      { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+}
+.liv-tp-idle .liv-tp-dot      { background: #E5E7EB; }
+.liv-tp-pickup .liv-tp-dot    { background: #BAE6FD; }
+.liv-tp-route .liv-tp-dot     { background: #FDE68A; }
+.liv-tp-arrived .liv-tp-dot   { background: #FECDD3; }
+.liv-tp-confirm .liv-tp-dot   { background: #DDD6FE; }
+.liv-tp-delivered .liv-tp-dot { background: #BBF7D0; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROGRESS TIMELINE (DoorDash-style)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.liv-timeline-wrap {
+  max-width: 600px;
+  margin: 18px auto 0;
+  position: relative;
+  z-index: 2;
+}
+.liv-timeline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0 6px;
+  position: relative;
+}
+.liv-tl-step {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.liv-tl-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10px;
+  font-weight: 800;
+  transition: background .3s var(--liv-ease), border-color .3s var(--liv-ease), transform .3s var(--liv-ease);
+  z-index: 2;
+}
+.liv-tl-num {
+  line-height: 1;
+}
+.liv-tl-done .liv-tl-dot {
+  background: white;
+  border-color: white;
+  color: var(--liv-primary);
+}
+.liv-tl-done .liv-tl-dot svg path {
+  stroke: var(--liv-primary);
+}
+.liv-tl-active .liv-tl-dot {
+  background: white;
+  border-color: white;
+  color: var(--liv-text);
+  transform: scale(1.18);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.28);
+  animation: livTlActive 1.8s ease-in-out infinite;
+}
+@keyframes livTlActive {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.28); }
+  50%      { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.15); }
+}
+.liv-tl-label {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70px;
+}
+.liv-tl-active .liv-tl-label,
+.liv-tl-done .liv-tl-label {
+  color: white;
+}
+.liv-tl-line {
+  position: absolute;
+  top: 10px;
+  left: calc(50% + 14px);
+  right: calc(-50% + 14px);
+  height: 2px;
+  background: rgba(255, 255, 255, 0.28);
+  z-index: 1;
+  transition: background .35s var(--liv-ease);
+}
+.liv-tl-line.done {
+  background: white;
+}
+
+.liv-tl-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+}
+.liv-tl-counter {
+  background: rgba(255, 255, 255, 0.22);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.liv-tl-dot-sep {
+  opacity: 0.6;
+}
+.liv-tl-short {
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DOORDASH-STYLE LOCATION CARDS (pickup / delivery)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.liv-dd-section {
+  margin-bottom: 0;
+}
+.liv-dd-section + .liv-dd-section {
+  margin-top: 4px;
+}
+.liv-dd-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--liv-text-muted);
+  margin: 0 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.liv-dd-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.liv-dd-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.liv-dd-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.liv-dd-icon-pickup {
+  background: rgba(0, 102, 204, 0.1);
+  color: var(--liv-status-pickup);
+}
+.liv-dd-icon-delivery {
+  background: var(--liv-primary-soft);
+  color: var(--liv-primary);
+}
+.liv-dd-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.liv-dd-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--liv-text);
+  line-height: 1.2;
+  word-break: break-word;
+}
+.liv-dd-sub {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--liv-text-muted);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.liv-dd-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.liv-dd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+.liv-dd-chip-neutral {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--liv-text);
+}
+.liv-dd-chip-primary {
+  background: var(--liv-primary-soft);
+  color: var(--liv-primary-dark);
+}
+.liv-dd-chip-cash {
+  background: #FEF6E5;
+  color: #A07700;
+}
+.liv-dd-chip-paid {
+  background: var(--liv-primary-soft);
+  color: var(--liv-primary-dark);
+}
+.liv-dd-chip-wa {
+  background: rgba(37, 211, 102, 0.12);
+  color: #128C7E;
+}
+
+.liv-dd-divider {
+  height: 1px;
+  background: rgba(15, 23, 42, 0.06);
+  margin: 14px -18px;
+}
+
+.liv-dd-actions {
+  display: flex;
+  gap: 10px;
+}
+.liv-dd-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: transform .15s var(--liv-ease), filter .2s var(--liv-ease), box-shadow .2s var(--liv-ease);
+}
+.liv-dd-btn:active { transform: scale(.97); }
+.liv-dd-btn-maps {
+  background: linear-gradient(135deg, #4285F4 0%, #1A5DBF 100%);
+  color: white !important;
+  box-shadow: 0 6px 16px rgba(66, 133, 244, 0.28);
+}
+.liv-dd-btn-maps:hover { filter: brightness(1.05); }
+.liv-dd-btn-call {
+  background: linear-gradient(135deg, var(--liv-primary) 0%, var(--liv-primary-dark) 100%);
+  color: white !important;
+  box-shadow: 0 6px 16px rgba(31, 139, 76, 0.28);
+}
+.liv-dd-btn-call:hover { filter: brightness(1.05); }
+
+.liv-dd-hint {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(244, 181, 58, 0.1);
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #92400E;
+  line-height: 1.4;
+}
+
+.liv-dd-wa-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: rgba(37, 211, 102, 0.1);
+  color: #128C7E !important;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+  text-decoration: none;
+  letter-spacing: -0.005em;
+}
+.liv-dd-wa-link:hover { background: rgba(37, 211, 102, 0.16); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ARTICLES COLLAPSIBLE (details/summary)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.liv-articles-details {
+  padding: 0;
+  overflow: hidden;
+}
+.liv-articles-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  user-select: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.liv-articles-summary::-webkit-details-marker { display: none; }
+.liv-articles-summary::marker { display: none; }
+.liv-articles-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.liv-articles-summary-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.liv-articles-count {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--liv-text);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.liv-articles-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--liv-text-muted);
+  transition: transform .25s var(--liv-ease);
+}
+.liv-articles-details[open] .liv-articles-chevron {
+  transform: rotate(180deg);
+  color: var(--liv-primary);
+}
+.liv-articles-body {
+  padding: 0 16px 16px;
+  animation: livArticlesIn .25s var(--liv-ease) both;
+}
+@keyframes livArticlesIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STICKY CTA PRO (icon + subtitle + chevron)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.liv-btn-final-pro {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  min-height: 64px;
+  text-align: left;
+}
+.liv-cta-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: white;
+}
+.liv-cta-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.liv-cta-subtitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+.liv-cta-label {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.liv-cta-chev {
+  font-size: 28px;
+  font-weight: 800;
+  opacity: 0.9;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.liv-btn-final-pro:disabled .liv-cta-icon {
+  background: rgba(0, 0, 0, 0.06);
+  color: #6B7280;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — petits écrans
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 380px) {
+  .liv-hero-brandname { font-size: 14px; }
+  .liv-hero-brandsub { font-size: 10px; }
+  .liv-tracking-pill { padding: 6px 10px; font-size: 11px; }
+  .liv-tl-label { font-size: 9px; max-width: 60px; }
+  .liv-tl-dot { width: 20px; height: 20px; }
+  .liv-dd-card { padding: 16px 14px 14px; }
+  .liv-dd-title { font-size: 18px; }
+  .liv-dd-sub { font-size: 13px; }
+  .liv-dd-btn { font-size: 14px; min-height: 48px; }
+  .liv-dd-divider { margin: 12px -14px; }
+  .liv-cta-label { font-size: 15px; }
+  .liv-cta-subtitle { font-size: 10px; }
+}

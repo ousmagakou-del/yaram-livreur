@@ -66,12 +66,256 @@ function getCurrentPositionAsync(opts = { enableHighAccuracy: true, timeout: 150
   });
 }
 
+// ─── LOGO YARAM (inline SVG) ─────────────────────────────────────
+// Y blanc sur disque vert dégradé + petit point orange signature.
+// Utilisé dans le header pro du livreur.
+function YaramLogo({ size = 44 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 1024 1024"
+      xmlns="http://www.w3.org/2000/svg"
+      shapeRendering="geometricPrecision"
+      aria-hidden="true"
+      className="liv-yaram-logo"
+    >
+      <defs>
+        <linearGradient id="liv-y-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#22B564" />
+          <stop offset="100%" stopColor="#0E6A38" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="1024" height="1024" rx="240" fill="url(#liv-y-grad)" />
+      <g transform="translate(-251.23 -174.85) scale(6)">
+        <path
+          fill="#fff"
+          d="M153.9,64.45l-20.93,30.57-21.02-30.57h-24.32l28.48,41.39v58.66h23.8v-60.88l26.87-39.16h-12.87Z"
+        />
+      </g>
+      <circle fill="#F4B53A" cx="780" cy="780" r="64" />
+    </svg>
+  );
+}
+
+// ─── Status pill mapping ─────────────────────────────────────────
+// Reflète tracking.status avec couleur dédiée + dot animé.
+const TRACKING_PILL = {
+  assigned:        { label: 'Assigné',         tone: 'idle'     },
+  picking:         { label: 'Au pickup',       tone: 'pickup'   },
+  picked:          { label: 'Articles pris',   tone: 'pickup'   },
+  in_route:        { label: 'En route',        tone: 'route'    },
+  arrived:         { label: 'Arrivé',          tone: 'arrived'  },
+  cash_collected:  { label: 'Cash encaissé',   tone: 'arrived'  },
+  proof_uploaded:  { label: 'Preuve envoyée',  tone: 'confirm'  },
+  delivered:       { label: 'Livré',           tone: 'delivered'},
+};
+
+function TrackingPill({ status }) {
+  const cfg = TRACKING_PILL[status] || TRACKING_PILL.assigned;
+  return (
+    <span className={`liv-tracking-pill liv-tp-${cfg.tone}`}>
+      <span className="liv-tp-dot" aria-hidden="true" />
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── PROGRESS TIMELINE (DoorDash-style) ──────────────────────────
+// 5 étapes : Assigné → Pickup → Articles → En route → Livré.
+// Utilise stepDone() pour déterminer le status de chaque cercle.
+function ProgressTimeline({ stepDone, currentStatus }) {
+  const steps = [
+    { key: 'assigned', label: 'Assigné',  short: 'Mission reçue'        },
+    { key: 'picking',  label: 'Pickup',   short: 'À la pharmacie'        },
+    { key: 'picked',   label: 'Récupéré', short: 'Articles en main'      },
+    { key: 'in_route', label: 'En route', short: 'Vers la cliente'       },
+    { key: 'delivered', label: 'Livré',   short: 'Mission terminée'      },
+  ];
+  // Index courant : dernière étape franchie
+  const lastDoneIdx = steps.reduce((acc, s, i) => (stepDone(s.key) ? i : acc), 0);
+  // L'étape "en cours" est celle juste après la dernière franchie (sauf si tout est livré)
+  const activeIdx = currentStatus === 'delivered' ? steps.length - 1
+                    : Math.min(lastDoneIdx + 1, steps.length - 1);
+  const current = steps[activeIdx];
+
+  return (
+    <div className="liv-timeline-wrap" aria-label={`Étape ${activeIdx + 1} sur ${steps.length}`}>
+      <div className="liv-timeline">
+        {steps.map((s, i) => {
+          const done = stepDone(s.key);
+          const isActive = i === activeIdx && !done;
+          const cls = done ? 'done' : isActive ? 'active' : 'idle';
+          return (
+            <div key={s.key} className={`liv-tl-step liv-tl-${cls}`}>
+              <div className="liv-tl-dot">
+                {done ? (
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                ) : (
+                  <span className="liv-tl-num">{i + 1}</span>
+                )}
+              </div>
+              <div className="liv-tl-label">{s.label}</div>
+              {i < steps.length - 1 && (
+                <div className={`liv-tl-line ${stepDone(steps[i + 1].key) ? 'done' : ''}`} aria-hidden="true" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="liv-tl-meta">
+        <span className="liv-tl-counter">Étape {activeIdx + 1}/{steps.length}</span>
+        <span className="liv-tl-dot-sep" aria-hidden="true">·</span>
+        <span className="liv-tl-short">{current.short}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── DoorDash-style location card ────────────────────────────────
+// Utilisée pour "RÉCUPÉRER À" (pickup) et "LIVRER À" (delivery).
+// Props :
+//  - kind: 'pickup' | 'delivery'  (couleur de l'icône)
+//  - title: nom (gros bold)
+//  - subtitle: adresse
+//  - phone: pour bouton "Appeler"
+//  - mapsUrl: deeplink Google Maps
+//  - meta: array de petits chips info (montant, paiement, etc.)
+//  - hint: phrase d'aide en pied de card (ex: "Sourcing libre")
+function DoorDashLocationCard({
+  kind = 'pickup',
+  sectionLabel,
+  title,
+  subtitle,
+  phone,
+  mapsUrl,
+  meta = [],
+  hint,
+  children,
+}) {
+  return (
+    <section className="liv-dd-section">
+      <div className="liv-dd-section-label">{sectionLabel}</div>
+      <div className={`liv-dd-card liv-dd-${kind}`}>
+        <div className="liv-dd-head">
+          <div className={`liv-dd-icon liv-dd-icon-${kind}`} aria-hidden="true">
+            {kind === 'pickup' ? (
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7h18l-2 12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L3 7Z" />
+                <path d="M8 7V5a4 4 0 0 1 8 0v2" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12Z" />
+                <circle cx="12" cy="10" r="2.5" />
+              </svg>
+            )}
+          </div>
+          <div className="liv-dd-head-text">
+            <div className="liv-dd-title">{title || '—'}</div>
+            {subtitle && <div className="liv-dd-sub">{subtitle}</div>}
+          </div>
+        </div>
+
+        {meta.length > 0 && (
+          <div className="liv-dd-meta">
+            {meta.map((m, i) => (
+              <span key={i} className={`liv-dd-chip liv-dd-chip-${m.tone || 'neutral'}`}>
+                {m.icon && <span aria-hidden="true">{m.icon}</span>}{m.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {children}
+
+        <div className="liv-dd-divider" />
+
+        <div className="liv-dd-actions">
+          {mapsUrl && (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="liv-dd-btn liv-dd-btn-maps"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polygon points="3 6 9 4 15 6 21 4 21 18 15 20 9 18 3 20 3 6" />
+                <line x1="9" y1="4" x2="9" y2="18" />
+                <line x1="15" y1="6" x2="15" y2="20" />
+              </svg>
+              Itinéraire
+            </a>
+          )}
+          {phone && (
+            <a
+              href={`tel:${phone}`}
+              className="liv-dd-btn liv-dd-btn-call"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z" />
+              </svg>
+              Appeler
+            </a>
+          )}
+        </div>
+
+        {hint && <div className="liv-dd-hint">{hint}</div>}
+      </div>
+    </section>
+  );
+}
+
+// ─── Helper : Google Maps deeplink avec fallback ─────────────────
+// Si lat/lng dispo → mode "direction" (turn-by-turn).
+// Sinon → mode "search" avec adresse texte.
+function buildMapsUrl({ lat, lng, address, city }) {
+  if (lat != null && lng != null) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  }
+  const q = encodeURIComponent([address, city || 'Dakar'].filter(Boolean).join(', '));
+  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
+// ─── Label méthode paiement ──────────────────────────────────────
+function paymentLabel(method) {
+  if (!method) return 'Paiement';
+  const m = method.toLowerCase();
+  if (m === 'cod' || m === 'cash') return 'Cash';
+  if (m === 'wave') return 'Wave';
+  if (m === 'om' || m === 'orange_money') return 'Orange Money';
+  if (m === 'stripe' || m === 'card') return 'Carte bancaire';
+  return method.toUpperCase();
+}
+
 export default function Livreur() {
   const [order, setOrder] = useState(null);
   const [tracking, setTracking] = useState(null);
   const [pharmacies, setPharmacies] = useState([]);
   const [sourcing, setSourcing] = useState([]);
   const [token, setToken] = useState('');
+  const [pwaInstallPrompt, setPwaInstallPrompt] = useState(null);
+
+  // ─── PWA install prompt (Android/Desktop) ─────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setPwaInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallPwa = async () => {
+    if (!pwaInstallPrompt) return;
+    pwaInstallPrompt.prompt();
+    const choice = await pwaInstallPrompt.userChoice;
+    if (choice?.outcome === 'accepted') {
+      setPwaInstallPrompt(null);
+    }
+  };
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [sharingGPS, setSharingGPS] = useState(false);
@@ -131,10 +375,34 @@ export default function Livreur() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const t = params.get('livreur');
-    if (t) {
+    let t = params.get('livreur');
+
+    // PWA mode : si le livreur lance YARAM depuis l'icône PWA avec ?livreur=last,
+    // on récupère son dernier token sauvegardé en localStorage
+    if (t === 'last' || !t) {
+      try {
+        const saved = localStorage.getItem('yaram_livreur_last_token');
+        if (saved) {
+          const { token: savedToken, expiresAt } = JSON.parse(saved);
+          // Token expiré (> 7 jours) → on l'ignore
+          if (savedToken && (!expiresAt || Date.parse(expiresAt) > Date.now())) {
+            t = savedToken;
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    if (t && t !== 'last') {
       setToken(t);
       loadTracking(t);
+      // Persiste pour le mode PWA "icône d'accueil"
+      try {
+        localStorage.setItem('yaram_livreur_last_token', JSON.stringify({
+          token: t,
+          expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+          savedAt: new Date().toISOString(),
+        }));
+      } catch (e) { /* ignore */ }
     } else {
       setLoading(false);
       setError('Token manquant');
@@ -595,9 +863,6 @@ export default function Livreur() {
   const clientWaUrl = order?.address?.phone
     ? `https://wa.me/${(order.address?.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent('Salut, je suis ton livreur YARAM, je suis en route !')}`
     : null;
-  const clientMapsUrl = order?.address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address.line || ''}, ${order.address.city || 'Dakar'}`)}`
-    : null;
 
   // ─── stepDone : check si une étape est franchie ───
   const stepDone = (s) => {
@@ -663,9 +928,22 @@ export default function Livreur() {
 
   return (
     <div className="liv-screen">
-      {/* ─── HERO STICKY PREMIUM ─── */}
+      {/* ─── HERO STICKY PREMIUM (DoorDash-style header) ─── */}
       <header className={`liv-hero liv-hero-${heroState.phase}`}>
         <div className="liv-hero-bg" aria-hidden="true" />
+
+        {/* Top brand bar : logo YARAM + statut pill */}
+        <div className="liv-hero-topbar">
+          <div className="liv-hero-brandblock">
+            <YaramLogo size={40} />
+            <div className="liv-hero-brandtext">
+              <span className="liv-hero-brandname">YARAM</span>
+              <span className="liv-hero-brandsub">Livreur</span>
+            </div>
+          </div>
+          <TrackingPill status={tracking?.status || 'assigned'} />
+        </div>
+
         <div className="liv-hero-inner">
           <div className="liv-hero-icon" aria-hidden="true">{heroState.icon}</div>
           <div className="liv-hero-text">
@@ -678,8 +956,12 @@ export default function Livreur() {
               </div>
             )}
           </div>
-          <div className="liv-hero-brand" aria-hidden="true">Y</div>
         </div>
+
+        {/* Progress timeline en bas du hero */}
+        {!isCompleted && (
+          <ProgressTimeline stepDone={stepDone} currentStatus={tracking?.status} />
+        )}
       </header>
 
       {/* ─── CONFETTI sur delivered ─── */}
@@ -693,50 +975,90 @@ export default function Livreur() {
 
       <main className="liv-main">
 
-        {/* ─── CARTE CLIENTE (glass) ─── */}
-        <section className="liv-glass liv-card-stagger" style={{ '--i': 0 }}>
-          <div className="liv-glass-head">
-            <div className="liv-avatar liv-avatar-client" aria-hidden="true">
-              {(order?.address?.name || '?').trim().charAt(0).toUpperCase()}
-            </div>
-            <div className="liv-glass-head-text">
-              <div className="liv-glass-label">Cliente</div>
-              <div className="liv-glass-title">{order?.address?.name || 'Cliente'}</div>
-              <div className="liv-glass-sub">{order?.address?.phone || '—'}</div>
-            </div>
-          </div>
-          <div className="liv-action-row">
-            {order?.address?.phone && (
-              <a href={`tel:${order.address.phone}`} className="liv-action-btn liv-action-call">
-                📞 Appeler
-              </a>
+        {/* ─── RÉCUPÉRER À (DoorDash-style pickup section) ─── */}
+        {!isCompleted && (
+          <div className="liv-card-stagger" style={{ '--i': 0 }}>
+            {pharmacies.length > 0 ? (
+              pharmacies.map((ph, idx) => {
+                const phPhone = ph?.phone || ph?.whatsapp;
+                const phMapsUrl = buildMapsUrl({
+                  lat: ph?.lat, lng: ph?.lng,
+                  address: ph?.address || ph?.neighborhood,
+                  city: ph?.city,
+                });
+                const addrLine = [ph?.address, ph?.neighborhood, ph?.city].filter(Boolean).join(', ');
+                return (
+                  <DoorDashLocationCard
+                    key={ph?.id || ph?.name || idx}
+                    kind="pickup"
+                    sectionLabel={pharmacies.length > 1
+                      ? `RÉCUPÉRER À · ${idx + 1}/${pharmacies.length}`
+                      : 'RÉCUPÉRER À'}
+                    title={ph?.name || 'Pharmacie partenaire'}
+                    subtitle={addrLine || 'Adresse non renseignée'}
+                    phone={phPhone}
+                    mapsUrl={phMapsUrl}
+                    meta={[
+                      { icon: '🏥', label: 'Pharmacie partenaire', tone: 'primary' },
+                    ]}
+                    hint={order?.fulfillment_mode === 'driver_sourcing'
+                      ? 'Sourcing libre — démarre par la pharma la plus proche'
+                      : null}
+                  />
+                );
+              })
+            ) : (
+              order?.fulfillment_mode === 'driver_sourcing' && (
+                <DoorDashLocationCard
+                  kind="pickup"
+                  sectionLabel="RÉCUPÉRER À"
+                  title="Sourcing libre"
+                  subtitle="Aucune pharmacie pré-assignée"
+                  hint="Démarre par la pharma la plus proche — scanne chaque produit dans la section sourcing."
+                />
+              )
             )}
-            {clientWaUrl && (
-              <a href={clientWaUrl} target="_blank" rel="noopener noreferrer" className="liv-action-btn liv-action-wa">
-                💬 WhatsApp
-              </a>
-            )}
           </div>
-        </section>
+        )}
 
-        {/* ─── CARTE ADRESSE (glass) ─── */}
-        <section className="liv-glass liv-card-stagger" style={{ '--i': 1 }}>
-          <div className="liv-glass-head">
-            <div className="liv-avatar liv-avatar-addr" aria-hidden="true">📍</div>
-            <div className="liv-glass-head-text">
-              <div className="liv-glass-label">Adresse de livraison</div>
-              <div className="liv-glass-title liv-addr-line">{order?.address?.line || '—'}</div>
-              <div className="liv-glass-sub">
-                {[order?.address?.neighborhood, order?.address?.city].filter(Boolean).join(', ') || 'Dakar'}
-              </div>
-            </div>
+        {/* ─── LIVRER À (DoorDash-style delivery section) ─── */}
+        {!isCompleted && (
+          <div className="liv-card-stagger" style={{ '--i': 1 }}>
+            <DoorDashLocationCard
+              kind="delivery"
+              sectionLabel="LIVRER À"
+              title={order?.address?.name || 'Cliente'}
+              subtitle={[
+                order?.address?.line,
+                [order?.address?.neighborhood, order?.address?.city || 'Dakar'].filter(Boolean).join(', '),
+              ].filter(Boolean).join(' · ')}
+              phone={order?.address?.phone}
+              mapsUrl={buildMapsUrl({
+                lat: order?.address?.lat,
+                lng: order?.address?.lng,
+                address: order?.address?.line,
+                city: order?.address?.city,
+              })}
+              meta={[
+                isCash
+                  ? { icon: '💵', label: `Encaisser ${Number(order?.total || 0).toLocaleString('fr-FR')} FCFA`, tone: 'cash' }
+                  : { icon: '✅', label: `Payé · ${paymentLabel(order?.payment_method)}`, tone: 'paid' },
+                clientWaUrl && { icon: '💬', label: 'WhatsApp', tone: 'wa', href: clientWaUrl },
+              ].filter(Boolean)}
+            >
+              {clientWaUrl && (
+                <a
+                  href={clientWaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="liv-dd-wa-link"
+                >
+                  💬 Envoyer un WhatsApp à la cliente
+                </a>
+              )}
+            </DoorDashLocationCard>
           </div>
-          {clientMapsUrl && (
-            <a href={clientMapsUrl} target="_blank" rel="noopener noreferrer" className="liv-big-maps-btn">
-              🗺️ Ouvrir dans Google Maps
-            </a>
-          )}
-        </section>
+        )}
 
         {/* ─── SOURCING (Instacart-style) ─── */}
         <SourcingSection
@@ -754,94 +1076,61 @@ export default function Livreur() {
           isCompleted={isCompleted}
         />
 
-        {/* ─── PICKUP PHARMACIE(S) ─── */}
-        {pharmacies.length > 0 && !isCompleted && (
-          <section className="liv-glass liv-card-stagger" style={{ '--i': 2 }}>
-            <div className="liv-glass-label" style={{ marginBottom: 10 }}>🏥 Pickup pharmacie</div>
-            {pharmacies.map(ph => {
-              const phPhone = ph?.phone || ph?.whatsapp;
-              const phWaUrl = phPhone ? 'https://wa.me/' + phPhone.replace(/\D/g, '') : null;
-              const phMapsUrl = (ph?.lat && ph?.lng)
-                ? `https://www.google.com/maps/dir/?api=1&destination=${ph.lat},${ph.lng}`
-                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${ph?.address || ph?.neighborhood || ''}, ${ph?.city || 'Dakar'}`)}`;
-
-              return (
-                <div key={ph?.id || ph?.name} className="liv-pharmacy-mini">
-                  <div className="liv-pharmacy-mini-head">
-                    <div className="liv-avatar liv-avatar-pharma" aria-hidden="true">🏥</div>
-                    <div>
-                      <div className="liv-pharmacy-mini-name">{ph?.name || 'Pharmacie'}</div>
-                      {ph?.address && <div className="liv-pharmacy-mini-addr">{ph.address}{ph.city ? ', ' + ph.city : ''}</div>}
-                    </div>
-                  </div>
-                  <div className="liv-action-row">
-                    {phPhone && (
-                      <a href={`tel:${phPhone}`} className="liv-action-btn liv-action-call">
-                        📞 Appeler
-                      </a>
-                    )}
-                    {phWaUrl && (
-                      <a href={phWaUrl} target="_blank" rel="noopener noreferrer" className="liv-action-btn liv-action-wa">
-                        💬 WhatsApp
-                      </a>
-                    )}
-                    <a href={phMapsUrl} target="_blank" rel="noopener noreferrer" className="liv-action-btn liv-action-maps">
-                      🗺️ Itinéraire
-                    </a>
-                  </div>
+        {/* ─── ARTICLES À LIVRER (collapsible details) ─── */}
+        <details className="liv-glass liv-card-stagger liv-articles-details" style={{ '--i': 3 }}>
+          <summary className="liv-articles-summary">
+            <div className="liv-articles-summary-left">
+              <div className="liv-avatar liv-avatar-pharma" aria-hidden="true">📦</div>
+              <div>
+                <div className="liv-glass-label">Articles à livrer</div>
+                <div className="liv-articles-count">
+                  Voir les {totalProducts} article{totalProducts > 1 ? 's' : ''} · {(order?.total || 0).toLocaleString('fr-FR')} FCFA
                 </div>
-              );
-            })}
-          </section>
-        )}
-
-        {/* ─── ARTICLES À LIVRER (glass) ─── */}
-        <section className="liv-glass liv-card-stagger" style={{ '--i': 3 }}>
-          <div className="liv-glass-head">
-            <div className="liv-avatar liv-avatar-pharma" aria-hidden="true">📦</div>
-            <div className="liv-glass-head-text">
-              <div className="liv-glass-label">Articles à livrer</div>
-              <div className="liv-glass-title">
-                {totalProducts} article{totalProducts > 1 ? 's' : ''} · {(order?.total || 0).toLocaleString('fr-FR')} FCFA
-              </div>
-              <div className="liv-glass-sub">
-                {isCash ? '💵 Cash à la livraison' : `✅ Payé via ${(order?.payment_method || '').toUpperCase()}`}
               </div>
             </div>
-            <span className={`liv-pay-badge ${isCash ? 'liv-pay-cash' : 'liv-pay-card'}`}>
-              {isCash ? 'CASH' : 'PAYÉ'}
-            </span>
-          </div>
+            <div className="liv-articles-summary-right">
+              <span className={`liv-pay-badge ${isCash ? 'liv-pay-cash' : 'liv-pay-card'}`}>
+                {isCash ? 'CASH' : 'PAYÉ'}
+              </span>
+              <span className="liv-articles-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
+            </div>
+          </summary>
 
-          <div className="liv-items-list">
-            {Array.from(new Map((order?.items || []).map(it => [it.pharmacyId, it.pharmacyName]))).map(([phId, phName]) => (
-              <div key={phId} className="liv-pharmacy-group">
-                <strong>🏥 {phName || 'Pharmacie'}</strong>
-                {(order?.items || []).filter(it => it.pharmacyId === phId).map((it, i) => (
-                  <div key={`${it.id || it.name}-${i}`} className="liv-item">
-                    <span>{it?.name || '—'}</span>
-                    <span>×{it?.qty || 1}</span>
-                  </div>
-                ))}
+          <div className="liv-articles-body">
+            <div className="liv-items-list">
+              {Array.from(new Map((order?.items || []).map(it => [it.pharmacyId, it.pharmacyName]))).map(([phId, phName]) => (
+                <div key={phId} className="liv-pharmacy-group">
+                  <strong>🏥 {phName || 'Pharmacie'}</strong>
+                  {(order?.items || []).filter(it => it.pharmacyId === phId).map((it, i) => (
+                    <div key={`${it.id || it.name}-${i}`} className="liv-item">
+                      <span>{it?.name || '—'}</span>
+                      <span>×{it?.qty || 1}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            <div className="liv-total">
+              <span>Total</span>
+              <strong>{(order?.total || 0).toLocaleString('fr-FR')} FCFA</strong>
+            </div>
+            {isCash ? (
+              <div className="liv-cod-alert">
+                💵 PAIEMENT CASH À LA LIVRAISON<br />
+                <strong style={{ fontSize: 16 }}>Encaisse {(order?.total || 0).toLocaleString('fr-FR')} FCFA</strong>
               </div>
-            ))}
+            ) : (
+              <div className="liv-paid-alert">
+                ✅ Déjà payé via {paymentLabel(order?.payment_method)} — Rien à encaisser
+              </div>
+            )}
           </div>
-
-          <div className="liv-total">
-            <span>Total</span>
-            <strong>{(order?.total || 0).toLocaleString('fr-FR')} FCFA</strong>
-          </div>
-          {isCash ? (
-            <div className="liv-cod-alert">
-              💵 PAIEMENT CASH À LA LIVRAISON<br />
-              <strong style={{ fontSize: 16 }}>Encaisse {(order?.total || 0).toLocaleString('fr-FR')} FCFA</strong>
-            </div>
-          ) : (
-            <div className="liv-paid-alert">
-              ✅ Déjà payé via {(order?.payment_method || '').toUpperCase()} — Rien à encaisser
-            </div>
-          )}
-        </section>
+        </details>
 
         {/* ─── GPS ─── */}
         {!isCompleted && (
@@ -1162,15 +1451,24 @@ export default function Livreur() {
         )}
       </main>
 
-      {/* ─── STICKY CTA BOTTOM ─── */}
+      {/* ─── STICKY CTA BOTTOM (premium DoorDash-style) ─── */}
       {primaryCta && (
         <div className="liv-cta-sticky">
           <button
-            className="liv-btn-final"
+            className="liv-btn-final liv-btn-final-pro"
             onClick={primaryCta.action}
             disabled={primaryCta.disabled}
           >
-            {primaryCta.label}
+            <span className="liv-cta-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
+            <span className="liv-cta-text">
+              <span className="liv-cta-subtitle">Action suivante</span>
+              <span className="liv-cta-label">{primaryCta.label}</span>
+            </span>
+            <span className="liv-cta-chev" aria-hidden="true">›</span>
           </button>
         </div>
       )}

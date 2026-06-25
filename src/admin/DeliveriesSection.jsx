@@ -79,8 +79,17 @@ export default function DeliveriesSection() {
   };
 
   const assignDriver = async (order, name, phone) => {
-    const token = generateSecureToken();
-    // AUDIT : trace l'assignation livreur avant execution (best-effort).
+    // ─── RPC idempotente : récupère le token existant OU en crée un (7j) ───
+    // Évite les doublons & garantit le BON token affiché côté admin.
+    const { data: tokRes, error: tokErr } = await supabase.rpc('admin_get_or_create_livreur_token', { p_order_id: order.id });
+    if (tokErr || !tokRes?.success) {
+      console.error('[assignDriver] RPC failed, fallback insert direct:', tokErr || tokRes);
+      toast.error('Erreur génération token : ' + (tokErr?.message || tokRes?.error || 'inconnue'));
+      return;
+    }
+    const token = tokRes.token;
+
+    // AUDIT : trace l'assignation livreur (best-effort).
     await adminLogAction({
       action:     'assign_driver',
       targetType: 'order',
@@ -88,20 +97,18 @@ export default function DeliveriesSection() {
       before:     { status: order.status, driver: null },
       after:      { status: order.status, driver: { name, phone: phone || null } },
     }).catch(() => { /* best-effort */ });
-    await supabase.from('delivery_tracking').insert({
-      order_id: order.id,
-      delivery_token: token,
-      delivery_token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      delivery_person_name: name,
-      delivery_person_phone: phone,
-      status: 'assigned',
-    });
-    
+
+    // Met à jour le nom/phone du livreur sur le tracking créé par la RPC
+    await supabase
+      .from('delivery_tracking')
+      .update({ delivery_person_name: name, delivery_person_phone: phone })
+      .eq('order_id', order.id);
+
     // S'assurer qu'il y a un confirmation_token sur la commande
     if (!order.confirmation_token) {
       await adminUpdateOrder(order.id, { confirmation_token: generateConfirmToken() });
     }
-    
+
     const url = `${window.location.origin}/?livreur=${token}`;
     if (phone) {
       // FIX juin 2026 : ouvrir wa.me direct au lieu de sendWhatsApp (WaSender
@@ -126,6 +133,39 @@ export default function DeliveriesSection() {
 
     setAssigningOrder(null);
     refresh();
+  };
+
+  // ─── Partage rapide du lien livreur ───
+  // Toujours passe par la RPC pour avoir LE BON token (et prolonger l'expiration
+  // à 7j si nécessaire). C'est la source de vérité — ne JAMAIS faire confiance
+  // au tracking local.
+  const shareDriverLink = async (order, opts = {}) => {
+    const { data, error } = await supabase.rpc('admin_get_or_create_livreur_token', { p_order_id: order.id });
+    if (error || !data?.success) {
+      toast.error('Erreur token : ' + (error?.message || data?.error || 'inconnue'));
+      return;
+    }
+    const url = `${window.location.origin}/?livreur=${data.token}`;
+    // Copy systématique (au cas où l'admin veut le coller ailleurs)
+    try { await navigator.clipboard.writeText(url); } catch {}
+
+    if (opts.copyOnly) {
+      toast.success('🔗 Lien livreur copié');
+      return;
+    }
+
+    // Ouvre WhatsApp avec le message pré-rempli
+    const phone = opts.phone || order.address?.phone;
+    const txt = `Salut, voici le lien de la commande #${order.id} à livrer pour YARAM : ${url}`;
+    if (phone) {
+      const cleanPhone = String(phone).replace(/\D/g, '');
+      window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(txt)}`, '_blank');
+      toast.success('💬 WhatsApp ouvert — lien copié aussi');
+    } else {
+      // Pas de phone → ouvre wa.me sans numéro pour que l'admin choisisse le contact
+      window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
+      toast.success('💬 WhatsApp ouvert — choisis un contact');
+    }
   };
 
   const resendDriverLink = async (tracking, order) => {
@@ -314,6 +354,24 @@ export default function DeliveriesSection() {
                     )}
                     {view === 'active' && tracking && (
                       <button className="adm-btn-sec" onClick={() => resendDriverLink(tracking, o)}>📲 Renvoyer livreur</button>
+                    )}
+                    {view === 'active' && (
+                      <>
+                        <button
+                          className="adm-wa-btn"
+                          title="Ouvrir WhatsApp avec le lien livreur prêt à envoyer"
+                          onClick={() => shareDriverLink(o)}
+                        >
+                          💬 Partager lien livreur
+                        </button>
+                        <button
+                          className="adm-btn-sec"
+                          title="Copier le lien livreur"
+                          onClick={() => shareDriverLink(o, { copyOnly: true })}
+                        >
+                          🔗 Copier lien
+                        </button>
+                      </>
                     )}
                     {view === 'awaiting' && (
                       <>
