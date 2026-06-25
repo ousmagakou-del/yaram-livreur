@@ -1135,6 +1135,216 @@ html, body, #root {
 @keyframes livShimmer { to { background-position: -200% 0; } }
 
 /* ═══════════════════════════════════════════════════════════════════
+   SOURCING (Instacart-style)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.liv-sourcing-toggle .liv-mini-btn { white-space: nowrap; }
+
+.liv-sourcing-section { display: flex; flex-direction: column; gap: 14px; }
+
+.liv-sourcing-progress {
+  height: 6px;
+  background: #ECECEE;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.liv-sourcing-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #1F8B4C 0%, #34D399 100%);
+  transition: width 350ms ease;
+}
+
+.liv-sourcing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.liv-sourcing-card {
+  border: 1.5px solid #ECECEE;
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.liv-sourcing-card-head {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.liv-sourcing-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #F4F4F5;
+}
+.liv-sourcing-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+}
+
+.liv-sourcing-meta { min-width: 0; }
+.liv-sourcing-name {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.liv-sourcing-sub {
+  font-size: 12px;
+  color: #6B6B6B;
+  margin-top: 2px;
+}
+
+.liv-sourcing-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.liv-sourcing-pharma,
+.liv-sourcing-subst,
+.liv-sourcing-notes {
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #F9FAFB;
+  color: #4B4B4B;
+}
+.liv-sourcing-subst { background: #FFF7E6; color: #A07700; }
+.liv-sourcing-notes { background: #FEE2E2; color: #B91C1C; }
+
+.liv-sourcing-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.liv-sourcing-actions .liv-mini-btn { min-height: 44px; }
+
+.liv-sourcing-receipt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #F4F4F5;
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+.liv-sourcing-receipt .liv-mini-btn { flex: 1; min-height: 44px; }
+.liv-sourcing-receipt-link {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1F8B4C;
+  text-decoration: none;
+}
+
+.liv-sourcing-done {
+  margin-top: 4px;
+  min-height: 50px;
+  font-weight: 800;
+}
+
+/* Pharma picker */
+.liv-pharma-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.liv-pharma-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1.5px solid #ECECEE;
+  background: white;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 60px;
+}
+.liv-pharma-picker-row:hover { background: #F9FAFB; }
+
+/* Alternatives list */
+.liv-alt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.liv-alt-row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid #ECECEE;
+  background: white;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.liv-alt-row:hover { background: #F9FAFB; }
+.liv-alt-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #F4F4F5;
+}
+.liv-alt-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+.liv-alt-meta { min-width: 0; }
+.liv-alt-name {
+  font-weight: 700;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.liv-alt-sub {
+  font-size: 11.5px;
+  color: #6B6B6B;
+  margin-top: 2px;
+}
+.liv-alt-price {
+  text-align: right;
+  font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════════ */
 

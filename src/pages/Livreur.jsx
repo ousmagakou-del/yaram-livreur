@@ -15,10 +15,62 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJ
 // ─── Numéro WhatsApp support pour les liens cassés ───
 const SUPPORT_WHATSAPP = '221770000000';
 
+// ─── Sourcing helpers (Instacart-style) ────────────────────────────
+// Couleurs status sourcing (réutilisées dans le JSX inline)
+const SOURCING_COLORS = {
+  pending: '#94A3B8',
+  found: '#1F8B4C',
+  substituted: '#F4B53A',
+  unavailable: '#EF4444',
+};
+
+const SOURCING_LABELS = {
+  pending: 'À sourcer',
+  found: 'Trouvé',
+  substituted: 'Substitué',
+  unavailable: 'Indisponible',
+};
+
+const SOURCING_ICONS = {
+  pending: '●',
+  found: '✓',
+  substituted: '↔',
+  unavailable: '✗',
+};
+
+// Wrapper RPC sourcing : valide success + toast unique.
+async function callSourcingRpc(name, args, label) {
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) {
+    console.error(`[Livreur] ${label} RPC error:`, error);
+    toast.error(`${label} : ${error.message || 'RPC en échec'}`);
+    return { ok: false, data: null };
+  }
+  if (data && data.success === false) {
+    console.error(`[Livreur] ${label} business error:`, data);
+    toast.error(`${label} : ${data.error || 'opération refusée'}`);
+    return { ok: false, data };
+  }
+  return { ok: true, data };
+}
+
+// Promise wrapper pour navigator.geolocation
+function getCurrentPositionAsync(opts = { enableHighAccuracy: true, timeout: 15000 }) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Géolocalisation non disponible'));
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      reject,
+      opts,
+    );
+  });
+}
+
 export default function Livreur() {
   const [order, setOrder] = useState(null);
   const [tracking, setTracking] = useState(null);
   const [pharmacies, setPharmacies] = useState([]);
+  const [sourcing, setSourcing] = useState([]);
   const [token, setToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,6 +82,16 @@ export default function Livreur() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [proofMethod, setProofMethod] = useState(null);
   const [confirming, setConfirming] = useState(false);
+
+  // ─── Sourcing state ───
+  // sourcingItemIndex : index dans order.items quand on ouvre un modal lié à un item précis
+  const [sourcingItemIndex, setSourcingItemIndex] = useState(null);
+  const [showSourcingScanner, setShowSourcingScanner] = useState(false);
+  const [showPharmaPicker, setShowPharmaPicker] = useState(false);
+  const [showSubstituteModal, setShowSubstituteModal] = useState(false);
+  const [showUnavailableModal, setShowUnavailableModal] = useState(false);
+  const [forceSourcingMode, setForceSourcingMode] = useState(false);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   // ─── busyStep : quel bouton est en cours d'action ? ───
   // Permet l'aria-busy + spinner CSS + désactivation pour empêcher le double-tap.
   // Une seule étape active à la fois (lock optimiste).
@@ -122,6 +184,7 @@ export default function Livreur() {
     setTracking(tr);
     setOrder(data.order || null);
     setPharmacies(Array.isArray(data.pharmacies) ? data.pharmacies : []);
+    setSourcing(Array.isArray(data.sourcing) ? data.sourcing : []);
 
     if (tr?.delivery_photo_url) setProofMethod('photo');
     else if (tr?.delivery_signature) setProofMethod('signature');
@@ -342,6 +405,93 @@ export default function Livreur() {
     haptic('success');
     toast.success('Cash de ' + (order.total || 0).toLocaleString('fr-FR') + ' FCFA confirmé reçu.');
     setBusyStep(null);
+  };
+
+  // ────────────────────────────────────────────────────────────
+  // SOURCING (Instacart-style) — helpers
+  // ────────────────────────────────────────────────────────────
+
+  // Reload juste la liste sourcing après une upsert/log
+  const reloadSourcing = async () => {
+    const { data } = await supabase.rpc('livreur_list_sourcing', { p_token: token });
+    if (data && data.success && Array.isArray(data.rows)) {
+      setSourcing(data.rows);
+    }
+  };
+
+  // UPSERT order_item_sourcing via RPC
+  const upsertSourcing = async (itemIndex, patch, label = 'Sourcing') => {
+    const res = await callSourcingRpc(
+      'livreur_upsert_sourcing',
+      { p_token: token, p_item_index: itemIndex, p_patch: patch },
+      label,
+    );
+    if (res.ok) {
+      haptic('success');
+      await reloadSourcing();
+    } else {
+      haptic('error');
+    }
+    return res;
+  };
+
+  // Log un événement scanner (analytics)
+  const logScan = async (itemIndex, payload) => {
+    const { error } = await supabase.rpc('livreur_log_scan', {
+      p_token: token,
+      p_item_index: itemIndex,
+      p_payload: payload,
+    });
+    if (error) console.warn('[Livreur] logScan warn:', error.message);
+  };
+
+  // Upload facture pharma vers le bucket 'receipts' et sauve sur la 1ère ligne sourcing
+  const uploadReceipt = async (file) => {
+    if (!file || !order?.id) return;
+    setUploadingReceipt(true);
+    let uploadFile = file;
+    try {
+      const compressed = await compressImage(file, 1400, 0.78);
+      if (compressed && compressed.size > 0) uploadFile = compressed;
+    } catch {}
+    const fileName = `${order.id}/${Date.now()}.jpg`;
+    const { error: upErr } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, uploadFile, { contentType: 'image/jpeg', upsert: true });
+    if (upErr) {
+      toast.error('Erreur upload facture : ' + upErr.message);
+      setUploadingReceipt(false);
+      return;
+    }
+    const { data: pub } = supabase.storage.from('receipts').getPublicUrl(fileName);
+    const url = pub?.publicUrl;
+    if (!url) {
+      toast.error('Erreur publicUrl facture');
+      setUploadingReceipt(false);
+      return;
+    }
+
+    // On épingle l'URL sur la 1ère ligne sourcing (premier item) — sinon on en
+    // crée une sur l'item 0 pour porter la facture.
+    const targetIdx = (sourcing[0]?.item_index ?? 0);
+    const res = await upsertSourcing(targetIdx, { receipt_photo_url: url }, 'Facture');
+    if (res.ok) toast.success('Facture pharma uploadée');
+    setUploadingReceipt(false);
+  };
+
+  // Confirme que tous les items sont sourcés (status != pending)
+  // Affiché en bas de la section sourcing pour passer à la livraison.
+  const markAllSourced = async () => {
+    // L'order.sourcing_status est maintenu par trigger ; ici on ne fait
+    // qu'un feedback UI + scroll vers la section livraison.
+    haptic('success');
+    toast.success('Sourcing terminé. Tu peux passer à la livraison.');
+    setForceSourcingMode(false);
+    // Petit délai pour laisser le toast respirer
+    setTimeout(() => {
+      const el = document.querySelector('.liv-glass-label');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
   };
 
   const confirmDelivery = async () => {
@@ -587,6 +737,22 @@ export default function Livreur() {
             </a>
           )}
         </section>
+
+        {/* ─── SOURCING (Instacart-style) ─── */}
+        <SourcingSection
+          order={order}
+          sourcing={sourcing}
+          forceSourcingMode={forceSourcingMode}
+          setForceSourcingMode={setForceSourcingMode}
+          openScanner={(idx) => { setSourcingItemIndex(idx); setShowSourcingScanner(true); }}
+          openPharmaPicker={(idx) => { setSourcingItemIndex(idx); setShowPharmaPicker(true); }}
+          openSubstitute={(idx) => { setSourcingItemIndex(idx); setShowSubstituteModal(true); }}
+          openUnavailable={(idx) => { setSourcingItemIndex(idx); setShowUnavailableModal(true); }}
+          onUploadReceipt={uploadReceipt}
+          uploadingReceipt={uploadingReceipt}
+          onAllSourced={markAllSourced}
+          isCompleted={isCompleted}
+        />
 
         {/* ─── PICKUP PHARMACIE(S) ─── */}
         {pharmacies.length > 0 && !isCompleted && (
@@ -1022,6 +1188,96 @@ export default function Livreur() {
           onCancel={() => setShowBarcodeScanner(false)}
           alreadyScanned={(tracking?.scanned_barcodes || []).map(b => b.code)}
           orderItems={order?.items || []}
+        />
+      )}
+
+      {/* ─── MODALS SOURCING ─── */}
+      {showSourcingScanner && sourcingItemIndex !== null && (
+        <SourcingScannerModal
+          token={token}
+          itemIndex={sourcingItemIndex}
+          item={order?.items?.[sourcingItemIndex]}
+          onFound={async (product, scanInfo) => {
+            const patch = {
+              sourcing_status: 'found',
+              unit_price_fcfa: String(product?.price ?? scanInfo?.unit_price_fcfa ?? ''),
+            };
+            // Si on a aussi la pharma (geo), on l'inclut
+            if (scanInfo?.pharmacy_id) patch.sourced_from_pharmacy_id = scanInfo.pharmacy_id;
+            if (scanInfo?.pharmacy_name) patch.pharmacy_name_freetype = scanInfo.pharmacy_name;
+            if (scanInfo?.pharmacy_lat) patch.pharmacy_lat = String(scanInfo.pharmacy_lat);
+            if (scanInfo?.pharmacy_lng) patch.pharmacy_lng = String(scanInfo.pharmacy_lng);
+            await upsertSourcing(sourcingItemIndex, patch, 'Trouvé');
+            await logScan(sourcingItemIndex, {
+              product_id: product?.id || '',
+              barcode: scanInfo?.barcode || '',
+              scan_result: 'match',
+              pharmacy_id: scanInfo?.pharmacy_id || '',
+              pharmacy_name: scanInfo?.pharmacy_name || '',
+              pharmacy_lat: scanInfo?.pharmacy_lat ? String(scanInfo.pharmacy_lat) : '',
+              pharmacy_lng: scanInfo?.pharmacy_lng ? String(scanInfo.pharmacy_lng) : '',
+            });
+            setShowSourcingScanner(false);
+            setSourcingItemIndex(null);
+          }}
+          onNoMatch={async (barcode) => {
+            await logScan(sourcingItemIndex, { barcode, scan_result: 'no_match' });
+            toast.error('Produit non trouvé dans le catalogue YARAM. Utilise "Marquer trouvé" ou "Substituer".');
+          }}
+          onCancel={() => { setShowSourcingScanner(false); setSourcingItemIndex(null); }}
+        />
+      )}
+
+      {showPharmaPicker && sourcingItemIndex !== null && (
+        <PharmaPickerModal
+          token={token}
+          onPick={async (sel) => {
+            const patch = {
+              sourcing_status: 'found',
+              sourced_from_pharmacy_id: sel.pharmacy_id || '',
+              pharmacy_name_freetype: sel.pharmacy_name_freetype || '',
+              pharmacy_lat: sel.lat ? String(sel.lat) : '',
+              pharmacy_lng: sel.lng ? String(sel.lng) : '',
+            };
+            await upsertSourcing(sourcingItemIndex, patch, 'Pharmacie');
+            setShowPharmaPicker(false);
+            setSourcingItemIndex(null);
+          }}
+          onCancel={() => { setShowPharmaPicker(false); setSourcingItemIndex(null); }}
+        />
+      )}
+
+      {showSubstituteModal && sourcingItemIndex !== null && (
+        <SubstituteModal
+          token={token}
+          item={order?.items?.[sourcingItemIndex]}
+          allowSubstitution={order?.allow_substitution !== false}
+          onChoose={async (alt) => {
+            await upsertSourcing(sourcingItemIndex, {
+              sourcing_status: 'substituted',
+              substituted_with_product_id: alt?.id || '',
+              substituted_with_name: alt?.name || '',
+              unit_price_fcfa: alt?.price != null ? String(alt.price) : '',
+            }, 'Substitution');
+            setShowSubstituteModal(false);
+            setSourcingItemIndex(null);
+          }}
+          onCancel={() => { setShowSubstituteModal(false); setSourcingItemIndex(null); }}
+        />
+      )}
+
+      {showUnavailableModal && sourcingItemIndex !== null && (
+        <UnavailableModal
+          item={order?.items?.[sourcingItemIndex]}
+          onConfirm={async (notes) => {
+            await upsertSourcing(sourcingItemIndex, {
+              sourcing_status: 'unavailable',
+              notes: notes || '',
+            }, 'Indisponible');
+            setShowUnavailableModal(false);
+            setSourcingItemIndex(null);
+          }}
+          onCancel={() => { setShowUnavailableModal(false); setSourcingItemIndex(null); }}
         />
       )}
     </div>
@@ -1479,6 +1735,720 @@ function PinEntryModal({ onSubmit, onCancel }) {
           }} />
         <button className="liv-btn-pri" onClick={submit}>✓ Valider</button>
         <button className="liv-btn-stop" onClick={onCancel} style={{ marginTop: 8 }}>Annuler</button>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// SOURCING (Instacart-style) — sous-composants
+// ════════════════════════════════════════════════════════════
+
+function SourcingSection({
+  order, sourcing, forceSourcingMode, setForceSourcingMode,
+  openScanner, openPharmaPicker, openSubstitute, openUnavailable,
+  onUploadReceipt, uploadingReceipt, onAllSourced, isCompleted,
+}) {
+  const items = order?.items || [];
+  const mode = order?.fulfillment_mode;
+  const isSourcingOrder = mode === 'driver_sourcing' || mode === 'mixed';
+  // Si fulfillment_mode est absent, on cache par défaut ; le livreur peut
+  // toujours activer manuellement via le toggle ci-dessous.
+  const showSection = !isCompleted && (isSourcingOrder || forceSourcingMode);
+
+  // Index sourcing par item_index pour lookup O(1)
+  const byIndex = {};
+  (sourcing || []).forEach((s) => { byIndex[s.item_index] = s; });
+
+  const total = items.length;
+  const sourcedCount = items.reduce((acc, _, i) => {
+    const st = byIndex[i]?.sourcing_status;
+    return acc + (st && st !== 'pending' ? 1 : 0);
+  }, 0);
+  const allDone = total > 0 && sourcedCount === total;
+
+  // Récupère l'URL facture si déjà uploadée
+  const receiptUrl = (sourcing || []).map(s => s.receipt_photo_url).find(Boolean) || null;
+
+  // Toggle d'activation manuelle si le mode n'est pas défini
+  const showToggle = !isCompleted && !isSourcingOrder;
+
+  return (
+    <>
+      {showToggle && (
+        <section className="liv-glass liv-card-stagger liv-sourcing-toggle" style={{ '--i': 1.5 }}>
+          <div className="liv-glass-head">
+            <div className="liv-avatar liv-avatar-pharma" aria-hidden="true">🛒</div>
+            <div className="liv-glass-head-text">
+              <div className="liv-glass-label">Mode sourcing Instacart</div>
+              <div className="liv-glass-title">Tu fais le tour des pharmacies ?</div>
+              <div className="liv-glass-sub">
+                Active si tu dois chercher les produits article par article
+              </div>
+            </div>
+            <button
+              className={forceSourcingMode ? 'liv-mini-btn done' : 'liv-mini-btn pri'}
+              onClick={() => setForceSourcingMode(v => !v)}
+            >
+              {forceSourcingMode ? '✓ Activé' : 'Activer'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {showSection && total > 0 && (
+        <section className="liv-glass liv-card-stagger liv-sourcing-section" style={{ '--i': 2 }}>
+          <div className="liv-glass-head">
+            <div className="liv-avatar liv-avatar-pharma" aria-hidden="true">🛒</div>
+            <div className="liv-glass-head-text">
+              <div className="liv-glass-label">Sourcing des articles</div>
+              <div className="liv-glass-title">
+                {sourcedCount} / {total} sourcé{sourcedCount > 1 ? 's' : ''}
+              </div>
+              <div className="liv-glass-sub">
+                Pour chaque article : scanne, marque trouvé, substitue ou indispo.
+              </div>
+            </div>
+          </div>
+
+          <div className="liv-sourcing-progress" aria-hidden="true">
+            <div
+              className="liv-sourcing-progress-bar"
+              style={{ width: total ? `${(sourcedCount / total) * 100}%` : '0%' }}
+            />
+          </div>
+
+          <div className="liv-sourcing-list">
+            {items.map((it, idx) => {
+              const s = byIndex[idx] || {};
+              const status = s.sourcing_status || 'pending';
+              const color = SOURCING_COLORS[status];
+              const label = SOURCING_LABELS[status];
+              const icon = SOURCING_ICONS[status];
+              return (
+                <div key={`src-${idx}`} className="liv-sourcing-card">
+                  <div className="liv-sourcing-card-head">
+                    {it?.img ? (
+                      <img
+                        src={it.img}
+                        alt=""
+                        className="liv-sourcing-img"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div className="liv-sourcing-img liv-sourcing-img-fallback" aria-hidden="true">
+                        💊
+                      </div>
+                    )}
+                    <div className="liv-sourcing-meta">
+                      <div className="liv-sourcing-name">{it?.name || 'Article'}</div>
+                      <div className="liv-sourcing-sub">
+                        {it?.brand || it?.brandName || it?.brand_name || ''}
+                        {(it?.brand || it?.brandName || it?.brand_name) ? ' · ' : ''}
+                        Qty {it?.qty || 1}
+                        {it?.price ? ` · ${Number(it.price).toLocaleString('fr-FR')} F` : ''}
+                      </div>
+                    </div>
+                    <span
+                      className="liv-sourcing-status-pill"
+                      style={{ background: color, color: 'white' }}
+                    >
+                      <span aria-hidden="true">{icon}</span> {label}
+                    </span>
+                  </div>
+
+                  {(s.sourced_from_pharmacy_id || s.pharmacy_name_freetype) && (
+                    <div className="liv-sourcing-pharma">
+                      🏥 {s.pharmacy_name_freetype || 'Pharmacie partenaire'}
+                    </div>
+                  )}
+
+                  {status === 'substituted' && s.substituted_with_name && (
+                    <div className="liv-sourcing-subst">
+                      ↔ Remplacé par <strong>{s.substituted_with_name}</strong>
+                    </div>
+                  )}
+
+                  {status === 'unavailable' && s.notes && (
+                    <div className="liv-sourcing-notes">📝 {s.notes}</div>
+                  )}
+
+                  <div className="liv-sourcing-actions">
+                    <button
+                      className="liv-mini-btn"
+                      onClick={() => openScanner(idx)}
+                      disabled={status === 'unavailable'}
+                    >
+                      📊 Scanner
+                    </button>
+                    <button
+                      className="liv-mini-btn pri"
+                      onClick={() => openPharmaPicker(idx)}
+                      disabled={status === 'unavailable'}
+                    >
+                      ✓ Trouvé
+                    </button>
+                    <button
+                      className="liv-mini-btn"
+                      onClick={() => openSubstitute(idx)}
+                      disabled={order?.allow_substitution === false || status === 'unavailable'}
+                      title={order?.allow_substitution === false ? 'La cliente refuse les substitutions' : ''}
+                    >
+                      ↔ Substituer
+                    </button>
+                    <button
+                      className="liv-mini-btn"
+                      onClick={() => openUnavailable(idx)}
+                    >
+                      ✗ Indispo
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Upload facture pharma */}
+          <div className="liv-sourcing-receipt">
+            <label className="liv-mini-btn" style={{ cursor: 'pointer' }}>
+              {uploadingReceipt
+                ? '⏳ Upload en cours…'
+                : receiptUrl
+                  ? '📄 Re-uploader la facture pharma'
+                  : '📄 Upload facture pharma'}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                disabled={uploadingReceipt}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadReceipt(f);
+                  e.target.value = '';
+                }}
+                style={{ display: 'none' }}
+              />
+            </label>
+            {receiptUrl && (
+              <a
+                href={receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="liv-sourcing-receipt-link"
+              >
+                Voir facture →
+              </a>
+            )}
+          </div>
+
+          {allDone && (
+            <button
+              className="liv-btn-pri liv-sourcing-done"
+              onClick={onAllSourced}
+            >
+              ✅ Tous les items sourcés — passer à la livraison
+            </button>
+          )}
+        </section>
+      )}
+    </>
+  );
+}
+
+// ─── Modal scanner sourcing : scan barcode, lookup en DB, retourne produit ───
+function SourcingScannerModal({ token, item, onFound, onNoMatch, onCancel }) {
+  const videoRef = useRef(null);
+  const readerRef = useRef(null);
+  const streamRef = useRef(null);
+  const [status, setStatus] = useState('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [lookup, setLookup] = useState(null);
+  const [geo, setGeo] = useState(null);
+  const [pharmaName, setPharmaName] = useState('');
+
+  // Geolocate au mount pour pouvoir associer la pharma au scan
+  useEffect(() => {
+    getCurrentPositionAsync().then(setGeo).catch(() => {});
+  }, []);
+
+  const cleanup = () => {
+    try {
+      if (readerRef.current?.stop) readerRef.current.stop();
+      else if (readerRef.current?.reset) readerRef.current.reset();
+      readerRef.current = null;
+    } catch {}
+    try {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    } catch {}
+  };
+
+  useEffect(() => () => cleanup(), []);
+
+  const requestPermission = async () => {
+    setStatus('requesting');
+    setErrorMsg('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setStatus('scanning');
+
+      const { startBarcodeScan } = await import('../lib/barcode');
+      const handle = await startBarcodeScan(videoRef.current, async (code) => {
+        if (busy || lookup) return;
+        setBusy(true);
+        if (navigator.vibrate) navigator.vibrate(100);
+        const { data, error } = await supabase.rpc('livreur_product_by_barcode', {
+          p_token: token, p_barcode: code,
+        });
+        if (error || !data?.success) {
+          setLookup({ barcode: code, product: null, error: error?.message });
+        } else {
+          setLookup({ barcode: code, product: data.product });
+        }
+        setBusy(false);
+      });
+      readerRef.current = handle;
+    } catch (e) {
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        setErrorMsg('Permission caméra refusée. Va dans Réglages > Safari > Caméra.');
+      } else if (e.name === 'NotFoundError') {
+        setErrorMsg('Aucune caméra détectée');
+      } else if (e.name === 'NotReadableError') {
+        setErrorMsg('La caméra est utilisée par une autre app.');
+      } else {
+        setErrorMsg('Erreur : ' + (e.message || e.name || 'inconnue'));
+      }
+      setStatus('error');
+    }
+  };
+
+  const handleConfirm = () => {
+    cleanup();
+    if (!lookup) return;
+    if (!lookup.product) {
+      onNoMatch?.(lookup.barcode);
+      return;
+    }
+    onFound?.(lookup.product, {
+      barcode: lookup.barcode,
+      pharmacy_lat: geo?.lat,
+      pharmacy_lng: geo?.lng,
+      pharmacy_name: pharmaName || null,
+    });
+  };
+
+  const handleReject = () => setLookup(null);
+
+  const handleCancel = () => { cleanup(); onCancel?.(); };
+
+  return (
+    <div className="liv-modal-overlay" onClick={handleCancel}>
+      <div className="liv-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, padding: 16 }}>
+        <h3 style={{ marginBottom: 8 }}>📊 Scanner produit sourcing</h3>
+        <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 12 }}>
+          {item?.name ? `Sourcing : ${item.name}` : 'Scanne le code-barres du produit trouvé'}
+        </p>
+
+        {status === 'idle' && (
+          <div style={{ textAlign: 'center', padding: 20 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📷</div>
+            <button className="liv-btn-pri" onClick={requestPermission} style={{ width: '100%', marginBottom: 8 }}>
+              📷 Activer la caméra
+            </button>
+            <button className="liv-btn-stop" onClick={handleCancel} style={{ width: '100%' }}>Annuler</button>
+          </div>
+        )}
+
+        {(status === 'requesting' || status === 'scanning') && (
+          <>
+            <div style={{
+              position: 'relative', background: '#000', borderRadius: 12,
+              overflow: 'hidden', aspectRatio: '4/3', marginBottom: 14,
+            }}>
+              <video
+                ref={videoRef}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                playsInline muted autoPlay
+              />
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'none',
+              }}>
+                <div style={{
+                  width: '80%', height: '40%',
+                  border: '3px solid rgba(31,139,76,0.8)', borderRadius: 8,
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)',
+                }} />
+              </div>
+              {busy && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'white', background: 'rgba(0,0,0,0.7)', fontSize: 14, fontWeight: 700,
+                }}>
+                  🔍 Recherche en base…
+                </div>
+              )}
+              {lookup && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  color: 'white',
+                  background: lookup.product ? 'rgba(31,139,76,0.95)' : 'rgba(244,181,58,0.95)',
+                  padding: 16, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 48, marginBottom: 8 }}>
+                    {lookup.product ? '✅' : '⚠️'}
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>
+                    {lookup.product ? lookup.product.name : 'Produit non catalogué'}
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 11, marginTop: 6, opacity: 0.8 }}>
+                    {lookup.barcode}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <input
+              type="text"
+              value={pharmaName}
+              onChange={(e) => setPharmaName(e.target.value)}
+              placeholder="Nom de la pharmacie (optionnel)"
+              style={{
+                width: '100%', padding: '10px 12px',
+                border: '1.5px solid #EEE', borderRadius: 10, fontSize: 14, marginBottom: 10,
+              }}
+            />
+
+            {lookup && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <button className="liv-btn-stop" onClick={handleReject} style={{ flex: 1 }}>
+                  🔄 Re-scanner
+                </button>
+                <button
+                  className="liv-btn-pri"
+                  onClick={handleConfirm}
+                  style={{ flex: 2, background: lookup.product ? '#1F8B4C' : '#F4B53A' }}
+                >
+                  {lookup.product ? '✓ Confirmer trouvé' : 'Ajouter comme substitut'}
+                </button>
+              </div>
+            )}
+
+            {!lookup && (
+              <button className="liv-btn-stop" onClick={handleCancel} style={{ width: '100%' }}>
+                Annuler
+              </button>
+            )}
+          </>
+        )}
+
+        {status === 'error' && (
+          <div style={{ textAlign: 'center', padding: 20 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>❌</div>
+            <p style={{ fontSize: 14, marginBottom: 16, color: '#D9342B', fontWeight: 600 }}>
+              {errorMsg}
+            </p>
+            <button className="liv-btn-pri" onClick={requestPermission} style={{ width: '100%', marginBottom: 8 }}>
+              🔄 Réessayer
+            </button>
+            <button className="liv-btn-stop" onClick={handleCancel} style={{ width: '100%' }}>
+              Annuler
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal "où es-tu ?" — pharma picker avec geo + freetype ───
+function PharmaPickerModal({ token, onPick, onCancel }) {
+  const [loading, setLoading] = useState(false);
+  const [nearby, setNearby] = useState([]);
+  const [geo, setGeo] = useState(null);
+  const [freetype, setFreetype] = useState('');
+  const [askedGeo, setAskedGeo] = useState(false);
+
+  const detect = async () => {
+    setLoading(true);
+    try {
+      const pos = await getCurrentPositionAsync({ enableHighAccuracy: true, timeout: 15000 });
+      setGeo(pos);
+      setAskedGeo(true);
+      const { data, error } = await supabase.rpc('livreur_nearby_pharmacies', {
+        p_token: token,
+        p_lat: pos.lat,
+        p_lng: pos.lng,
+        p_radius_m: 500,
+      });
+      if (error) {
+        console.warn('nearby pharma error', error);
+        toast.error('GPS OK mais lookup pharma KO');
+      } else if (data?.success && Array.isArray(data.rows)) {
+        setNearby(data.rows);
+      }
+    } catch {
+      toast.error('Géolocalisation refusée. Saisis le nom de la pharmacie ci-dessous.');
+      setAskedGeo(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Lance le detect au mount. Une seule fois, intentionnellement.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { detect(); }, []);
+
+  const pickPartner = (ph) => {
+    onPick({
+      pharmacy_id: ph.id,
+      pharmacy_name_freetype: ph.name,
+      lat: ph.lat,
+      lng: ph.lng,
+    });
+  };
+
+  const pickFreetype = () => {
+    if (!freetype.trim()) { toast.error('Saisis un nom de pharmacie'); return; }
+    onPick({
+      pharmacy_id: null,
+      pharmacy_name_freetype: freetype.trim(),
+      lat: geo?.lat || null,
+      lng: geo?.lng || null,
+    });
+  };
+
+  return (
+    <div className="liv-modal-overlay" onClick={onCancel}>
+      <div className="liv-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+        <h3>📍 Où es-tu ?</h3>
+        <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 12 }}>
+          On match les pharmacies dans un rayon de 500 m.
+        </p>
+
+        {loading && (
+          <div style={{ padding: 20, textAlign: 'center', color: '#6B6B6B' }}>
+            🔍 Localisation en cours…
+          </div>
+        )}
+
+        {!loading && nearby.length > 0 && (
+          <div className="liv-pharma-picker-list">
+            {nearby.map((ph) => (
+              <button
+                key={ph.id}
+                className="liv-pharma-picker-row"
+                onClick={() => pickPartner(ph)}
+              >
+                <div>
+                  <div style={{ fontWeight: 700 }}>🏥 {ph.name}</div>
+                  <div style={{ fontSize: 12, color: '#6B6B6B' }}>
+                    {[ph.address, ph.neighborhood, ph.city].filter(Boolean).join(', ')}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: '#1F8B4C', fontWeight: 700 }}>
+                  {ph.distance_m != null ? `${Math.round(ph.distance_m)} m` : ''}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!loading && askedGeo && nearby.length === 0 && (
+          <p style={{ fontSize: 13, color: '#A07700', marginBottom: 10 }}>
+            Aucune pharma partenaire à proximité — saisis le nom manuellement :
+          </p>
+        )}
+
+        <div style={{ marginTop: 14 }}>
+          <label style={{ fontSize: 12, color: '#6B6B6B', fontWeight: 600 }}>
+            Autre pharmacie (non partenaire)
+          </label>
+          <input
+            type="text"
+            value={freetype}
+            onChange={(e) => setFreetype(e.target.value)}
+            placeholder="Ex : Pharmacie de Mermoz"
+            style={{
+              width: '100%', padding: '10px 12px', marginTop: 6,
+              border: '1.5px solid #EEE', borderRadius: 10, fontSize: 14,
+            }}
+          />
+          <button
+            className="liv-btn-pri"
+            onClick={pickFreetype}
+            style={{ width: '100%', marginTop: 10 }}
+          >
+            ✓ Valider cette pharma
+          </button>
+        </div>
+
+        <button className="liv-btn-stop" onClick={onCancel} style={{ marginTop: 12, width: '100%' }}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal substitution : appelle livreur_get_alternatives à la demande ───
+function SubstituteModal({ token, item, allowSubstitution, onChoose, onCancel }) {
+  const [loading, setLoading] = useState(false);
+  const [alts, setAlts] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  // product_id du source : peut être dans item.id ou item.product_id
+  const productId = item?.id || item?.product_id || null;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!productId) { setLoaded(true); return; }
+      setLoading(true);
+      const { data, error } = await supabase.rpc('livreur_get_alternatives', {
+        p_token: token, p_product_id: productId,
+      });
+      if (!cancelled) {
+        if (error) toast.error('Lookup alternatives : ' + error.message);
+        const rows = (data?.success && Array.isArray(data.rows)) ? data.rows : [];
+        setAlts(rows);
+        setLoading(false);
+        setLoaded(true);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [token, productId]);
+
+  if (!allowSubstitution) {
+    return (
+      <div className="liv-modal-overlay" onClick={onCancel}>
+        <div className="liv-modal" onClick={e => e.stopPropagation()}>
+          <h3>↔ Substitution refusée</h3>
+          <p style={{ fontSize: 14, color: '#6B6B6B', marginBottom: 16 }}>
+            La cliente a refusé toute substitution pour cette commande. Marque l'article
+            comme indisponible si tu ne le trouves pas.
+          </p>
+          <button className="liv-btn-stop" onClick={onCancel}>OK</button>
+        </div>
+      </div>
+    );
+  }
+
+  const itemPrice = item?.price ? Number(item.price) : null;
+
+  return (
+    <div className="liv-modal-overlay" onClick={onCancel}>
+      <div className="liv-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <h3>↔ Substituer {item?.name || 'cet article'}</h3>
+        <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 12 }}>
+          Choisis un produit de remplacement parmi les alternatives validées.
+        </p>
+
+        {loading && (
+          <div style={{ padding: 20, textAlign: 'center', color: '#6B6B6B' }}>
+            🔍 Recherche d'alternatives…
+          </div>
+        )}
+
+        {loaded && !loading && alts.length === 0 && (
+          <p style={{ fontSize: 14, color: '#A07700', padding: 12, background: '#FEF6E5', borderRadius: 10 }}>
+            Aucune alternative configurée pour ce produit.
+          </p>
+        )}
+
+        <div className="liv-alt-list">
+          {alts.map((a) => {
+            const diff = itemPrice != null && a.price != null ? a.price - itemPrice : null;
+            return (
+              <button
+                key={a.id}
+                className="liv-alt-row"
+                onClick={() => onChoose(a)}
+              >
+                {a.image_url ? (
+                  <img src={a.image_url} alt="" className="liv-alt-img" loading="lazy" decoding="async" />
+                ) : (
+                  <div className="liv-alt-img liv-alt-img-fallback" aria-hidden="true">💊</div>
+                )}
+                <div className="liv-alt-meta">
+                  <div className="liv-alt-name">{a.name}</div>
+                  <div className="liv-alt-sub">
+                    {a.brand_name || ''}{a.brand_name && a.reason ? ' · ' : ''}{a.reason || ''}
+                  </div>
+                </div>
+                <div className="liv-alt-price">
+                  <div style={{ fontWeight: 800 }}>
+                    {Number(a.price || 0).toLocaleString('fr-FR')} F
+                  </div>
+                  {diff != null && (
+                    <div style={{
+                      fontSize: 11, fontWeight: 700,
+                      color: diff > 0 ? '#EF4444' : diff < 0 ? '#1F8B4C' : '#94A3B8',
+                    }}>
+                      {diff > 0 ? '+' : ''}{diff.toLocaleString('fr-FR')} F
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <button className="liv-btn-stop" onClick={onCancel} style={{ marginTop: 12, width: '100%' }}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal Indisponible : confirm + note optionnelle ───
+function UnavailableModal({ item, onConfirm, onCancel }) {
+  const [notes, setNotes] = useState('');
+  return (
+    <div className="liv-modal-overlay" onClick={onCancel}>
+      <div className="liv-modal" onClick={e => e.stopPropagation()}>
+        <h3>✗ Marquer indisponible</h3>
+        <p style={{ fontSize: 14, color: '#6B6B6B', marginBottom: 12 }}>
+          <strong>{item?.name || 'Cet article'}</strong> est introuvable dans les pharmacies visitées ?
+        </p>
+        <label style={{ fontSize: 12, color: '#6B6B6B', fontWeight: 600 }}>
+          Note pour la cliente (optionnel)
+        </label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Ex : Rupture de stock dans 3 pharmacies"
+          style={{
+            width: '100%', marginTop: 6, padding: '10px 12px',
+            border: '1.5px solid #EEE', borderRadius: 10, fontSize: 14,
+            fontFamily: 'inherit', resize: 'vertical',
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <button className="liv-btn-stop" onClick={onCancel} style={{ flex: 1 }}>Annuler</button>
+          <button
+            className="liv-btn-pri"
+            onClick={() => onConfirm(notes)}
+            style={{ flex: 2, background: '#EF4444' }}
+          >
+            ✗ Confirmer indispo
+          </button>
+        </div>
       </div>
     </div>
   );
