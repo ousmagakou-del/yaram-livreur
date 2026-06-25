@@ -32,50 +32,57 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // ═══ Helpers (mêmes signatures que le web pour réutiliser les hooks) ═══
 
 export async function getAllProducts() {
-  // Aligne avec src/lib/supabase/products.js cote web (diaara) :
-  // colonnes etendues pour permettre a la RN d'afficher la fiche sans
-  // refetch. supplier_cost/url EXCLUS (admin-only).
-  // image_url canonique, img alias retro-compat.
+  // SELECT calque sur le vrai schéma admin (audit confirmé) — colonnes garanties uniquement
+  // Stratégie : SELECT * pour ne JAMAIS crash sur une colonne manquante.
   const { data, error } = await supabase
     .from('products')
-    .select([
-      'id', 'name', 'brand', 'price', 'img', 'image_url', 'score', 'rating',
-      'review_count', 'category', 'badges', 'status', 'active', 'short_desc',
-      // Import / origine
-      'is_imported', 'origin_country', 'usage_duration_days', 'lead_time_days',
-      // Contenu fiche
-      'inci', 'long_desc', 'reason',
-      'created_at',
-    ].join(', '))
+    .select('*')
     .eq('active', true)
     .eq('status', 'approved')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) {
     console.error('[getAllProducts]', error.message);
-    throw error;
+    // Fallback : sans le filtre status si la colonne n'existe pas
+    const { data: dataFb } = await supabase
+      .from('products')
+      .select('*')
+      .eq('active', true)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    return normalizeProducts(dataFb || []);
   }
-  // Normalize image_url <-> img.
-  const norm = (data || []).map((p) => ({
+  return normalizeProducts(data || []);
+}
+
+function normalizeProducts(rows) {
+  const norm = rows.map((p) => ({
     ...p,
     image_url: p.image_url || p.img || null,
-    img:       p.img || p.image_url || null,
+    img: p.img || p.image_url || null,
+    // Garantit des défauts safe
+    rating: p.rating || 0,
+    review_count: p.review_count || 0,
+    score: p.score || 0,
+    badges: Array.isArray(p.badges) ? p.badges : [],
   }));
   console.log('[getAllProducts] →', norm.length, 'products');
   return norm;
 }
 
 export async function getAllBrands() {
-  // Calque EXACT web : select '*' avec colonnes img + local + tagline + country
+  // ⚠️ Schéma réel DB : id, name, tagline, story, img, city, country, local, rating, product_count
+  // Pas de colonne logo_url ! On utilise seulement img.
   const { data, error } = await supabase
     .from('brands')
-    .select('id, name, img, logo_url, country, city, tagline, story, local')
+    .select('id, name, img, country, city, tagline, story, local, rating, product_count')
     .order('name');
-  if (error) console.warn('[getAllBrands]', error.message);
-  // Normalize : utilise img en priorité (champ web), fallback logo_url
-  const norm = (data || []).map((b) => ({ ...b, img: b.img || b.logo_url }));
-  console.log('[getAllBrands] →', norm.length, 'brands');
-  return norm;
+  if (error) {
+    console.warn('[getAllBrands]', error.message);
+    return [];
+  }
+  console.log('[getAllBrands] →', data?.length, 'brands');
+  return data || [];
 }
 
 export async function getAllCategories() {
@@ -90,26 +97,72 @@ export async function getAllCategories() {
   return data || [];
 }
 
-// ═══ Top brands sur Home : marques avec img > marques locales > 12 max ═══
+// ═══ Top brands sur Home : 16 marques avec img > marques locales > 12 max ═══
 export async function getTopBrands() {
   const { data, error } = await supabase
     .from('brands')
-    .select('id, name, img, logo_url, country, local')
-    .order('local', { ascending: false }) // locales en 1er
-    .limit(20);
-  if (error) return [];
-  const norm = (data || []).map((b) => ({ ...b, img: b.img || b.logo_url }));
-  // Priorité aux marques avec img
-  return norm.sort((a, b) => (b.img ? 1 : 0) - (a.img ? 1 : 0)).slice(0, 12);
+    .select('id, name, img, country, local, product_count')
+    .order('local', { ascending: false })
+    .order('product_count', { ascending: false, nullsFirst: false })
+    .limit(30);
+  if (error) {
+    console.warn('[getTopBrands]', error.message);
+    return [];
+  }
+  // Priorité aux marques avec img (16 réelles en DB)
+  return (data || []).sort((a, b) => (b.img ? 1 : 0) - (a.img ? 1 : 0)).slice(0, 12);
 }
 
 export async function getAllPharmacies() {
   const { data, error } = await supabase
     .from('pharmacies')
-    .select('id, name, slug, address, phone, neighborhood, latitude, longitude, opening_hours, logo_url')
+    .select('id, name, tagline, city, neighborhood, address, lat, lng, phone, whatsapp, hours, delivery_hours, logo, cover, rating, review_count, description')
     .eq('active', true);
   if (error) console.warn('[getAllPharmacies]', error.message);
-  return data || [];
+  // Normalise pour rétro-compat composants existants (logo_url + opening_hours)
+  return (data || []).map((p) => ({
+    ...p,
+    logo_url: p.logo,
+    cover_url: p.cover,
+    opening_hours: p.hours,
+    latitude: p.lat,
+    longitude: p.lng,
+  }));
+}
+
+// ═══ Produits d'une pharmacie spécifique (via submitted_by_pharmacy_id) ═══
+//    SELECT * pour ne JAMAIS rater une colonne (category essentiel pour chips)
+//    Limit 2000 pour grosses pharmacies (893 produits actuellement OK)
+export async function getProductsByPharmacy(pharmacyId, { limit = 2000 } = {}) {
+  if (!pharmacyId) return [];
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('submitted_by_pharmacy_id', pharmacyId)
+    .eq('active', true)
+    .order('score', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) {
+    console.warn('[getProductsByPharmacy]', error.message);
+    return [];
+  }
+  // Normalise img pour PremiumProductTile (qui s'attend à img ou image_url)
+  return (data || []).map((p) => ({ ...p, img: p.image_url || p.img }));
+}
+
+// ═══ Count produits d'une pharmacie (rapide, pour stats) ═══
+export async function getPharmacyProductCount(pharmacyId) {
+  if (!pharmacyId) return 0;
+  const { count, error } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('submitted_by_pharmacy_id', pharmacyId)
+    .eq('active', true);
+  if (error) {
+    console.warn('[getPharmacyProductCount]', error.message);
+    return 0;
+  }
+  return count || 0;
 }
 
 export async function getMyOrders() {

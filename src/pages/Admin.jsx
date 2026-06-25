@@ -46,6 +46,7 @@ const VerifyRequestsSection      = lazy(() => import('../admin/VerifyRequestsSec
 const InventorySection           = lazy(() => import('../admin/InventorySection'));
 const RestockAlertsSection       = lazy(() => import('../admin/RestockAlertsSection'));
 const PharmacistSessionsSection  = lazy(() => import('../admin/PharmacistSessionsSection'));
+const DistributorsSection        = lazy(() => import('../admin/DistributorsSection'));
 
 import './Admin.css';
 
@@ -65,6 +66,7 @@ const NAV = [
   { id: 'performance', icon: '📊', label: 'Performance' },
   { id: 'skinscans',   icon: '🧠', label: 'Stats Scans IA' },
   { id: 'commissions', icon: '💰', label: 'Commissions' },
+  { id: 'distributors', icon: '🏭', label: 'Distributeurs' },
   { id: 'finances',    icon: '💸', label: 'Finances' },
   { id: 'loyalty',     icon: '💚', label: 'Fidélité' },
   { id: 'subscriptions', icon: '👑', label: 'Abonnements YARAM+', badge: true },
@@ -413,6 +415,7 @@ export default function Admin() {
           {section === 'inventory'            && <InventorySection />}
           {section === 'restock'              && <RestockAlertsSection />}
           {section === 'pharmacist_sessions'  && <PharmacistSessionsSection />}
+          {section === 'distributors'         && <DistributorsSection />}
         </Suspense>
       </main>
 

@@ -50,6 +50,7 @@ const Pharma        = lazy(() => import('./pages/Pharma'));
 const Livreur       = lazy(() => import('./pages/Livreur'));
 const ClientConfirm = lazy(() => import('./pages/ClientConfirm'));
 const PiSpiTest     = lazy(() => import('./pages/PiSpiTest'));
+const DistributorView = lazy(() => import('./pages/DistributorView'));
 const Privacy         = lazy(() => import('./pages/Privacy'));
 const Terms           = lazy(() => import('./pages/Terms'));
 const MentionsLegales = lazy(() => import('./pages/MentionsLegales'));
@@ -217,6 +218,17 @@ export default function App() {
       <Toaster />
     </>
   );
+
+  // ─── Vue publique distributeur (par token, sans login) ───────────
+  // URL : /admin/distributor-view?token=XXX → bypass sticky admin session
+  // pour permettre à un distributeur partenaire (Bonfoni, etc.) d'accéder
+  // à son dashboard sans avoir besoin du compte admin YARAM.
+  const isDistributorView =
+    typeof window !== 'undefined' &&
+    window.location.pathname === '/admin/distributor-view';
+  if (isDistributorView) {
+    return wrapRoute(DistributorView);
+  }
 
   if (typeof window !== 'undefined' && !hasAnyExplicitRoute && isStickyAdminSession()) {
     reattachQueryParam('admin');
